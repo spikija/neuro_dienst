@@ -1375,6 +1375,27 @@ class SlotDisplayService {
 
 class RosterStatisticsService {
 
+  double coveragePercentage({
+    required RosterMonth roster,
+  }) {
+    int totalCapacity = 0;
+    int assigned = 0;
+
+    for (final day in roster.days) {
+      for (final slot in day.slots) {
+        totalCapacity += slot.template.maxDoctors;
+      }
+
+      assigned += day.assignments.length;
+    }
+
+    if (totalCapacity == 0) {
+      return 0;
+    }
+
+    return assigned / totalCapacity * 100;
+  }
+
   int countOpenSlots({
       required RosterMonth roster,
     }) {

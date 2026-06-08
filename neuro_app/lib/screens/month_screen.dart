@@ -49,6 +49,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
   @override
   Widget build(BuildContext context) {
+  
     final monthView = MonthViewService().getMonthView(currentRoster);
 
     final myAssignmentThisMonth =
@@ -63,6 +64,11 @@ class _MonthScreenState extends State<MonthScreen> {
 
     final statistics = RosterStatisticsService();
 
+    final coverage =
+          statistics.coveragePercentage(
+            roster: currentRoster,
+          );
+      
     final openSlots = statistics.countOpenSlots(
       roster: currentRoster,
     );
@@ -166,6 +172,18 @@ class _MonthScreenState extends State<MonthScreen> {
                       const Text('Mine'),
                       Text(
                         '$myAssignmentsThisMonth',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      const Text('Coverage'),
+                      Text(
+                        '${coverage.toStringAsFixed(0)}%',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
