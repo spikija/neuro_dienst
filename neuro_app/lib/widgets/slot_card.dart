@@ -3,12 +3,11 @@ import 'package:neuro_core/neuro_core.dart';
 
 import '../extensions/time_formatting.dart';
 
-
 class SlotCard extends StatelessWidget {
   final SlotDisplayModel slotModel;
   final VoidCallback? onTap;
   final Doctor currentDoctor;
-  
+
   const SlotCard({
     super.key,
     required this.slotModel,
@@ -16,19 +15,19 @@ class SlotCard extends StatelessWidget {
     required this.currentDoctor,
   });
 
-  
   @override
   Widget build(BuildContext context) {
-    
     final slotView = slotModel.slotView;
     final hasAssignments = slotView.assignedDoctorNames.isNotEmpty;
     final eligibility = slotModel.eligibility;
     final isNotEligible = !eligibility.eligible;
     final slot = slotView.slot;
-    
+    final absence = currentDoctor.absenceOn(slot.date);
+    final isAbsent = absence != null;
+
     final status = hasAssignments
-    ? slotView.assignedDoctorNames.join(', ')
-    : eligibility.eligible
+        ? slotView.assignedDoctorNames.join(', ')
+        : eligibility.eligible
         ? 'OPEN'
         : eligibility.reason ?? 'Not eligible';
 
@@ -36,9 +35,9 @@ class SlotCard extends StatelessWidget {
     final maxDoctors = slot.template.maxDoctors;
 
     final capacityText = maxDoctors > 1
-    ? '\nParticipants: $participantCount/$maxDoctors'
-    : '';
-    
+        ? '\nParticipants: $participantCount/$maxDoctors'
+        : '';
+
     final isAssignedToCurrentDoctor = slotView.assignments.any(
       (assignment) => assignment.doctor.id == currentDoctor.id,
     );
@@ -48,17 +47,16 @@ class SlotCard extends StatelessWidget {
     final isAssignedToOtherDoctorOnly =
         slotView.assignments.isNotEmpty && !isAssignedToCurrentDoctor;
 
-    final shouldLock =
-        isAssignedToOtherDoctorOnly && isFull;
+    final shouldLock = isAssignedToOtherDoctorOnly && isFull;
 
     final Color? cardColor;
 
     final canTap = isAssignedToCurrentDoctor || (!shouldLock && !isNotEligible);
 
-    
-
     if (isAssignedToCurrentDoctor) {
       cardColor = Colors.blue.shade100;
+    } else if (isAbsent) {
+      cardColor = Colors.purple.shade100;
     } else if (shouldLock) {
       cardColor = Colors.grey.shade300;
     } else if (isNotEligible) {
@@ -81,11 +79,13 @@ class SlotCard extends StatelessWidget {
         trailing: isAssignedToCurrentDoctor
             ? const Icon(Icons.check_circle)
             : shouldLock
-                ? const Icon(Icons.lock)
-                : isNotEligible
-                    ? const Icon(Icons.warning_amber)
-                    : const Icon(Icons.add_circle_outline),      ),
+            ? const Icon(Icons.lock)
+            : isAbsent
+            ? const Icon(Icons.beach_access)
+            : isNotEligible
+            ? const Icon(Icons.warning_amber)
+            : const Icon(Icons.add_circle_outline),
+      ),
     );
   }
-
 }

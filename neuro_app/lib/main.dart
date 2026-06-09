@@ -39,11 +39,13 @@ class NeuroDienstApp extends StatefulWidget {
 
 class _NeuroDienstAppState extends State<NeuroDienstApp> {
   late Doctor selectedDoctor;
+  late List<Doctor> doctors;
 
   @override
   void initState() {
     super.initState();
     selectedDoctor = widget.currentDoctor;
+    doctors = widget.doctors;
   }
 
   @override
@@ -51,19 +53,32 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
     return MaterialApp(
       title: 'NeuroDienst',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: Colors.blue,
-      ),
+      theme: ThemeData(colorSchemeSeed: Colors.blue),
       home: MonthScreen(
         roster: widget.roster,
         currentDoctor: selectedDoctor,
-        doctors: widget.doctors,
+        doctors: doctors,
         onDoctorChanged: (doctor) {
           setState(() {
             selectedDoctor = doctor;
           });
         },
+        onDoctorUpdated: _updateDoctor,
       ),
     );
+  }
+
+  void _updateDoctor(Doctor updatedDoctor) {
+    setState(() {
+      doctors = doctors
+          .map(
+            (doctor) => doctor.id == updatedDoctor.id ? updatedDoctor : doctor,
+          )
+          .toList();
+
+      if (selectedDoctor.id == updatedDoctor.id) {
+        selectedDoctor = updatedDoctor;
+      }
+    });
   }
 }

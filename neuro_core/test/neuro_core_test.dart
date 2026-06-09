@@ -1,102 +1,129 @@
 import 'package:test/test.dart';
 import 'package:neuro_core/neuro_core.dart';
 
-
 void main() {
-  
-group('InMemoryDoctorRepository', () {
-  test('returns all doctors', () {
-    final repo = InMemoryDoctorRepository(
-      doctors: [
-        Doctor(
-          id: 'd1',
-          firstName: 'Slaven',
-          lastName: 'Pikija',
-          rank: DoctorRank.consultant,
-        ),
-        Doctor(
-          id: 'd2',
-          firstName: 'Anna',
-          lastName: 'Resident',
-          rank: DoctorRank.resident,
-        ),
-      ],
-    );
+  group('InMemoryDoctorRepository', () {
+    test('returns all doctors', () {
+      final repo = InMemoryDoctorRepository(
+        doctors: [
+          Doctor(
+            id: 'd1',
+            firstName: 'Slaven',
+            lastName: 'Pikija',
+            rank: DoctorRank.consultant,
+          ),
+          Doctor(
+            id: 'd2',
+            firstName: 'Anna',
+            lastName: 'Resident',
+            rank: DoctorRank.resident,
+          ),
+        ],
+      );
 
-    final doctors = repo.getAllDoctors();
+      final doctors = repo.getAllDoctors();
 
-    expect(doctors.length, 2);
+      expect(doctors.length, 2);
+    });
+
+    test('finds doctor by id', () {
+      final repo = InMemoryDoctorRepository(
+        doctors: [
+          Doctor(
+            id: 'd1',
+            firstName: 'Slaven',
+            lastName: 'Pikija',
+            rank: DoctorRank.consultant,
+          ),
+        ],
+      );
+
+      final doctor = repo.getDoctorById('d1');
+
+      expect(doctor, isNotNull);
+      expect(doctor!.fullName, 'Slaven Pikija');
+    });
+
+    test('returns null for unknown doctor id', () {
+      final repo = InMemoryDoctorRepository(doctors: []);
+
+      final doctor = repo.getDoctorById('unknown');
+
+      expect(doctor, null);
+    });
   });
 
-  test('finds doctor by id', () {
-    final repo = InMemoryDoctorRepository(
-      doctors: [
-        Doctor(
-          id: 'd1',
-          firstName: 'Slaven',
-          lastName: 'Pikija',
-          rank: DoctorRank.consultant,
-        ),
-      ],
-    );
-
-    final doctor = repo.getDoctorById('d1');
-
-    expect(doctor, isNotNull);
-    expect(doctor!.fullName, 'Slaven Pikija');
-  });
-
-  test('returns null for unknown doctor id', () {
-    final repo = InMemoryDoctorRepository(
-      doctors: [],
-    );
-
-    final doctor = repo.getDoctorById('unknown');
-
-    expect(doctor, null);
-  });
-});
-
-
-group('DayViewService', () {
-  test('shows slot as open when no assignment exists', () {
-    final slot = DailySlot(
-      id: 'slot1',
-      date: DateTime(2026, 6, 1),
-      template: SlotTemplate(
-        id: 'ambulance',
-        name: 'Ambulance',
-        area: 'Outpatient Clinic',
-        kind: SlotKind.ambulance,
-        timeRange: TimeRange(
-          start: LocalTime(9, 0),
-          end: LocalTime(13, 0),
-        ),
-        role: DutyRole.outpatientClinic,
-        allowedRanks: {
-          DoctorRank.consultant,
-        },
-      ),
-    );
-
-    final day = RosterDay(
-      calendarInfo: CalendarDayInfo(
+  group('DayViewService', () {
+    test('shows slot as open when no assignment exists', () {
+      final slot = DailySlot(
+        id: 'slot1',
         date: DateTime(2026, 6, 1),
-        isWeekend: false,
-        isPublicHoliday: false,
-      ),
-      slots: [slot],
-      assignments: [],
-    );
+        template: SlotTemplate(
+          id: 'ambulance',
+          name: 'Ambulance',
+          area: 'Outpatient Clinic',
+          kind: SlotKind.ambulance,
+          timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
+          role: DutyRole.outpatientClinic,
+          allowedRanks: {DoctorRank.consultant},
+        ),
+      );
 
-    final views =
-        DayViewService().getSlotViews(day);
+      final day = RosterDay(
+        calendarInfo: CalendarDayInfo(
+          date: DateTime(2026, 6, 1),
+          isWeekend: false,
+          isPublicHoliday: false,
+        ),
+        slots: [slot],
+        assignments: [],
+      );
 
-    expect(views.length, 1);
-    expect(views.first.isOpen, true);
+      final views = DayViewService().getSlotViews(day);
+
+      expect(views.length, 1);
+      expect(views.first.isOpen, true);
+    });
+
+    test('shows slot as filled when assignment exists', () {
+      final doctor = Doctor(
+        id: 'd1',
+        firstName: 'Slaven',
+        lastName: 'Pikija',
+        rank: DoctorRank.consultant,
+      );
+
+      final slot = DailySlot(
+        id: 'slot1',
+        date: DateTime(2026, 6, 1),
+        template: SlotTemplate(
+          id: 'ambulance',
+          name: 'Ambulance',
+          area: 'Outpatient Clinic',
+          kind: SlotKind.ambulance,
+          timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
+          role: DutyRole.outpatientClinic,
+          allowedRanks: {DoctorRank.consultant},
+        ),
+      );
+
+      final day = RosterDay(
+        calendarInfo: CalendarDayInfo(
+          date: DateTime(2026, 6, 1),
+          isWeekend: false,
+          isPublicHoliday: false,
+        ),
+        slots: [slot],
+        assignments: [Assignment(doctor: doctor, slot: slot)],
+      );
+
+      final views = DayViewService().getSlotViews(day);
+
+      expect(views.first.isOpen, false);
+    });
   });
 
-  test('shows slot as filled when assignment exists', () {
+  test('shows assigned doctor names', () {
     final doctor = Doctor(
       id: 'd1',
       firstName: 'Slaven',
@@ -112,14 +139,9 @@ group('DayViewService', () {
         name: 'Ambulance',
         area: 'Outpatient Clinic',
         kind: SlotKind.ambulance,
-        timeRange: TimeRange(
-          start: LocalTime(9, 0),
-          end: LocalTime(13, 0),
-        ),
+        timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
         role: DutyRole.outpatientClinic,
-        allowedRanks: {
-          DoctorRank.consultant,
-        },
+        allowedRanks: {DoctorRank.consultant},
       ),
     );
 
@@ -130,159 +152,144 @@ group('DayViewService', () {
         isPublicHoliday: false,
       ),
       slots: [slot],
-      assignments: [
-        Assignment(
-          doctor: doctor,
-          slot: slot,
-        ),
-      ],
+      assignments: [Assignment(doctor: doctor, slot: slot)],
     );
 
-    final views =
-        DayViewService().getSlotViews(day);
+    final views = DayViewService().getSlotViews(day);
 
-    expect(views.first.isOpen, false);
+    expect(views.first.assignedDoctorNames, ['Slaven Pikija']);
   });
-});
 
-test('shows assigned doctor names', () {
-  final doctor = Doctor(
-    id: 'd1',
-    firstName: 'Slaven',
-    lastName: 'Pikija',
-    rank: DoctorRank.consultant,
-  );
+  group('MonthViewService', () {
+    test('counts open and filled slots', () {
+      final doctor = Doctor(
+        id: 'd1',
+        firstName: 'Slaven',
+        lastName: 'Pikija',
+        rank: DoctorRank.consultant,
+      );
 
-  final slot = DailySlot(
-    id: 'slot1',
-    date: DateTime(2026, 6, 1),
-    template: SlotTemplate(
-      id: 'ambulance',
-      name: 'Ambulance',
-      area: 'Outpatient Clinic',
-      kind: SlotKind.ambulance,
-      timeRange: TimeRange(
-        start: LocalTime(9, 0),
-        end: LocalTime(13, 0),
-      ),
-      role: DutyRole.outpatientClinic,
-      allowedRanks: {
-        DoctorRank.consultant,
-      },
-    ),
-  );
+      final slot1 = DailySlot(
+        id: 'slot1',
+        date: DateTime(2026, 6, 1),
+        template: SlotTemplate(
+          id: 'ambulance',
+          name: 'Ambulance',
+          area: 'Ambulance',
+          kind: SlotKind.ambulance,
+          timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
+          role: DutyRole.outpatientClinic,
+          allowedRanks: {DoctorRank.consultant},
+        ),
+      );
 
-  final day = RosterDay(
-    calendarInfo: CalendarDayInfo(
-      date: DateTime(2026, 6, 1),
-      isWeekend: false,
-      isPublicHoliday: false,
-    ),
-    slots: [slot],
-    assignments: [
-      Assignment(
+      final slot2 = DailySlot(
+        id: 'slot2',
+        date: DateTime(2026, 6, 1),
+        template: SlotTemplate(
+          id: 'neurosono',
+          name: 'Neurosonology',
+          area: 'Neurosonology',
+          kind: SlotKind.neurosonology,
+          timeRange: TimeRange(start: LocalTime(8, 0), end: LocalTime(15, 30)),
+          role: DutyRole.neurosonography,
+          allowedRanks: {DoctorRank.consultant},
+        ),
+      );
+
+      final day = RosterDay(
+        calendarInfo: CalendarDayInfo(
+          date: DateTime(2026, 6, 1),
+          isWeekend: false,
+          isPublicHoliday: false,
+        ),
+        slots: [slot1, slot2],
+        assignments: [Assignment(doctor: doctor, slot: slot1)],
+      );
+
+      final roster = RosterMonth(
+        year: 2026,
+        month: 6,
+        phase: RosterPhase.openForSelection,
+        days: [day],
+      );
+
+      final result = MonthViewService().getMonthView(roster);
+
+      expect(result.first.openSlots, 1);
+
+      expect(result.first.filledSlots, 1);
+    });
+  });
+
+  group('Doctor absences', () {
+    test('detects absence inside an inclusive availability period', () {
+      final doctor = Doctor(
+        id: 'd1',
+        firstName: 'Slaven',
+        lastName: 'Pikija',
+        rank: DoctorRank.consultant,
+        availabilities: [
+          AvailabilityPeriod(
+            start: DateTime(2026, 6, 8),
+            end: DateTime(2026, 6, 12),
+            type: AvailabilityType.vacation,
+          ),
+        ],
+      );
+
+      expect(doctor.isAbsentOn(DateTime(2026, 6, 8)), true);
+      expect(doctor.isAbsentOn(DateTime(2026, 6, 10)), true);
+      expect(doctor.isAbsentOn(DateTime(2026, 6, 12)), true);
+      expect(doctor.isAbsentOn(DateTime(2026, 6, 15)), false);
+    });
+
+    test('rejects assignment when doctor is on vacation', () {
+      final doctor = Doctor(
+        id: 'd1',
+        firstName: 'Slaven',
+        lastName: 'Pikija',
+        rank: DoctorRank.consultant,
+        availabilities: [
+          AvailabilityPeriod(
+            start: DateTime(2026, 6, 8),
+            end: DateTime(2026, 6, 12),
+            type: AvailabilityType.vacation,
+          ),
+        ],
+      );
+
+      final slot = DailySlot(
+        id: 'slot1',
+        date: DateTime(2026, 6, 10),
+        template: SlotTemplate(
+          id: 'ambulance',
+          name: 'Ambulance',
+          area: 'Outpatient Clinic',
+          kind: SlotKind.ambulance,
+          timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
+          role: DutyRole.outpatientClinic,
+          allowedRanks: {DoctorRank.consultant},
+        ),
+      );
+
+      final day = RosterDay(
+        calendarInfo: CalendarDayInfo(
+          date: DateTime(2026, 6, 10),
+          isWeekend: false,
+          isPublicHoliday: false,
+        ),
+        slots: [slot],
+      );
+
+      final result = AssignmentService().assignDoctorToSlot(
         doctor: doctor,
         slot: slot,
-      ),
-    ],
-  );
+        day: day,
+      );
 
-  final views = DayViewService().getSlotViews(day);
-
-  expect(
-    views.first.assignedDoctorNames,
-    ['Slaven Pikija'],
-  );
-});
-
-group('MonthViewService', () {
-  test('counts open and filled slots', () {
-    final doctor = Doctor(
-      id: 'd1',
-      firstName: 'Slaven',
-      lastName: 'Pikija',
-      rank: DoctorRank.consultant,
-    );
-
-    final slot1 = DailySlot(
-      id: 'slot1',
-      date: DateTime(2026, 6, 1),
-      template: SlotTemplate(
-        id: 'ambulance',
-        name: 'Ambulance',
-        area: 'Ambulance',
-        kind: SlotKind.ambulance,
-        timeRange: TimeRange(
-          start: LocalTime(9, 0),
-          end: LocalTime(13, 0),
-        ),
-        role: DutyRole.outpatientClinic,
-        allowedRanks: {
-          DoctorRank.consultant,
-        },
-      ),
-    );
-
-    final slot2 = DailySlot(
-      id: 'slot2',
-      date: DateTime(2026, 6, 1),
-      template: SlotTemplate(
-        id: 'neurosono',
-        name: 'Neurosonology',
-        area: 'Neurosonology',
-        kind: SlotKind.neurosonology,
-        timeRange: TimeRange(
-          start: LocalTime(8, 0),
-          end: LocalTime(15, 30),
-        ),
-        role: DutyRole.neurosonography,
-        allowedRanks: {
-          DoctorRank.consultant,
-        },
-      ),
-    );
-
-    final day = RosterDay(
-      calendarInfo: CalendarDayInfo(
-        date: DateTime(2026, 6, 1),
-        isWeekend: false,
-        isPublicHoliday: false,
-      ),
-      slots: [
-        slot1,
-        slot2,
-      ],
-      assignments: [
-        Assignment(
-          doctor: doctor,
-          slot: slot1,
-        ),
-      ],
-    );
-
-    final roster = RosterMonth(
-      year: 2026,
-      month: 6,
-      phase: RosterPhase.openForSelection,
-      days: [day],
-    );
-
-    final result =
-        MonthViewService().getMonthView(
-      roster,
-    );
-
-    expect(
-      result.first.openSlots,
-      1,
-    );
-
-    expect(
-      result.first.filledSlots,
-      1,
-    );
+      expect(result.success, false);
+      expect(result.reason, contains('Vacation'));
+    });
   });
-});
-
-
 }

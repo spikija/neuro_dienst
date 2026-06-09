@@ -1,10 +1,4 @@
-enum DoctorRank {
-  resident,
-  specialist,
-  seniorSpecialist,
-  consultant,
-  head,
-}
+enum DoctorRank { resident, specialist, seniorSpecialist, consultant, head }
 
 enum Capability {
   canLead,
@@ -13,10 +7,9 @@ enum Capability {
   canDoNightDuty,
   canSupervise,
 }
-enum PhysicianCategory {
-  junior,
-  senior,
-}
+
+enum PhysicianCategory { junior, senior }
+
 enum DutyRole {
   leader,
   subordinate,
@@ -26,27 +19,13 @@ enum DutyRole {
   backup,
 }
 
-enum SlotStatus {
-  open,
-  filled,
-}
+enum SlotStatus { open, filled }
 
-enum RosterPhase {
-  draft,
-  openForSelection,
-  locked,
-  published,
-}
+enum RosterPhase { draft, openForSelection, locked, published }
 
-enum AssignmentState {
-  provisional,
-  confirmed,
-}
+enum AssignmentState { provisional, confirmed }
 
-enum SlotRequirements {
-  mandatory,
-  optional,
-}
+enum SlotRequirements { mandatory, optional }
 
 enum WeekdayRule {
   everyWeekday,
@@ -77,16 +56,10 @@ enum AvailabilityType {
 }
 
 extension DailySlotStatusExtension on DailySlot {
-  SlotStatus getStatus(
-    List<Assignment> assignments,
-  ) {
-    final count = assignments
-        .where((a) => a.slot.id == id)
-        .length;
+  SlotStatus getStatus(List<Assignment> assignments) {
+    final count = assignments.where((a) => a.slot.id == id).length;
 
-    return count >= template.maxDoctors
-        ? SlotStatus.filled
-        : SlotStatus.open;
+    return count >= template.maxDoctors ? SlotStatus.filled : SlotStatus.open;
   }
 }
 
@@ -110,12 +83,7 @@ extension WeekdayRuleExtension on WeekdayRule {
   }
 }
 
-enum SubmissionStatus {
-  draft,
-  submitted,
-  locked,
-}
-
+enum SubmissionStatus { draft, submitted, locked }
 
 // ***************************************************
 // ABSTRACTIONS
@@ -129,15 +97,14 @@ abstract class DoctorRepository {
 
   Doctor? getDoctorById(String doctorId);
 }
+
 // ***************************************************
 // CLASES
 // ***************************************************
 class InMemoryDoctorRepository implements DoctorRepository {
   final List<Doctor> doctors;
 
-  InMemoryDoctorRepository({
-    required this.doctors,
-  });
+  InMemoryDoctorRepository({required this.doctors});
 
   @override
   List<Doctor> getAllDoctors() {
@@ -192,7 +159,41 @@ class AvailabilityPeriod {
     required this.start,
     required this.end,
     required this.type,
-  });
+  }) {
+    if (_dateOnly(end).isBefore(_dateOnly(start))) {
+      throw ArgumentError(
+        'Availability end date must not be before start date.',
+      );
+    }
+  }
+
+  bool includes(DateTime date) {
+    final normalizedDate = _dateOnly(date);
+    final normalizedStart = _dateOnly(start);
+    final normalizedEnd = _dateOnly(end);
+
+    return !normalizedDate.isBefore(normalizedStart) &&
+        !normalizedDate.isAfter(normalizedEnd);
+  }
+
+  String get label {
+    switch (type) {
+      case AvailabilityType.available:
+        return 'Available';
+      case AvailabilityType.vacation:
+        return 'Vacation';
+      case AvailabilityType.sickLeave:
+        return 'Sick leave';
+      case AvailabilityType.conference:
+        return 'Conference';
+      case AvailabilityType.externalRoatation:
+        return 'External rotation';
+    }
+  }
+}
+
+DateTime _dateOnly(DateTime date) {
+  return DateTime(date.year, date.month, date.day);
 }
 
 class LocalTime {
@@ -215,10 +216,7 @@ class TimeRange {
   final LocalTime start;
   final LocalTime end;
 
-  TimeRange({
-    required this.start,
-    required this.end,
-  }) {
+  TimeRange({required this.start, required this.end}) {
     if (end.minutesSinceMidnight <= start.minutesSinceMidnight) {
       throw ArgumentError('End time must be after start time.');
     }
@@ -263,10 +261,45 @@ class Doctor {
   });
 
   String get fullName => '$firstName $lastName';
+
+  Doctor copyWith({
+    String? id,
+    String? firstName,
+    String? lastName,
+    DoctorRank? rank,
+    Set<Capability>? capabilities,
+    List<AvailabilityPeriod>? availabilities,
+  }) {
+    return Doctor(
+      id: id ?? this.id,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      rank: rank ?? this.rank,
+      capabilities: capabilities ?? this.capabilities,
+      availabilities: availabilities ?? this.availabilities,
+    );
+  }
+
+  AvailabilityPeriod? absenceOn(DateTime date) {
+    for (final availability in availabilities) {
+      if (availability.type == AvailabilityType.available) {
+        continue;
+      }
+
+      if (availability.includes(date)) {
+        return availability;
+      }
+    }
+
+    return null;
+  }
+
+  bool isAbsentOn(DateTime date) {
+    return absenceOn(date) != null;
+  }
 }
 
 class SlotTemplate {
-  
   final String id;
   final String name;
   final String area;
@@ -279,20 +312,19 @@ class SlotTemplate {
   final WeekdayRule weekdayRule;
 
   SlotTemplate({
-      required this.id,
-      required this.name,
-      required this.area,
-      required this.kind,
-      required this.timeRange,
-      required this.role,
-      required this.allowedRanks,
-      this.requiredCapabilities = const {},
-      this.maxDoctors = 1,
-      this.weekdayRule = WeekdayRule.everyWeekday,
+    required this.id,
+    required this.name,
+    required this.area,
+    required this.kind,
+    required this.timeRange,
+    required this.role,
+    required this.allowedRanks,
+    this.requiredCapabilities = const {},
+    this.maxDoctors = 1,
+    this.weekdayRule = WeekdayRule.everyWeekday,
   });
 
-
-    bool canBeFilledBy(Doctor doctor) {
+  bool canBeFilledBy(Doctor doctor) {
     final rankOk = allowedRanks.contains(doctor.rank);
 
     final capabilitiesOk = requiredCapabilities.every(
@@ -310,29 +342,16 @@ class AllowedOverlapRule {
   AllowedOverlapRule(this.first, this.second);
 
   bool allows(SlotKind a, SlotKind b) {
-    return (a==first && b==second) || (a == second && b== first);
+    return (a == first && b == second) || (a == second && b == first);
   }
 }
 
 class DefaultOverlapRules {
   static final rules = [
-    AllowedOverlapRule(
-      SlotKind.neurosonology,
-      SlotKind.neurovascularBoard,
-    ),
-    AllowedOverlapRule(
-      SlotKind.neurosonology,
-      SlotKind.ofoBoard,
-    ),
-    AllowedOverlapRule(
-      SlotKind.strokeUnitLeader,
-      SlotKind.ofoBoard,
-    ),
-    AllowedOverlapRule(
-      SlotKind.strokeUnitLeader,
-      SlotKind.neurovascularBoard,
-    ),
- 
+    AllowedOverlapRule(SlotKind.neurosonology, SlotKind.neurovascularBoard),
+    AllowedOverlapRule(SlotKind.neurosonology, SlotKind.ofoBoard),
+    AllowedOverlapRule(SlotKind.strokeUnitLeader, SlotKind.ofoBoard),
+    AllowedOverlapRule(SlotKind.strokeUnitLeader, SlotKind.neurovascularBoard),
   ];
 
   static bool isAllowed(SlotKind a, SlotKind b) {
@@ -344,14 +363,13 @@ class DailySlot {
   final String id;
   final DateTime date;
   final SlotTemplate template;
-  
+
   const DailySlot({
     required this.id,
     required this.date,
     required this.template,
   });
 }
-
 
 class RosterDay {
   final CalendarDayInfo calendarInfo;
@@ -434,11 +452,8 @@ class RosterMonthFactory {
 }
 
 class RosterPhaseService {
-  bool canDoctorModifyRoster(
-    RosterMonth roster,
-  ) {
-    return roster.phase ==
-        RosterPhase.openForSelection;
+  bool canDoctorModifyRoster(RosterMonth roster) {
+    return roster.phase == RosterPhase.openForSelection;
   }
 }
 
@@ -512,6 +527,7 @@ class RosterValidator {
 
     return conflicts;
   }
+
   List<Conflict> _validateSlotCapacity(RosterDay day) {
     final conflicts = <Conflict>[];
 
@@ -541,18 +557,14 @@ class RosterValidator {
           .where((assignment) => assignment.slot.id == slot.id)
           .toList();
 
-      if (assignmentsForSlot.isEmpty && slot.template.kind != SlotKind.science) {
-        conflicts.add(
-          Conflict(
-            '${slot.template.name} has no assigned doctor',
-          ),
-        );
+      if (assignmentsForSlot.isEmpty &&
+          slot.template.kind != SlotKind.science) {
+        conflicts.add(Conflict('${slot.template.name} has no assigned doctor'));
       }
     }
 
     return conflicts;
   }
-
 }
 
 class DepartmentTemplate {
@@ -572,8 +584,8 @@ class SlotFactory {
     required DateTime date,
     required DepartmentTemplate departmentTemplate,
   }) {
-    final isWeekend = date.weekday == DateTime.saturday ||
-        date.weekday == DateTime.sunday;
+    final isWeekend =
+        date.weekday == DateTime.saturday || date.weekday == DateTime.sunday;
 
     if (isWeekend) {
       return [];
@@ -610,10 +622,7 @@ class NeurologyDepartmentFactory {
           name: 'Science Slot',
           area: 'Science',
           kind: SlotKind.science,
-          timeRange: TimeRange(
-            start: LocalTime(8, 0),
-            end: LocalTime(16, 0),
-          ),
+          timeRange: TimeRange(start: LocalTime(8, 0), end: LocalTime(16, 0)),
           role: DutyRole.backup,
           allowedRanks: {
             DoctorRank.resident,
@@ -629,10 +638,7 @@ class NeurologyDepartmentFactory {
           name: 'Stroke Unit Leader',
           area: 'Stroke Unit',
           kind: SlotKind.strokeUnitLeader,
-          timeRange: TimeRange(
-            start: LocalTime(7, 30),
-            end: LocalTime(15, 30),
-          ),
+          timeRange: TimeRange(start: LocalTime(7, 30), end: LocalTime(15, 30)),
           role: DutyRole.leader,
           allowedRanks: {
             DoctorRank.seniorSpecialist,
@@ -646,10 +652,7 @@ class NeurologyDepartmentFactory {
           name: 'Stroke Unit Team 1',
           area: 'Stroke Unit',
           kind: SlotKind.strokeUnitTeam1,
-          timeRange: TimeRange(
-            start: LocalTime(7, 30),
-            end: LocalTime(15, 30),
-          ),
+          timeRange: TimeRange(start: LocalTime(7, 30), end: LocalTime(15, 30)),
           role: DutyRole.subordinate,
           allowedRanks: {
             DoctorRank.resident,
@@ -664,10 +667,7 @@ class NeurologyDepartmentFactory {
           name: 'Stroke Unit Team 2',
           area: 'Stroke Unit',
           kind: SlotKind.strokeUnitTeam2,
-          timeRange: TimeRange(
-            start: LocalTime(7, 30),
-            end: LocalTime(15, 30),
-          ),
+          timeRange: TimeRange(start: LocalTime(7, 30), end: LocalTime(15, 30)),
           role: DutyRole.subordinate,
           allowedRanks: {
             DoctorRank.resident,
@@ -682,10 +682,7 @@ class NeurologyDepartmentFactory {
           name: 'Ambulance',
           area: 'Outpatient Clinic',
           kind: SlotKind.ambulance,
-          timeRange: TimeRange(
-            start: LocalTime(9, 0),
-            end: LocalTime(13, 0),
-          ),
+          timeRange: TimeRange(start: LocalTime(9, 0), end: LocalTime(13, 0)),
           role: DutyRole.outpatientClinic,
           allowedRanks: {
             DoctorRank.resident,
@@ -700,10 +697,7 @@ class NeurologyDepartmentFactory {
           name: 'Neurosonology',
           area: 'Neurosonology',
           kind: SlotKind.neurosonology,
-          timeRange: TimeRange(
-            start: LocalTime(8, 0),
-            end: LocalTime(15, 30),
-          ),
+          timeRange: TimeRange(start: LocalTime(8, 0), end: LocalTime(15, 30)),
           role: DutyRole.neurosonography,
           allowedRanks: {
             DoctorRank.seniorSpecialist,
@@ -717,10 +711,7 @@ class NeurologyDepartmentFactory {
           name: 'Neurovascular Interdisciplinary Board',
           area: 'Board',
           kind: SlotKind.neurovascularBoard,
-          timeRange: TimeRange(
-            start: LocalTime(12, 30),
-            end: LocalTime(13, 0),
-          ),
+          timeRange: TimeRange(start: LocalTime(12, 30), end: LocalTime(13, 0)),
           role: DutyRole.leader,
           allowedRanks: {
             DoctorRank.seniorSpecialist,
@@ -734,10 +725,7 @@ class NeurologyDepartmentFactory {
           name: 'OFO Board',
           area: 'Board',
           kind: SlotKind.ofoBoard,
-          timeRange: TimeRange(
-            start: LocalTime(13, 0),
-            end: LocalTime(14, 0),
-          ),
+          timeRange: TimeRange(start: LocalTime(13, 0), end: LocalTime(14, 0)),
           role: DutyRole.leader,
           allowedRanks: {
             DoctorRank.seniorSpecialist,
@@ -769,23 +757,17 @@ class DoctorSlotAvailability {
   final Doctor doctor;
   final DailySlot slot;
 
-  DoctorSlotAvailability({
-    required this.doctor,
-    required this.slot,
-  });
+  DoctorSlotAvailability({required this.doctor, required this.slot});
 
   bool get isEligible {
     return slot.template.canBeFilledBy(doctor);
   }
 }
 
-
 class ManualHolidayProvider implements HolidayProvider {
   final Map<String, String> holidays;
 
-  ManualHolidayProvider({
-    this.holidays = const {},
-  });
+  ManualHolidayProvider({this.holidays = const {}});
 
   @override
   CalendarDayInfo getDayInfo(DateTime date) {
@@ -794,8 +776,8 @@ class ManualHolidayProvider implements HolidayProvider {
 
     return CalendarDayInfo(
       date: date,
-      isWeekend: date.weekday == DateTime.saturday ||
-          date.weekday == DateTime.sunday,
+      isWeekend:
+          date.weekday == DateTime.saturday || date.weekday == DateTime.sunday,
       isPublicHoliday: holidayName != null,
       publicHolidayName: holidayName,
     );
@@ -805,7 +787,6 @@ class ManualHolidayProvider implements HolidayProvider {
     return '${date.year}-${date.month}-${date.day}';
   }
 }
-
 
 class AvailabilityValidator {
   List<Conflict> validateDay(RosterDay day) {
@@ -842,8 +823,7 @@ class AvailabilityValidator {
         final availabilityA = day.availabilities[i];
         final availabilityB = day.availabilities[j];
 
-        final sameDoctor =
-            availabilityA.doctor.id == availabilityB.doctor.id;
+        final sameDoctor = availabilityA.doctor.id == availabilityB.doctor.id;
 
         final overlaps = availabilityA.slot.template.timeRange.overlaps(
           availabilityB.slot.template.timeRange,
@@ -874,9 +854,7 @@ class AvailabilityDecision {
   final bool accepted;
   final String? reason;
 
-  AvailabilityDecision.accepted()
-      : accepted = true,
-        reason = null;
+  AvailabilityDecision.accepted() : accepted = true, reason = null;
 
   AvailabilityDecision.rejected(this.reason) : accepted = false;
 }
@@ -937,43 +915,29 @@ class AvailabilityService {
 }
 
 class SubmissionValidator {
-  List<Conflict> validate(
-    AvailabilitySubmission submission,
-  ) {
+  List<Conflict> validate(AvailabilitySubmission submission) {
     final conflicts = <Conflict>[];
 
-    conflicts.addAll(
-      _validateAvailabilitys(submission),
-    );
+    conflicts.addAll(_validateAvailabilitys(submission));
 
     return conflicts;
   }
 
-  List<Conflict> _validateAvailabilitys(
-    AvailabilitySubmission submission,
-  ) {
+  List<Conflict> _validateAvailabilitys(AvailabilitySubmission submission) {
     final conflicts = <Conflict>[];
 
     final validator = AvailabilityValidator();
 
-    final groupedByDay =
-        <String, List<DoctorSlotAvailability>>{};
+    final groupedByDay = <String, List<DoctorSlotAvailability>>{};
 
-    for (final availability
-        in submission.availabilities) {
+    for (final availability in submission.availabilities) {
       final date = availability.slot.date;
 
-      final key =
-          '${date.year}-${date.month}-${date.day}';
+      final key = '${date.year}-${date.month}-${date.day}';
 
-      groupedByDay.putIfAbsent(
-        key,
-        () => [],
-      );
+      groupedByDay.putIfAbsent(key, () => []);
 
-      groupedByDay[key]!.add(
-        availability,
-      );
+      groupedByDay[key]!.add(availability);
     }
 
     for (final entry in groupedByDay.entries) {
@@ -989,29 +953,22 @@ class SubmissionValidator {
           isWeekend: false,
           isPublicHoliday: false,
         ),
-        slots: entry.value
-            .map((a) => a.slot)
-            .toList(),
+        slots: entry.value.map((a) => a.slot).toList(),
         availabilities: entry.value,
       );
 
-      conflicts.addAll(
-        validator.validateDay(day),
-      );
+      conflicts.addAll(validator.validateDay(day));
     }
 
     return conflicts;
   }
 }
 
-
 class AssignmentDecision {
   final bool accepted;
   final String? reason;
 
-  AssignmentDecision.accepted()
-      : accepted = true,
-        reason = null;
+  AssignmentDecision.accepted() : accepted = true, reason = null;
 
   AssignmentDecision.rejected(this.reason) : accepted = false;
 }
@@ -1021,13 +978,9 @@ class AssignmentResult {
   final String? reason;
   final RosterDay? updatedDay;
 
-  AssignmentResult.success(this.updatedDay)
-      : success = true,
-        reason = null;
+  AssignmentResult.success(this.updatedDay) : success = true, reason = null;
 
-  AssignmentResult.failure(this.reason)
-      : success = false,
-        updatedDay = null;
+  AssignmentResult.failure(this.reason) : success = false, updatedDay = null;
 }
 
 class AssignmentService {
@@ -1036,10 +989,7 @@ class AssignmentService {
     required DailySlot slot,
     required RosterDay day,
   }) {
-    final proposedAssignment = Assignment(
-      doctor: doctor,
-      slot: slot,
-    );
+    final proposedAssignment = Assignment(doctor: doctor, slot: slot);
 
     if (!proposedAssignment.isValidForSlot) {
       return AssignmentDecision.rejected(
@@ -1047,10 +997,17 @@ class AssignmentService {
       );
     }
 
+    final absence = doctor.absenceOn(slot.date);
+
+    if (absence != null) {
+      return AssignmentDecision.rejected(
+        '${doctor.fullName} is absent on this day (${absence.label})',
+      );
+    }
+
     final alreadyAssignedSameSlot = day.assignments.any(
       (assignment) =>
-          assignment.doctor.id == doctor.id &&
-          assignment.slot.id == slot.id,
+          assignment.doctor.id == doctor.id && assignment.slot.id == slot.id,
     );
 
     if (alreadyAssignedSameSlot) {
@@ -1115,10 +1072,7 @@ class AssignmentService {
       availabilities: day.availabilities,
       assignments: [
         ...day.assignments,
-        Assignment(
-          doctor: doctor,
-          slot: slot,
-        ),
+        Assignment(doctor: doctor, slot: slot),
       ],
     );
 
@@ -1132,8 +1086,7 @@ class AssignmentService {
   }) {
     final assignmentExists = day.assignments.any(
       (assignment) =>
-          assignment.doctor.id == doctor.id &&
-          assignment.slot.id == slot.id,
+          assignment.doctor.id == doctor.id && assignment.slot.id == slot.id,
     );
 
     if (!assignmentExists) {
@@ -1177,7 +1130,6 @@ class Assignment {
   }
 }
 
-
 class SlotViewModel {
   final DailySlot slot;
   final List<Assignment> assignments;
@@ -1190,31 +1142,24 @@ class SlotViewModel {
   });
 
   List<String> get assignedDoctorNames {
-    return assignments
-        .map((assignment) => assignment.doctor.fullName)
-        .toList();
+    return assignments.map((assignment) => assignment.doctor.fullName).toList();
   }
 }
+
 class DayViewService {
-  List<SlotViewModel> getSlotViews(
-    RosterDay day,
-  ) {
+  List<SlotViewModel> getSlotViews(RosterDay day) {
     final views = <SlotViewModel>[];
 
     for (final slot in day.slots) {
       final assignments = day.assignments
-          .where(
-            (assignment) =>
-                assignment.slot.id == slot.id,
-          )
+          .where((assignment) => assignment.slot.id == slot.id)
           .toList();
 
       views.add(
         SlotViewModel(
           slot: slot,
           assignments: assignments,
-          isOpen: assignments.length <
-              slot.template.maxDoctors,
+          isOpen: assignments.length < slot.template.maxDoctors,
         ),
       );
     }
@@ -1222,7 +1167,6 @@ class DayViewService {
     return views;
   }
 }
-
 
 class MonthDayViewModel {
   final DateTime date;
@@ -1245,9 +1189,7 @@ class MonthDayViewModel {
 }
 
 class MonthViewService {
-  List<MonthDayViewModel> getMonthView(
-    RosterMonth roster,
-  ) {
+  List<MonthDayViewModel> getMonthView(RosterMonth roster) {
     final result = <MonthDayViewModel>[];
 
     for (final day in roster.days) {
@@ -1256,13 +1198,10 @@ class MonthViewService {
 
       for (final slot in day.slots) {
         final assignmentCount = day.assignments
-            .where(
-              (a) => a.slot.id == slot.id,
-            )
+            .where((a) => a.slot.id == slot.id)
             .length;
 
-        if (assignmentCount >=
-            slot.template.maxDoctors) {
+        if (assignmentCount >= slot.template.maxDoctors) {
           filledSlots++;
         } else {
           openSlots++;
@@ -1272,12 +1211,9 @@ class MonthViewService {
       result.add(
         MonthDayViewModel(
           date: day.date,
-          isWeekend:
-              day.calendarInfo.isWeekend,
-          isPublicHoliday:
-              day.calendarInfo.isPublicHoliday,
-          holidayName:
-              day.calendarInfo.publicHolidayName,
+          isWeekend: day.calendarInfo.isWeekend,
+          isPublicHoliday: day.calendarInfo.isPublicHoliday,
+          holidayName: day.calendarInfo.publicHolidayName,
           openSlots: openSlots,
           filledSlots: filledSlots,
         ),
@@ -1296,10 +1232,7 @@ class DemoDataFactory {
         firstName: 'Slaven',
         lastName: 'Pikija',
         rank: DoctorRank.consultant,
-        capabilities: {
-          Capability.canLead,
-          Capability.canDoNeurosonography,
-        },
+        capabilities: {Capability.canLead, Capability.canDoNeurosonography},
       ),
 
       Doctor(
@@ -1316,10 +1249,7 @@ class EligibilityResult {
   final bool eligible;
   final String? reason;
 
-  EligibilityResult({
-    required this.eligible,
-    this.reason,
-  });
+  EligibilityResult({required this.eligible, this.reason});
 }
 
 class EligibilityService {
@@ -1345,10 +1275,7 @@ class SlotDisplayModel {
   final SlotViewModel slotView;
   final EligibilityResult eligibility;
 
-  SlotDisplayModel({
-    required this.slotView,
-    required this.eligibility,
-  });
+  SlotDisplayModel({required this.slotView, required this.eligibility});
 }
 
 class SlotDisplayService {
@@ -1356,14 +1283,12 @@ class SlotDisplayService {
     required RosterDay day,
     required Doctor doctor,
   }) {
-    final slotViews =
-        DayViewService().getSlotViews(day);
+    final slotViews = DayViewService().getSlotViews(day);
 
     return slotViews.map((slotView) {
       return SlotDisplayModel(
         slotView: slotView,
-        eligibility:
-            EligibilityService().canTakeSlot(
+        eligibility: EligibilityService().canTakeSlot(
           doctor: doctor,
           slot: slotView.slot,
           day: day,
@@ -1374,10 +1299,7 @@ class SlotDisplayService {
 }
 
 class RosterStatisticsService {
-
-  double coveragePercentage({
-    required RosterMonth roster,
-  }) {
+  double coveragePercentage({required RosterMonth roster}) {
     int totalCapacity = 0;
     int assigned = 0;
 
@@ -1396,35 +1318,27 @@ class RosterStatisticsService {
     return assigned / totalCapacity * 100;
   }
 
-  int countOpenSlots({
-      required RosterMonth roster,
-    }) {
-      int count = 0;
+  int countOpenSlots({required RosterMonth roster}) {
+    int count = 0;
 
-      for (final day in roster.days) {
-        for (final slot in day.slots) {
-          final assignmentCount = day.assignments
-              .where(
-                (a) => a.slot.id == slot.id,
-              )
-              .length;
+    for (final day in roster.days) {
+      for (final slot in day.slots) {
+        final assignmentCount = day.assignments
+            .where((a) => a.slot.id == slot.id)
+            .length;
 
-          if (assignmentCount < slot.template.maxDoctors) {
-            count++;
-          }
+        if (assignmentCount < slot.template.maxDoctors) {
+          count++;
         }
       }
-
-      return count;
     }
 
-  int countAssignedSlots({
-      required RosterMonth roster,
-    }) {
-      return roster.days
-          .expand((day) => day.assignments)
-          .length;
-    }
+    return count;
+  }
+
+  int countAssignedSlots({required RosterMonth roster}) {
+    return roster.days.expand((day) => day.assignments).length;
+  }
 
   int countAssignmentsForDoctorInMonth({
     required RosterMonth roster,
@@ -1432,10 +1346,7 @@ class RosterStatisticsService {
   }) {
     return roster.days
         .expand((day) => day.assignments)
-        .where(
-          (assignment) =>
-              assignment.doctor.id == doctor.id,
-        )
+        .where((assignment) => assignment.doctor.id == doctor.id)
         .length;
   }
 
@@ -1444,10 +1355,7 @@ class RosterStatisticsService {
     required Doctor doctor,
   }) {
     return day.assignments
-        .where(
-          (assignment) =>
-              assignment.doctor.id == doctor.id,
-        )
+        .where((assignment) => assignment.doctor.id == doctor.id)
         .length;
   }
 
@@ -1457,9 +1365,7 @@ class RosterStatisticsService {
   }) {
     final assignments = roster.days
         .expand((day) => day.assignments)
-        .where(
-          (assignment) => assignment.doctor.id == doctor.id,
-        )
+        .where((assignment) => assignment.doctor.id == doctor.id)
         .toList();
 
     assignments.sort((a, b) {
@@ -1510,8 +1416,7 @@ class AssignmentQueryService {
     for (final day in roster.days) {
       assignments.addAll(
         day.assignments.where(
-          (assignment) =>
-              assignment.doctor.id == doctor.id,
+          (assignment) => assignment.doctor.id == doctor.id,
         ),
       );
     }
@@ -1519,4 +1424,3 @@ class AssignmentQueryService {
     return assignments;
   }
 }
-

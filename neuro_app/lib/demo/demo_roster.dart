@@ -1,4 +1,3 @@
-  
 import 'package:neuro_core/neuro_core.dart';
 
 class DemoRoster {
@@ -8,10 +7,14 @@ class DemoRoster {
       firstName: 'Slaven',
       lastName: 'Pikija',
       rank: DoctorRank.consultant,
-      capabilities: {
-        Capability.canLead,
-        Capability.canDoNeurosonography,
-      },
+      capabilities: {Capability.canLead, Capability.canDoNeurosonography},
+      availabilities: [
+        AvailabilityPeriod(
+          start: DateTime(2026, 6, 8),
+          end: DateTime(2026, 6, 12),
+          type: AvailabilityType.vacation,
+        ),
+      ],
     );
   }
 
@@ -21,10 +24,14 @@ class DemoRoster {
       firstName: 'Max',
       lastName: 'Müller',
       rank: DoctorRank.consultant,
-      capabilities: {
-        Capability.canLead,
-        Capability.canDoNeurosonography,
-      },
+      capabilities: {Capability.canLead, Capability.canDoNeurosonography},
+      availabilities: [
+        AvailabilityPeriod(
+          start: DateTime(2026, 6, 18),
+          end: DateTime(2026, 6, 19),
+          type: AvailabilityType.conference,
+        ),
+      ],
     );
   }
 
@@ -38,27 +45,21 @@ class DemoRoster {
   }
 
   static List<Doctor> createDoctors() {
-    return [
-      createCurrentDoctor(),
-      createOtherDoctor(),
-      createResidentDoctor(),
-    ];
+    return [createCurrentDoctor(), createOtherDoctor(), createResidentDoctor()];
   }
-  
-    
+
   static RosterMonth createJune2026() {
-    final roster = RosterMonthFactory(
-      holidayProvider: ManualHolidayProvider(
-        holidays: {
-          '2026-6-4': 'Fronleichnam',
-        },
-      ),
-      slotFactory: SlotFactory(),
-    ).generateMonth(
-      year: 2026,
-      month: 6,
-      departmentTemplate: NeurologyDepartmentFactory.create(),
-    );
+    final roster =
+        RosterMonthFactory(
+          holidayProvider: ManualHolidayProvider(
+            holidays: {'2026-6-4': 'Fronleichnam'},
+          ),
+          slotFactory: SlotFactory(),
+        ).generateMonth(
+          year: 2026,
+          month: 6,
+          departmentTemplate: NeurologyDepartmentFactory.create(),
+        );
 
     final otherDoctor = createOtherDoctor();
 
@@ -81,14 +82,8 @@ class DemoRoster {
         availabilities: day.availabilities,
         assignments: [
           ...day.assignments,
-          Assignment(
-            doctor: otherDoctor,
-            slot: ambulanceSlot,
-          ),
-          Assignment(
-            doctor: otherDoctor,
-            slot: neurosonologySlot,
-          ),
+          Assignment(doctor: otherDoctor, slot: ambulanceSlot),
+          Assignment(doctor: otherDoctor, slot: neurosonologySlot),
         ],
       );
     }).toList();
@@ -99,8 +94,5 @@ class DemoRoster {
       phase: roster.phase,
       days: updatedDays,
     );
-
-  
-
   }
 }
