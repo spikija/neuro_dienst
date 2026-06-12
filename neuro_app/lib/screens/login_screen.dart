@@ -9,14 +9,16 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  static const _internalEmailDomain = 'neurodienst.local';
+
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -44,12 +46,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _usernameController,
+                  keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    labelText: 'Email',
+                    labelText: 'Username',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -100,7 +102,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
+        email: _loginEmailFromUsername(_usernameController.text),
         password: _passwordController.text,
       );
     } on AuthException catch (error) {
@@ -118,5 +120,15 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  String _loginEmailFromUsername(String value) {
+    final trimmed = value.trim().toLowerCase();
+
+    if (trimmed.contains('@')) {
+      return trimmed;
+    }
+
+    return '$trimmed@$_internalEmailDomain';
   }
 }

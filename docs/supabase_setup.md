@@ -29,7 +29,17 @@ for client apps.
 Create your own user in the Supabase dashboard:
 
 1. Open Authentication > Users.
-2. Add a user with your email and a strong password.
+2. Add a user with an internal email and a strong password.
+   For username login, use this pattern:
+
+```text
+spikija@neurodienst.local
+```
+
+The app login screen asks for `spikija` and internally signs in with
+`spikija@neurodienst.local`. A real email address can still be entered directly
+if needed.
+
 3. Copy the created user ID.
 4. Open SQL Editor and insert the matching profile:
 

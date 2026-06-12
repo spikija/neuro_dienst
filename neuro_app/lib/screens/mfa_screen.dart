@@ -128,6 +128,12 @@ class _MfaScreenState extends State<MfaScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (totp != null) ...[
+            const Text(
+              'Open your authenticator app and use its add-account QR scanner. '
+              'A normal phone camera may only show the setup text.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
             Center(
               child: QrImageView(
                 data: totp.uri,

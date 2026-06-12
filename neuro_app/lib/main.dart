@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'demo/demo_roster.dart';
-import 'screens/admin_doctors_screen.dart';
+import 'screens/admin_home_screen.dart';
 import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
 import 'services/supabase_bootstrap.dart';
@@ -65,6 +67,11 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
       theme: ThemeData(colorSchemeSeed: Colors.blue),
       home: AuthGate(
         child: _AuthorizedMonthHome(
+          key: ValueKey(
+            SupabaseConfig.isConfigured
+                ? Supabase.instance.client.auth.currentUser?.id
+                : 'demo',
+          ),
           roster: widget.roster,
           currentDoctor: selectedDoctor,
           doctors: doctors,
@@ -102,6 +109,7 @@ class _AuthorizedMonthHome extends StatefulWidget {
   final ValueChanged<Doctor> onDoctorUpdated;
 
   const _AuthorizedMonthHome({
+    super.key,
     required this.roster,
     required this.currentDoctor,
     required this.doctors,
@@ -117,12 +125,27 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
   late Future<_AuthorizedHomeData> _homeDataFuture;
   late Doctor _selectedDoctor;
   List<Doctor>? _databaseDoctors;
+  StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
     _selectedDoctor = widget.currentDoctor;
     _homeDataFuture = _loadHomeData();
+    if (SupabaseConfig.isConfigured) {
+      _authSubscription = Supabase.instance.client.auth.onAuthStateChange
+          .listen((_) {
+            if (mounted) {
+              _reloadHomeData();
+            }
+          });
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -164,6 +187,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
           currentDoctor: selectedDoctor,
           doctors: doctors,
           showAdmin: data?.isAdmin ?? false,
+          signedInEmail: data?.signedInEmail,
           onDoctorChanged: _setSelectedDoctor,
           onDoctorUpdated: _updateDoctor,
           onAdminClosed: _reloadHomeData,
@@ -206,6 +230,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     return _AuthorizedHomeData(
       isAdmin: profile?['role'] == 'admin',
       doctors: databaseDoctors,
+      signedInEmail: Supabase.instance.client.auth.currentUser?.email,
     );
   }
 
@@ -284,7 +309,7 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
                 if (isAdmin) ...[
                   const SizedBox(height: 20),
                   FilledButton.icon(
-                    onPressed: () => _openAdminDoctors(context),
+                    onPressed: () => _openAdmin(context),
                     icon: const Icon(Icons.admin_panel_settings),
                     label: const Text('Open Admin'),
                   ),
@@ -297,7 +322,7 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
     );
   }
 
-  Future<void> _openAdminDoctors(BuildContext context) async {
+  Future<void> _openAdmin(BuildContext context) async {
     final verified = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const MfaScreen()),
@@ -309,7 +334,7 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
 
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminDoctorsScreen()),
+      MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
     );
 
     onAdminClosed();
@@ -361,8 +386,13 @@ class _HomeErrorView extends StatelessWidget {
 class _AuthorizedHomeData {
   final bool isAdmin;
   final List<Doctor> doctors;
+  final String? signedInEmail;
 
-  const _AuthorizedHomeData({required this.isAdmin, required this.doctors});
+  const _AuthorizedHomeData({
+    required this.isAdmin,
+    required this.doctors,
+    this.signedInEmail,
+  });
 }
 
 Doctor _doctorFromListOrFallback(List<Doctor> doctors, Doctor fallback) {

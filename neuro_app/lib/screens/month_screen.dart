@@ -4,7 +4,7 @@ import 'package:neuro_app/extensions/time_formatting.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/month_day_card.dart';
-import 'admin_doctors_screen.dart';
+import 'admin_home_screen.dart';
 import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
 import 'doctor_selector_screen.dart';
@@ -20,6 +20,7 @@ class MonthScreen extends StatefulWidget {
   final VoidCallback? onAdminClosed;
   final List<Doctor> doctors;
   final bool showAdmin;
+  final String? signedInEmail;
 
   const MonthScreen({
     super.key,
@@ -30,6 +31,7 @@ class MonthScreen extends StatefulWidget {
     required this.onDoctorUpdated,
     this.onAdminClosed,
     this.showAdmin = false,
+    this.signedInEmail,
   });
 
   @override
@@ -91,7 +93,9 @@ class _MonthScreenState extends State<MonthScreen> {
           children: [
             Text('${currentRoster.month}/${currentRoster.year}'),
             Text(
-              widget.currentDoctor.fullName,
+              widget.signedInEmail == null
+                  ? widget.currentDoctor.fullName
+                  : '${widget.currentDoctor.fullName} · ${widget.signedInEmail}',
               style: const TextStyle(fontSize: 12),
             ),
           ],
@@ -101,7 +105,7 @@ class _MonthScreenState extends State<MonthScreen> {
             IconButton(
               tooltip: 'Admin',
               icon: const Icon(Icons.admin_panel_settings),
-              onPressed: _openAdminDoctors,
+              onPressed: _openAdmin,
             ),
           if (SupabaseConfig.isConfigured)
             IconButton(
@@ -768,7 +772,7 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
-  Future<void> _openAdminDoctors() async {
+  Future<void> _openAdmin() async {
     final verified = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => const MfaScreen()),
@@ -780,7 +784,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminDoctorsScreen()),
+      MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
     );
 
     widget.onAdminClosed?.call();
