@@ -4,8 +4,13 @@ import 'package:neuro_core/neuro_core.dart';
 
 import 'demo/demo_roster.dart';
 import 'screens/month_screen.dart';
+import 'services/supabase_bootstrap.dart';
+import 'widgets/auth_gate.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeSupabaseIfConfigured();
+
   final roster = DemoRoster.createJune2026();
   final doctor = DemoRoster.createCurrentDoctor();
   final doctors = DemoRoster.createDoctors();
@@ -54,16 +59,18 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
       title: 'NeuroDienst',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.blue),
-      home: MonthScreen(
-        roster: widget.roster,
-        currentDoctor: selectedDoctor,
-        doctors: doctors,
-        onDoctorChanged: (doctor) {
-          setState(() {
-            selectedDoctor = doctor;
-          });
-        },
-        onDoctorUpdated: _updateDoctor,
+      home: AuthGate(
+        child: MonthScreen(
+          roster: widget.roster,
+          currentDoctor: selectedDoctor,
+          doctors: doctors,
+          onDoctorChanged: (doctor) {
+            setState(() {
+              selectedDoctor = doctor;
+            });
+          },
+          onDoctorUpdated: _updateDoctor,
+        ),
       ),
     );
   }
