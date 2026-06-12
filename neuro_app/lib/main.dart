@@ -4,6 +4,8 @@ import 'package:neuro_core/neuro_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'demo/demo_roster.dart';
+import 'screens/admin_doctors_screen.dart';
+import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
 import 'services/supabase_bootstrap.dart';
 import 'services/supabase_doctor_service.dart';
@@ -128,8 +130,30 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     return FutureBuilder<_AuthorizedHomeData>(
       future: _homeDataFuture,
       builder: (context, snapshot) {
+        if (SupabaseConfig.isConfigured &&
+            snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return _HomeErrorView(
+            message: snapshot.error.toString(),
+            onRetry: _reloadHomeData,
+          );
+        }
+
         final data = snapshot.data;
         final doctors = data?.doctors ?? _databaseDoctors ?? widget.doctors;
+
+        if (SupabaseConfig.isConfigured && doctors.isEmpty) {
+          return _NoDoctorsConfiguredView(
+            isAdmin: data?.isAdmin ?? false,
+            onAdminClosed: _reloadHomeData,
+          );
+        }
+
         final selectedDoctor = _doctorFromListOrFallback(
           doctors,
           _selectedDoctor,
@@ -162,7 +186,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     final userId = Supabase.instance.client.auth.currentUser?.id;
 
     if (userId == null) {
-      return _AuthorizedHomeData(isAdmin: false, doctors: widget.doctors);
+      return const _AuthorizedHomeData(isAdmin: false, doctors: []);
     }
 
     final profile = await Supabase.instance.client
@@ -172,14 +196,16 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         .maybeSingle();
 
     final databaseDoctors = await SupabaseDoctorService().loadActiveDoctors();
-    final doctors = databaseDoctors.isEmpty ? widget.doctors : databaseDoctors;
 
-    _databaseDoctors = doctors;
-    _selectedDoctor = _doctorFromListOrFallback(doctors, _selectedDoctor);
+    _databaseDoctors = databaseDoctors;
+    _selectedDoctor = _doctorFromListOrFallback(
+      databaseDoctors,
+      _selectedDoctor,
+    );
 
     return _AuthorizedHomeData(
       isAdmin: profile?['role'] == 'admin',
-      doctors: doctors,
+      doctors: databaseDoctors,
     );
   }
 
@@ -207,6 +233,128 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     });
 
     widget.onDoctorUpdated(updatedDoctor);
+  }
+}
+
+class _NoDoctorsConfiguredView extends StatelessWidget {
+  final bool isAdmin;
+  final VoidCallback onAdminClosed;
+
+  const _NoDoctorsConfiguredView({
+    required this.isAdmin,
+    required this.onAdminClosed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('NeuroDienst'),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout),
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+          ),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.group_off, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'No doctors configured',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isAdmin
+                      ? 'Add the first active doctor in Admin to start using the roster with Supabase data.'
+                      : 'Ask an administrator to add active doctors before using the roster.',
+                  textAlign: TextAlign.center,
+                ),
+                if (isAdmin) ...[
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: () => _openAdminDoctors(context),
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: const Text('Open Admin'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAdminDoctors(BuildContext context) async {
+    final verified = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const MfaScreen()),
+    );
+
+    if (!context.mounted || verified != true) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminDoctorsScreen()),
+    );
+
+    onAdminClosed();
+  }
+}
+
+class _HomeErrorView extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _HomeErrorView({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('NeuroDienst'),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout),
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+          ),
+        ],
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 42),
+              const SizedBox(height: 12),
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
