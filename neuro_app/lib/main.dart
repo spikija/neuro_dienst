@@ -323,19 +323,17 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
   }
 
   Future<void> _openAdmin(BuildContext context) async {
-    final verified = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const MfaScreen()),
-    );
-
-    if (!context.mounted || verified != true) {
-      return;
-    }
-
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
+      MaterialPageRoute(
+        builder: (_) =>
+            const MfaScreen(verifiedDestinationBuilder: _buildAdminHomeScreen),
+      ),
     );
+
+    if (!context.mounted) {
+      return;
+    }
 
     onAdminClosed();
   }
@@ -407,4 +405,8 @@ Doctor _doctorFromListOrFallback(List<Doctor> doctors, Doctor fallback) {
   }
 
   return fallback;
+}
+
+Widget _buildAdminHomeScreen(BuildContext context) {
+  return const AdminHomeScreen();
 }

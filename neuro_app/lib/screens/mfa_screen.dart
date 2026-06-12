@@ -3,7 +3,9 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MfaScreen extends StatefulWidget {
-  const MfaScreen({super.key});
+  final WidgetBuilder? verifiedDestinationBuilder;
+
+  const MfaScreen({super.key, this.verifiedDestinationBuilder});
 
   @override
   State<MfaScreen> createState() => _MfaScreenState();
@@ -52,7 +54,7 @@ class _MfaScreenState extends State<MfaScreen> {
           if (state.isVerified) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                Navigator.pop(context, true);
+                _finishVerified();
               }
             });
             return const Center(child: CircularProgressIndicator());
@@ -295,7 +297,7 @@ class _MfaScreenState extends State<MfaScreen> {
       );
 
       if (mounted) {
-        Navigator.pop(context, true);
+        _finishVerified();
       }
     } on AuthException catch (error) {
       setState(() {
@@ -312,6 +314,20 @@ class _MfaScreenState extends State<MfaScreen> {
         });
       }
     }
+  }
+
+  void _finishVerified() {
+    final destinationBuilder = widget.verifiedDestinationBuilder;
+
+    if (destinationBuilder == null) {
+      Navigator.pop(context, true);
+      return;
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: destinationBuilder),
+    );
   }
 }
 

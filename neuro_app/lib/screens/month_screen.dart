@@ -773,18 +773,12 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _openAdmin() async {
-    final verified = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const MfaScreen()),
-    );
-
-    if (!mounted || verified != true) {
-      return;
-    }
-
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
+      MaterialPageRoute(
+        builder: (_) =>
+            const MfaScreen(verifiedDestinationBuilder: _buildAdminHomeScreen),
+      ),
     );
 
     widget.onAdminClosed?.call();
@@ -1346,4 +1340,8 @@ class _SlotChoice {
   final String area;
 
   _SlotChoice({required this.kind, required this.name, required this.area});
+}
+
+Widget _buildAdminHomeScreen(BuildContext context) {
+  return const AdminHomeScreen();
 }
