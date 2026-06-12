@@ -5,6 +5,7 @@ import '../widgets/month_day_card.dart';
 import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
 import 'doctor_selector_screen.dart';
+import 'month_report_screen.dart';
 import '../widgets/doctor_selector_bar.dart';
 
 class MonthScreen extends StatefulWidget {
@@ -106,6 +107,11 @@ class _MonthScreenState extends State<MonthScreen> {
           IconButton(
             icon: const Icon(Icons.list),
             onPressed: _showMyAssignmentsDialog,
+          ),
+          IconButton(
+            tooltip: 'Monthly report',
+            icon: const Icon(Icons.print),
+            onPressed: _openMonthlyReport,
           ),
           IconButton(
             icon: const Icon(Icons.person),
@@ -732,6 +738,16 @@ class _MonthScreenState extends State<MonthScreen> {
     }
   }
 
+  void _openMonthlyReport() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            MonthReportScreen(roster: currentRoster, doctors: widget.doctors),
+      ),
+    );
+  }
+
   void _clearDateSelection() {
     setState(_selectedDateKeys.clear);
   }
@@ -778,9 +794,7 @@ class _MonthScreenState extends State<MonthScreen> {
         slots: day.slots,
         availabilities: day.availabilities,
         assignments: day.assignments
-            .where(
-              (assignment) => assignment.doctor.id != doctor.id,
-            )
+            .where((assignment) => assignment.doctor.id != doctor.id)
             .toList(),
       );
     }).toList();
@@ -793,6 +807,9 @@ class _MonthScreenState extends State<MonthScreen> {
         days: updatedDays,
       );
       _selectedDateKeys.clear();
+      if (_editorDoctor?.id == updatedDoctor.id) {
+        _editorDoctor = updatedDoctor;
+      }
     });
 
     widget.onDoctorUpdated(updatedDoctor);
@@ -842,6 +859,9 @@ class _MonthScreenState extends State<MonthScreen> {
 
     setState(() {
       _selectedDateKeys.clear();
+      if (_editorDoctor?.id == updatedDoctor.id) {
+        _editorDoctor = updatedDoctor;
+      }
     });
 
     widget.onDoctorUpdated(updatedDoctor);
@@ -1193,6 +1213,16 @@ class _MonthScreenState extends State<MonthScreen> {
 
     days.sort((a, b) => a.date.compareTo(b.date));
     return days;
+  }
+
+  Doctor _currentDoctorFromList() {
+    for (final doctor in widget.doctors) {
+      if (doctor.id == widget.currentDoctor.id) {
+        return doctor;
+      }
+    }
+
+    return widget.currentDoctor;
   }
 
   String _dateKey(DateTime date) {
