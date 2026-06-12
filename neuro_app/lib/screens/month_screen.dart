@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_app/extensions/time_formatting.dart';
+import 'package:neuro_app/services/supabase_bootstrap.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/month_day_card.dart';
+import 'admin_doctors_screen.dart';
 import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
 import 'doctor_selector_screen.dart';
+import 'mfa_screen.dart';
 import 'month_report_screen.dart';
 import '../widgets/doctor_selector_bar.dart';
 
@@ -13,7 +17,9 @@ class MonthScreen extends StatefulWidget {
   final Doctor currentDoctor;
   final ValueChanged<Doctor> onDoctorChanged;
   final ValueChanged<Doctor> onDoctorUpdated;
+  final VoidCallback? onAdminClosed;
   final List<Doctor> doctors;
+  final bool showAdmin;
 
   const MonthScreen({
     super.key,
@@ -22,6 +28,8 @@ class MonthScreen extends StatefulWidget {
     required this.doctors,
     required this.onDoctorChanged,
     required this.onDoctorUpdated,
+    this.onAdminClosed,
+    this.showAdmin = false,
   });
 
   @override
@@ -89,6 +97,18 @@ class _MonthScreenState extends State<MonthScreen> {
           ],
         ),
         actions: [
+          if (SupabaseConfig.isConfigured && widget.showAdmin)
+            IconButton(
+              tooltip: 'Admin',
+              icon: const Icon(Icons.admin_panel_settings),
+              onPressed: _openAdminDoctors,
+            ),
+          if (SupabaseConfig.isConfigured)
+            IconButton(
+              tooltip: 'Sign out',
+              icon: const Icon(Icons.logout),
+              onPressed: () => Supabase.instance.client.auth.signOut(),
+            ),
           IconButton(
             icon: const Icon(Icons.switch_account),
             onPressed: () async {
@@ -746,6 +766,24 @@ class _MonthScreenState extends State<MonthScreen> {
             MonthReportScreen(roster: currentRoster, doctors: widget.doctors),
       ),
     );
+  }
+
+  Future<void> _openAdminDoctors() async {
+    final verified = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const MfaScreen()),
+    );
+
+    if (!mounted || verified != true) {
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AdminDoctorsScreen()),
+    );
+
+    widget.onAdminClosed?.call();
   }
 
   void _clearDateSelection() {

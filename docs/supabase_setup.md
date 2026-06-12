@@ -8,10 +8,15 @@ The app can run in two modes:
 Run the Windows app with Supabase enabled:
 
 ```powershell
+cd C:\apps\neuro_dienst\neuro_app
 flutter run -d windows `
   --dart-define=SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co `
   --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 ```
+
+If the console prints `Supabase is not configured; running with demo data.`,
+the app was started without these two `--dart-define` values. In demo mode the
+login screen and Admin button are intentionally hidden.
 
 The older `SUPABASE_ANON_KEY` name is also accepted as a fallback, but new
 commands should use `SUPABASE_PUBLISHABLE_KEY`.
@@ -39,3 +44,8 @@ values (
 
 Later admin screens will use this profile role, together with MFA assurance
 level `aal2`, for protected changes.
+
+The first time you open Admin in the app, it will ask you to set up two-factor
+verification with an authenticator app. After scanning the QR code and entering
+the six-digit code, the current session is promoted to `aal2` and admin database
+writes are allowed by Row Level Security.
