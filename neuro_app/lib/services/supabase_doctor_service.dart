@@ -15,7 +15,46 @@ class SupabaseDoctorService {
         .order('last_name')
         .order('first_name');
 
-    return rows.map(_doctorFromJson).toList();
+    final doctors = rows.map(_doctorFromJson).toList();
+    final doctorIds = doctors.map((doctor) => doctor.id).toList();
+
+    if (doctorIds.isEmpty) {
+      return doctors;
+    }
+
+    final absenceRows = await _client
+        .from('absences')
+        .select('doctor_id, starts_on, ends_on, type')
+        .inFilter('doctor_id', doctorIds)
+        .order('starts_on');
+
+    final absencesByDoctorId = <String, List<AvailabilityPeriod>>{};
+
+    for (final row in absenceRows) {
+      final doctorId = row['doctor_id'] as String?;
+
+      if (doctorId == null) {
+        continue;
+      }
+
+      absencesByDoctorId
+          .putIfAbsent(doctorId, () => [])
+          .add(
+            AvailabilityPeriod(
+              start: DateTime.parse(row['starts_on'] as String),
+              end: DateTime.parse(row['ends_on'] as String),
+              type: _availabilityTypeFromDatabase(row['type'] as String?),
+            ),
+          );
+    }
+
+    return doctors
+        .map(
+          (doctor) => doctor.copyWith(
+            availabilities: absencesByDoctorId[doctor.id] ?? const [],
+          ),
+        )
+        .toList();
   }
 }
 
@@ -73,4 +112,21 @@ Capability? _capabilityFromDatabase(String value) {
   }
 
   return null;
+}
+
+AvailabilityType _availabilityTypeFromDatabase(String? value) {
+  switch (value) {
+    case 'available':
+      return AvailabilityType.available;
+    case 'vacation':
+      return AvailabilityType.vacation;
+    case 'sick_leave':
+      return AvailabilityType.sickLeave;
+    case 'conference':
+      return AvailabilityType.conference;
+    case 'external_rotation':
+      return AvailabilityType.externalRoatation;
+  }
+
+  return AvailabilityType.vacation;
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'admin_doctors_screen.dart';
+import 'admin_role_templates_screen.dart';
+import 'admin_rosters_screen.dart';
 import 'admin_roles_screen.dart';
 
 class AdminHomeScreen extends StatelessWidget {
@@ -35,6 +37,33 @@ class AdminHomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminRolesScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _AdminTile(
+            icon: Icons.event_repeat,
+            title: 'Role templates',
+            subtitle:
+                'Define which roles create daily slots on which weekdays and times.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminRoleTemplatesScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _AdminTile(
+            icon: Icons.calendar_month,
+            title: 'Rosters',
+            subtitle: 'Generate monthly roster days and slots from templates.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminRostersScreen()),
               );
             },
           ),

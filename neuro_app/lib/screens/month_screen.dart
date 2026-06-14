@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_app/extensions/time_formatting.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
+import 'package:neuro_app/services/supabase_roster_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/month_day_card.dart';
 import 'admin_home_screen.dart';
@@ -9,6 +10,7 @@ import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
 import 'doctor_selector_screen.dart';
 import 'mfa_screen.dart';
+import 'month_report_picker_screen.dart';
 import 'month_report_screen.dart';
 import '../widgets/doctor_selector_bar.dart';
 
@@ -18,6 +20,7 @@ class MonthScreen extends StatefulWidget {
   final ValueChanged<Doctor> onDoctorChanged;
   final ValueChanged<Doctor> onDoctorUpdated;
   final VoidCallback? onAdminClosed;
+  final ValueChanged<DateTime>? onVisibleMonthChanged;
   final List<Doctor> doctors;
   final bool showAdmin;
   final String? signedInEmail;
@@ -30,6 +33,7 @@ class MonthScreen extends StatefulWidget {
     required this.onDoctorChanged,
     required this.onDoctorUpdated,
     this.onAdminClosed,
+    this.onVisibleMonthChanged,
     this.showAdmin = false,
     this.signedInEmail,
   });
@@ -52,11 +56,14 @@ class _MonthScreenState extends State<MonthScreen> {
   bool _editorMode = false;
   Doctor? _editorDoctor;
   SlotKind? _editorSlotKind;
+  late List<Doctor> _doctors;
 
   int _myAssignmentsThisMonthCount() {
+    final currentDoctor = _currentDoctorFromList();
+
     return currentRoster.days
         .expand((day) => day.assignments)
-        .where((assignment) => assignment.doctor.id == widget.currentDoctor.id)
+        .where((assignment) => assignment.doctor.id == currentDoctor.id)
         .length;
   }
 
@@ -64,11 +71,26 @@ class _MonthScreenState extends State<MonthScreen> {
   void initState() {
     super.initState();
     currentRoster = widget.roster;
+    _doctors = widget.doctors;
     _editorDoctor = widget.currentDoctor;
   }
 
   @override
+  void didUpdateWidget(covariant MonthScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.doctors != widget.doctors) {
+      _doctors = widget.doctors;
+    }
+
+    if (oldWidget.roster != widget.roster) {
+      currentRoster = widget.roster;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentDoctor = _currentDoctorFromList();
     final monthView = MonthViewService().getMonthView(currentRoster);
     final conflictsByDate = _buildConflictsByDate();
     final conflictCount = conflictsByDate.values.fold<int>(
@@ -94,13 +116,23 @@ class _MonthScreenState extends State<MonthScreen> {
             Text('${currentRoster.month}/${currentRoster.year}'),
             Text(
               widget.signedInEmail == null
-                  ? widget.currentDoctor.fullName
-                  : '${widget.currentDoctor.fullName} · ${widget.signedInEmail}',
+                  ? currentDoctor.fullName
+                  : '${currentDoctor.fullName} · ${widget.signedInEmail}',
               style: const TextStyle(fontSize: 12),
             ),
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Previous month',
+            icon: const Icon(Icons.chevron_left),
+            onPressed: () => _openRelativeMonth(-1),
+          ),
+          IconButton(
+            tooltip: 'Next month',
+            icon: const Icon(Icons.chevron_right),
+            onPressed: () => _openRelativeMonth(1),
+          ),
           if (SupabaseConfig.isConfigured && widget.showAdmin)
             IconButton(
               tooltip: 'Admin',
@@ -119,7 +151,7 @@ class _MonthScreenState extends State<MonthScreen> {
               final selectedDoctor = await Navigator.push<Doctor>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => DoctorSelectorScreen(doctors: widget.doctors),
+                  builder: (_) => DoctorSelectorScreen(doctors: _doctors),
                 ),
               );
 
@@ -143,8 +175,7 @@ class _MonthScreenState extends State<MonthScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      DoctorProfileScreen(doctor: widget.currentDoctor),
+                  builder: (_) => DoctorProfileScreen(doctor: currentDoctor),
                 ),
               );
             },
@@ -154,8 +185,8 @@ class _MonthScreenState extends State<MonthScreen> {
       body: Column(
         children: [
           DoctorSelectorBar(
-            doctors: widget.doctors,
-            selectedDoctor: widget.currentDoctor,
+            doctors: _doctors,
+            selectedDoctor: currentDoctor,
             onSelected: widget.onDoctorChanged,
           ),
           _buildModeBar(),
@@ -287,7 +318,7 @@ class _MonthScreenState extends State<MonthScreen> {
             onSelectionChanged: (selection) {
               setState(() {
                 _editorMode = selection.first;
-                _editorDoctor ??= widget.currentDoctor;
+                _editorDoctor ??= _currentDoctorFromList();
               });
             },
           ),
@@ -296,7 +327,7 @@ class _MonthScreenState extends State<MonthScreen> {
             child: Text(
               _editorMode
                   ? 'Bulk edits can assign any doctor.'
-                  : 'Personal planning for ${widget.currentDoctor.firstName}.',
+                  : 'Personal planning for ${_currentDoctorFromList().firstName}.',
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -400,7 +431,7 @@ class _MonthScreenState extends State<MonthScreen> {
     return MonthDayCard(
       day: day,
       dayView: dayView,
-      currentDoctor: widget.currentDoctor,
+      currentDoctor: _currentDoctorFromList(),
       isSelected: _selectedDateKeys.contains(_dateKey(day.date)),
       onTap: null,
       dense: dense,
@@ -519,7 +550,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
   Widget _buildBulkActionBar() {
     final selectedCount = _selectedDateKeys.length;
-    final editorDoctor = _editorDoctor ?? widget.currentDoctor;
+    final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
 
     return Card(
       margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
@@ -753,7 +784,7 @@ class _MonthScreenState extends State<MonthScreen> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            DayScreen(day: day, currentDoctor: widget.currentDoctor),
+            DayScreen(day: day, currentDoctor: _currentDoctorFromList()),
       ),
     );
 
@@ -763,13 +794,70 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   void _openMonthlyReport() {
+    if (SupabaseConfig.isConfigured) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MonthReportPickerScreen(doctors: _doctors),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) =>
-            MonthReportScreen(roster: currentRoster, doctors: widget.doctors),
+            MonthReportScreen(roster: currentRoster, doctors: _doctors),
       ),
     );
+  }
+
+  Future<void> _openRelativeMonth(int delta) async {
+    final target = DateTime(currentRoster.year, currentRoster.month + delta, 1);
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        final roster = await SupabaseRosterService().loadRoster(
+          year: target.year,
+          month: target.month,
+          doctors: _doctors,
+        );
+
+        if (roster == null) {
+          _setStatusMessage(
+            'No generated roster for ${target.month}/${target.year}',
+          );
+          return;
+        }
+
+        setState(() {
+          currentRoster = roster;
+          _selectedDateKeys.clear();
+        });
+        widget.onVisibleMonthChanged?.call(DateTime(target.year, target.month));
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+      } catch (_) {
+        _setStatusMessage('Could not load ${target.month}/${target.year}.');
+      }
+
+      return;
+    }
+
+    setState(() {
+      currentRoster =
+          RosterMonthFactory(
+            holidayProvider: ManualHolidayProvider(),
+            slotFactory: SlotFactory(),
+          ).generateMonth(
+            year: target.year,
+            month: target.month,
+            departmentTemplate: NeurologyDepartmentFactory.create(),
+          );
+      _selectedDateKeys.clear();
+    });
+    widget.onVisibleMonthChanged?.call(DateTime(target.year, target.month));
   }
 
   Future<void> _openAdmin() async {
@@ -800,7 +888,7 @@ class _MonthScreenState extends State<MonthScreen> {
     });
   }
 
-  void _setSelectedDatesAsVacation() {
+  Future<void> _setSelectedDatesAsVacation() async {
     final selectedDays = _selectedDays();
 
     if (selectedDays.isEmpty) {
@@ -808,15 +896,26 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final doctor = _currentDoctorFromList();
+    final vacationPeriod = AvailabilityPeriod(
+      start: selectedDays.first.date,
+      end: selectedDays.last.date,
+      type: AvailabilityType.vacation,
+    );
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _insertAbsenceInSupabase(doctor: doctor, period: vacationPeriod);
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage('Could not save vacation.');
+        return;
+      }
+    }
+
     final updatedDoctor = doctor.copyWith(
-      availabilities: [
-        ...doctor.availabilities,
-        AvailabilityPeriod(
-          start: selectedDays.first.date,
-          end: selectedDays.last.date,
-          type: AvailabilityType.vacation,
-        ),
-      ],
+      availabilities: [...doctor.availabilities, vacationPeriod],
     );
 
     final selectedKeys = _selectedDateKeys.toSet();
@@ -836,6 +935,7 @@ class _MonthScreenState extends State<MonthScreen> {
     }).toList();
 
     setState(() {
+      _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
       currentRoster = RosterMonth(
         year: currentRoster.year,
         month: currentRoster.month,
@@ -856,7 +956,7 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
-  void _removeVacationFromSelectedDates() {
+  Future<void> _removeVacationFromSelectedDates() async {
     final selectedDays = _selectedDays();
 
     if (selectedDays.isEmpty) {
@@ -867,6 +967,21 @@ class _MonthScreenState extends State<MonthScreen> {
     final updatedAvailabilities = <AvailabilityPeriod>[];
     var removedDays = 0;
     final doctor = _currentDoctorFromList();
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _removeVacationFromSupabase(
+          doctor: doctor,
+          selectedKeys: selectedKeys,
+        );
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage('Could not remove vacation.');
+        return;
+      }
+    }
 
     for (final availability in doctor.availabilities) {
       if (availability.type != AvailabilityType.vacation) {
@@ -894,6 +1009,7 @@ class _MonthScreenState extends State<MonthScreen> {
     );
 
     setState(() {
+      _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
       _selectedDateKeys.clear();
       if (_editorDoctor?.id == updatedDoctor.id) {
         _editorDoctor = updatedDoctor;
@@ -906,6 +1022,63 @@ class _MonthScreenState extends State<MonthScreen> {
       'Vacation removed from $removedDays day'
       '${removedDays == 1 ? '' : 's'}',
     );
+  }
+
+  Future<void> _insertAbsenceInSupabase({
+    required Doctor doctor,
+    required AvailabilityPeriod period,
+  }) async {
+    await Supabase.instance.client.from('absences').insert({
+      'doctor_id': doctor.id,
+      'starts_on': _dateIso(period.start),
+      'ends_on': _dateIso(period.end),
+      'type': _availabilityTypeDatabaseValue(period.type),
+      'created_by': Supabase.instance.client.auth.currentUser?.id,
+    });
+  }
+
+  Future<void> _removeVacationFromSupabase({
+    required Doctor doctor,
+    required Set<String> selectedKeys,
+  }) async {
+    final selectedDates = selectedKeys.map(_dateFromKey).toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    if (selectedDates.isEmpty) {
+      return;
+    }
+
+    final firstSelected = selectedDates.first;
+    final lastSelected = selectedDates.last;
+    final rows = await Supabase.instance.client
+        .from('absences')
+        .select('id, starts_on, ends_on, type')
+        .eq('doctor_id', doctor.id)
+        .eq('type', 'vacation')
+        .lte('starts_on', _dateIso(lastSelected))
+        .gte('ends_on', _dateIso(firstSelected));
+
+    for (final row in rows) {
+      final absenceId = row['id'] as String;
+      final period = AvailabilityPeriod(
+        start: DateTime.parse(row['starts_on'] as String),
+        end: DateTime.parse(row['ends_on'] as String),
+        type: AvailabilityType.vacation,
+      );
+      final retainedRanges = _removeSelectedDatesFromPeriod(
+        period,
+        selectedKeys,
+      );
+
+      await Supabase.instance.client
+          .from('absences')
+          .delete()
+          .eq('id', absenceId);
+
+      for (final retainedRange in retainedRanges) {
+        await _insertAbsenceInSupabase(doctor: doctor, period: retainedRange);
+      }
+    }
   }
 
   List<AvailabilityPeriod> _removeSelectedDatesFromPeriod(
@@ -985,7 +1158,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
     final targetDoctor = _editorMode
         ? await _chooseDoctorForBulkAssignment()
-        : widget.currentDoctor;
+        : _currentDoctorFromList();
 
     if (!mounted) {
       return;
@@ -1073,12 +1246,12 @@ class _MonthScreenState extends State<MonthScreen> {
             shrinkWrap: true,
             children: [
               const ListTile(title: Text('Assign doctor')),
-              for (final doctor in widget.doctors)
+              for (final doctor in _doctors)
                 ListTile(
                   leading: const Icon(Icons.person),
                   title: Text(doctor.fullName),
                   subtitle: Text(doctor.rank.name),
-                  selected: doctor.id == widget.currentDoctor.id,
+                  selected: doctor.id == _currentDoctorFromList().id,
                   onTap: () => Navigator.pop(context, doctor),
                 ),
             ],
@@ -1109,10 +1282,10 @@ class _MonthScreenState extends State<MonthScreen> {
     }
   }
 
-  void _assignSelectedDatesToSlotKind({
+  Future<void> _assignSelectedDatesToSlotKind({
     required SlotKind slotKind,
     required Doctor doctor,
-  }) {
+  }) async {
     final selectedKeys = _selectedDateKeys.toSet();
     final updatedDays = <RosterDay>[];
     int assigned = 0;
@@ -1136,21 +1309,25 @@ class _MonthScreenState extends State<MonthScreen> {
       }
 
       final targetSlot = matchingSlots.first;
+      final retainedAssignments = day.assignments
+          .where(
+            (assignment) =>
+                assignment.slot.id != targetSlot.id &&
+                !_isConflictingAssignmentForDoctor(
+                  assignment,
+                  targetSlot,
+                  doctor,
+                ),
+          )
+          .toList();
+      final removedAssignments = day.assignments
+          .where((assignment) => !retainedAssignments.contains(assignment))
+          .toList();
       final dayWithRoleCleared = RosterDay(
         calendarInfo: day.calendarInfo,
         slots: day.slots,
         availabilities: day.availabilities,
-        assignments: day.assignments
-            .where(
-              (assignment) =>
-                  assignment.slot.id != targetSlot.id &&
-                  !_isConflictingAssignmentForDoctor(
-                    assignment,
-                    targetSlot,
-                    doctor,
-                  ),
-            )
-            .toList(),
+        assignments: retainedAssignments,
       );
 
       final result = AssignmentService().assignDoctorToSlot(
@@ -1160,6 +1337,25 @@ class _MonthScreenState extends State<MonthScreen> {
       );
 
       if (result.success) {
+        if (SupabaseConfig.isConfigured) {
+          try {
+            await _persistAssignmentChanges(
+              removedAssignments: removedAssignments,
+              addedAssignment: Assignment(doctor: doctor, slot: targetSlot),
+            );
+          } on PostgrestException catch (error) {
+            skipped++;
+            failureReasons.add(error.message);
+            updatedDays.add(day);
+            continue;
+          } catch (_) {
+            skipped++;
+            failureReasons.add('Could not save assignment');
+            updatedDays.add(day);
+            continue;
+          }
+        }
+
         assigned++;
         updatedDays.add(result.updatedDay!);
       } else {
@@ -1190,6 +1386,30 @@ class _MonthScreenState extends State<MonthScreen> {
       '${assigned == 1 ? '' : 's'}, '
       'skipped $skipped$reasonSuffix',
     );
+  }
+
+  Future<void> _persistAssignmentChanges({
+    required List<Assignment> removedAssignments,
+    Assignment? addedAssignment,
+  }) async {
+    for (final assignment in removedAssignments) {
+      await Supabase.instance.client
+          .from('assignments')
+          .delete()
+          .eq('roster_slot_id', assignment.slot.id)
+          .eq('doctor_id', assignment.doctor.id);
+    }
+
+    if (addedAssignment == null) {
+      return;
+    }
+
+    await Supabase.instance.client.from('assignments').insert({
+      'roster_slot_id': addedAssignment.slot.id,
+      'doctor_id': addedAssignment.doctor.id,
+      'state': 'provisional',
+      'created_by': Supabase.instance.client.auth.currentUser?.id,
+    });
   }
 
   bool _isConflictingAssignmentForDoctor(
@@ -1252,7 +1472,7 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Doctor _currentDoctorFromList() {
-    for (final doctor in widget.doctors) {
+    for (final doctor in _doctors) {
       if (doctor.id == widget.currentDoctor.id) {
         return doctor;
       }
@@ -1261,8 +1481,60 @@ class _MonthScreenState extends State<MonthScreen> {
     return widget.currentDoctor;
   }
 
+  List<Doctor> _replaceDoctorInList(
+    List<Doctor> doctors,
+    Doctor updatedDoctor,
+  ) {
+    var replaced = false;
+    final updatedDoctors = doctors.map((doctor) {
+      if (doctor.id != updatedDoctor.id) {
+        return doctor;
+      }
+
+      replaced = true;
+      return updatedDoctor;
+    }).toList();
+
+    if (replaced) {
+      return updatedDoctors;
+    }
+
+    return [...updatedDoctors, updatedDoctor];
+  }
+
   String _dateKey(DateTime date) {
     return '${date.year}-${date.month}-${date.day}';
+  }
+
+  String _dateIso(DateTime date) {
+    final normalized = _dateOnly(date);
+    final month = normalized.month.toString().padLeft(2, '0');
+    final day = normalized.day.toString().padLeft(2, '0');
+    return '${normalized.year}-$month-$day';
+  }
+
+  DateTime _dateFromKey(String key) {
+    final parts = key.split('-');
+    return DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+  }
+
+  String _availabilityTypeDatabaseValue(AvailabilityType type) {
+    switch (type) {
+      case AvailabilityType.available:
+        return 'available';
+      case AvailabilityType.vacation:
+        return 'vacation';
+      case AvailabilityType.sickLeave:
+        return 'sick_leave';
+      case AvailabilityType.conference:
+        return 'conference';
+      case AvailabilityType.externalRoatation:
+        return 'external_rotation';
+    }
   }
 
   String _formatDateKey(String key) {
@@ -1304,7 +1576,7 @@ class _MonthScreenState extends State<MonthScreen> {
     final myAssignments = RosterStatisticsService()
         .getAssignmentsForDoctorInMonth(
           roster: currentRoster,
-          doctor: widget.currentDoctor,
+          doctor: _currentDoctorFromList(),
         );
 
     showDialog(

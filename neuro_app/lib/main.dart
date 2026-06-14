@@ -11,6 +11,7 @@ import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
 import 'services/supabase_bootstrap.dart';
 import 'services/supabase_doctor_service.dart';
+import 'services/supabase_roster_service.dart';
 import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
@@ -124,6 +125,7 @@ class _AuthorizedMonthHome extends StatefulWidget {
 class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
   late Future<_AuthorizedHomeData> _homeDataFuture;
   late Doctor _selectedDoctor;
+  late DateTime _visibleMonth;
   List<Doctor>? _databaseDoctors;
   StreamSubscription<AuthState>? _authSubscription;
 
@@ -131,6 +133,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
   void initState() {
     super.initState();
     _selectedDoctor = widget.currentDoctor;
+    _visibleMonth = DateTime(widget.roster.year, widget.roster.month);
     _homeDataFuture = _loadHomeData();
     if (SupabaseConfig.isConfigured) {
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange
@@ -183,7 +186,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         );
 
         return MonthScreen(
-          roster: widget.roster,
+          roster: data?.roster ?? widget.roster,
           currentDoctor: selectedDoctor,
           doctors: doctors,
           showAdmin: data?.isAdmin ?? false,
@@ -191,6 +194,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
           onDoctorChanged: _setSelectedDoctor,
           onDoctorUpdated: _updateDoctor,
           onAdminClosed: _reloadHomeData,
+          onVisibleMonthChanged: _setVisibleMonth,
         );
       },
     );
@@ -220,6 +224,11 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         .maybeSingle();
 
     final databaseDoctors = await SupabaseDoctorService().loadActiveDoctors();
+    final databaseRoster = await SupabaseRosterService().loadRoster(
+      year: _visibleMonth.year,
+      month: _visibleMonth.month,
+      doctors: databaseDoctors,
+    );
 
     _databaseDoctors = databaseDoctors;
     _selectedDoctor = _doctorFromListOrFallback(
@@ -230,6 +239,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     return _AuthorizedHomeData(
       isAdmin: profile?['role'] == 'admin',
       doctors: databaseDoctors,
+      roster: databaseRoster,
       signedInEmail: Supabase.instance.client.auth.currentUser?.email,
     );
   }
@@ -240,6 +250,10 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     });
 
     widget.onDoctorChanged(doctor);
+  }
+
+  void _setVisibleMonth(DateTime month) {
+    _visibleMonth = DateTime(month.year, month.month);
   }
 
   void _updateDoctor(Doctor updatedDoctor) {
@@ -384,11 +398,13 @@ class _HomeErrorView extends StatelessWidget {
 class _AuthorizedHomeData {
   final bool isAdmin;
   final List<Doctor> doctors;
+  final RosterMonth? roster;
   final String? signedInEmail;
 
   const _AuthorizedHomeData({
     required this.isAdmin,
     required this.doctors,
+    this.roster,
     this.signedInEmail,
   });
 }

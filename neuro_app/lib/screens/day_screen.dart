@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
+import 'package:neuro_app/services/supabase_bootstrap.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/slot_card.dart';
 
 class DayScreen extends StatefulWidget {
@@ -127,7 +129,7 @@ class _DayScreenState extends State<DayScreen> {
     );
   }
 
-  void _toggleAssignment(SlotViewModel slotView) {
+  Future<void> _toggleAssignment(SlotViewModel slotView) async {
     final alreadyAssigned = slotView.assignments.any(
       (assignment) => assignment.doctor.id == widget.currentDoctor.id,
     );
@@ -148,6 +150,47 @@ class _DayScreenState extends State<DayScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(result.reason ?? 'Action failed')));
+      return;
+    }
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        if (alreadyAssigned) {
+          await Supabase.instance.client
+              .from('assignments')
+              .delete()
+              .eq('roster_slot_id', slotView.slot.id)
+              .eq('doctor_id', widget.currentDoctor.id);
+        } else {
+          await Supabase.instance.client.from('assignments').insert({
+            'roster_slot_id': slotView.slot.id,
+            'doctor_id': widget.currentDoctor.id,
+            'state': 'provisional',
+            'created_by': Supabase.instance.client.auth.currentUser?.id,
+          });
+        }
+      } on PostgrestException catch (error) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+        return;
+      } catch (_) {
+        if (!mounted) {
+          return;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save assignment')),
+        );
+        return;
+      }
+    }
+
+    if (!mounted) {
       return;
     }
 
