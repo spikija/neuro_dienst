@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'admin_doctors_screen.dart';
+import 'admin_report_settings_screen.dart';
 import 'admin_role_templates_screen.dart';
 import 'admin_rosters_screen.dart';
 import 'admin_roles_screen.dart';
@@ -64,6 +65,20 @@ class AdminHomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminRostersScreen()),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          _AdminTile(
+            icon: Icons.print,
+            title: 'Report settings',
+            subtitle: 'Choose which active roles appear in monthly reports.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminReportSettingsScreen(),
+                ),
               );
             },
           ),

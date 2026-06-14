@@ -75,7 +75,9 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
   }
 
   Future<void> _openReport(RosterSummary summary) async {
-    final roster = await SupabaseRosterService().loadRoster(
+    final service = SupabaseRosterService();
+    final reportRoles = await service.listReportRoles(onlyPrintable: true);
+    final roster = await service.loadRoster(
       year: summary.year,
       month: summary.month,
       doctors: widget.doctors,
@@ -95,8 +97,11 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            MonthReportScreen(roster: roster, doctors: widget.doctors),
+        builder: (_) => MonthReportScreen(
+          roster: roster,
+          doctors: widget.doctors,
+          reportRoles: reportRoles,
+        ),
       ),
     );
   }

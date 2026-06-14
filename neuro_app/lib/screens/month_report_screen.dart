@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 
+import '../services/supabase_roster_service.dart';
+
 class MonthReportScreen extends StatelessWidget {
   static const List<SlotKind> _displayedSlotKinds = [
     SlotKind.strokeUnitLeader,
@@ -14,11 +16,13 @@ class MonthReportScreen extends StatelessWidget {
 
   final RosterMonth roster;
   final List<Doctor> doctors;
+  final List<ReportRole>? reportRoles;
 
   const MonthReportScreen({
     super.key,
     required this.roster,
     required this.doctors,
+    this.reportRoles,
   });
 
   @override
@@ -42,7 +46,11 @@ class MonthReportScreen extends StatelessWidget {
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: _A4PortraitPage(
-                child: _ReportContent(roster: roster, doctors: doctors),
+                child: _ReportContent(
+                  roster: roster,
+                  doctors: doctors,
+                  reportRoles: reportRoles,
+                ),
               ),
             ),
           ),
@@ -82,8 +90,13 @@ class _A4PortraitPage extends StatelessWidget {
 class _ReportContent extends StatelessWidget {
   final RosterMonth roster;
   final List<Doctor> doctors;
+  final List<ReportRole>? reportRoles;
 
-  const _ReportContent({required this.roster, required this.doctors});
+  const _ReportContent({
+    required this.roster,
+    required this.doctors,
+    required this.reportRoles,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +106,11 @@ class _ReportContent extends StatelessWidget {
         _ReportHeader(roster: roster),
         const SizedBox(height: 12),
         Expanded(
-          child: _ReportTable(roster: roster, doctors: doctors),
+          child: _ReportTable(
+            roster: roster,
+            doctors: doctors,
+            reportRoles: reportRoles,
+          ),
         ),
         const SizedBox(height: 8),
         _ReportFooter(doctors: doctors),
@@ -192,58 +209,65 @@ class _ReportHeader extends StatelessWidget {
 class _ReportTable extends StatelessWidget {
   final RosterMonth roster;
   final List<Doctor> doctors;
+  final List<ReportRole>? reportRoles;
 
-  const _ReportTable({required this.roster, required this.doctors});
+  const _ReportTable({
+    required this.roster,
+    required this.doctors,
+    required this.reportRoles,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final roleColumns = _roleColumns();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableHeight = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 1350.0;
         final rowHeight = availableHeight / (roster.days.length + 1);
+        final columnWidths = <int, TableColumnWidth>{
+          0: const FixedColumnWidth(50),
+          1: const FixedColumnWidth(36),
+          for (var i = 0; i < roleColumns.length; i++)
+            i + 2: const FlexColumnWidth(),
+          roleColumns.length + 2: const FixedColumnWidth(64),
+          roleColumns.length + 3: const FixedColumnWidth(110),
+        };
 
         return Table(
-          columnWidths: const {
-            0: FixedColumnWidth(50),
-            1: FixedColumnWidth(36),
-            2: FlexColumnWidth(),
-            3: FlexColumnWidth(),
-            4: FlexColumnWidth(),
-            5: FlexColumnWidth(),
-            6: FlexColumnWidth(),
-            7: FlexColumnWidth(),
-            8: FlexColumnWidth(),
-            9: FixedColumnWidth(64),
-            10: FixedColumnWidth(110),
-          },
+          columnWidths: columnWidths,
           border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            _headerRow(rowHeight),
-            for (final day in roster.days) _dayRow(day, rowHeight),
+            _headerRow(rowHeight, roleColumns),
+            for (final day in roster.days) _dayRow(day, rowHeight, roleColumns),
           ],
         );
       },
     );
   }
 
-  TableRow _headerRow(double rowHeight) {
+  TableRow _headerRow(double rowHeight, List<_ReportRoleColumn> roleColumns) {
     return TableRow(
       decoration: BoxDecoration(color: Colors.grey.shade200),
       children: [
         _cell('Date', height: rowHeight, bold: true),
         _cell('Day', height: rowHeight, bold: true),
-        for (final kind in MonthReportScreen._displayedSlotKinds)
-          _cell(_slotAbbreviation(kind), height: rowHeight, bold: true),
+        for (final role in roleColumns)
+          _cell(role.code, height: rowHeight, bold: true),
         _cell('Abs', height: rowHeight, bold: true),
         _cell('Notes', height: rowHeight, bold: true),
       ],
     );
   }
 
-  TableRow _dayRow(RosterDay day, double rowHeight) {
+  TableRow _dayRow(
+    RosterDay day,
+    double rowHeight,
+    List<_ReportRoleColumn> roleColumns,
+  ) {
     return TableRow(
       decoration: BoxDecoration(color: _rowColor(day)),
       children: [
@@ -253,8 +277,8 @@ class _ReportTable extends StatelessWidget {
           bold: true,
         ),
         _cell(_weekdayAbbreviation(day.date), height: rowHeight),
-        for (final kind in MonthReportScreen._displayedSlotKinds)
-          _cell(_assignmentText(day, kind), height: rowHeight),
+        for (final role in roleColumns)
+          _cell(_assignmentText(day, role), height: rowHeight),
         _cell(_absenceText(day), height: rowHeight),
         _cell(_notes(day), height: rowHeight),
       ],
@@ -282,8 +306,29 @@ class _ReportTable extends StatelessWidget {
     );
   }
 
-  String _assignmentText(RosterDay day, SlotKind kind) {
-    final slot = _firstSlotForKind(day, kind);
+  List<_ReportRoleColumn> _roleColumns() {
+    final roles = reportRoles;
+
+    if (roles != null && roles.isNotEmpty) {
+      return [
+        for (final role in roles)
+          _ReportRoleColumn(id: role.id, code: role.code, name: role.name),
+      ];
+    }
+
+    return [
+      for (final kind in MonthReportScreen._displayedSlotKinds)
+        _ReportRoleColumn(
+          id: kind.name,
+          code: _slotAbbreviation(kind),
+          name: _slotAbbreviation(kind),
+          kind: kind,
+        ),
+    ];
+  }
+
+  String _assignmentText(RosterDay day, _ReportRoleColumn role) {
+    final slot = _firstSlotForRole(day, role);
 
     if (slot == null) {
       return '';
@@ -301,6 +346,22 @@ class _ReportTable extends StatelessWidget {
     }
 
     return doctors.join(', ');
+  }
+
+  DailySlot? _firstSlotForRole(RosterDay day, _ReportRoleColumn role) {
+    for (final slot in day.slots) {
+      if (slot.template.id == role.id) {
+        return slot;
+      }
+    }
+
+    final kind = role.kind ?? _slotKindFromReportCode(role.code);
+
+    if (kind != null) {
+      return _firstSlotForKind(day, kind);
+    }
+
+    return null;
   }
 
   DailySlot? _firstSlotForKind(RosterDay day, SlotKind kind) {
@@ -389,6 +450,44 @@ class _ReportTable extends StatelessWidget {
         return 'OFO';
     }
   }
+}
+
+class _ReportRoleColumn {
+  final String id;
+  final String code;
+  final String name;
+  final SlotKind? kind;
+
+  const _ReportRoleColumn({
+    required this.id,
+    required this.code,
+    required this.name,
+    this.kind,
+  });
+}
+
+SlotKind? _slotKindFromReportCode(String code) {
+  switch (code.toUpperCase()) {
+    case 'SCI':
+      return SlotKind.science;
+    case 'SUL':
+      return SlotKind.strokeUnitLeader;
+    case 'SU1':
+      return SlotKind.strokeUnitTeam1;
+    case 'SU2':
+      return SlotKind.strokeUnitTeam2;
+    case 'AMB':
+    case 'ICB':
+      return SlotKind.ambulance;
+    case 'SON':
+      return SlotKind.neurosonology;
+    case 'NVB':
+      return SlotKind.neurovascularBoard;
+    case 'OFO':
+      return SlotKind.ofoBoard;
+  }
+
+  return null;
 }
 
 String _doctorInitials(Doctor doctor) {

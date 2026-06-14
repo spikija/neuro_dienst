@@ -7,6 +7,30 @@ class SupabaseRosterService {
   SupabaseRosterService({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
+  Future<List<ReportRole>> listReportRoles({bool onlyPrintable = false}) async {
+    var query = _client
+        .from('roles')
+        .select('id, code, name, display_order, print_in_report')
+        .eq('is_active', true);
+
+    if (onlyPrintable) {
+      query = query.eq('print_in_report', true);
+    }
+
+    final rows = await query.order('display_order').order('code');
+    return rows.map((row) => ReportRole.fromJson(row)).toList();
+  }
+
+  Future<void> updateRolePrintInReport({
+    required String roleId,
+    required bool printInReport,
+  }) async {
+    await _client
+        .from('roles')
+        .update({'print_in_report': printInReport})
+        .eq('id', roleId);
+  }
+
   Future<List<RosterSummary>> listRosters() async {
     final rows = await _client
         .from('rosters')
@@ -169,6 +193,32 @@ class SupabaseRosterService {
       month: month,
       days: days,
       phase: _phaseFromDatabase(rosterRow['phase'] as String?),
+    );
+  }
+}
+
+class ReportRole {
+  final String id;
+  final String code;
+  final String name;
+  final int displayOrder;
+  final bool printInReport;
+
+  const ReportRole({
+    required this.id,
+    required this.code,
+    required this.name,
+    required this.displayOrder,
+    required this.printInReport,
+  });
+
+  factory ReportRole.fromJson(Map<String, dynamic> json) {
+    return ReportRole(
+      id: json['id'] as String,
+      code: json['code'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      displayOrder: json['display_order'] as int? ?? 0,
+      printInReport: json['print_in_report'] as bool? ?? true,
     );
   }
 }
