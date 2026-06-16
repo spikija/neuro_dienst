@@ -8,6 +8,7 @@ import 'package:neuro_app/services/supabase_roster_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/month_day_card.dart';
 import 'admin_home_screen.dart';
+import 'calendar_export_screen.dart';
 import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
 import 'doctor_selector_screen.dart';
@@ -197,6 +198,11 @@ class _MonthScreenState extends State<MonthScreen> {
           IconButton(
             icon: const Icon(Icons.list),
             onPressed: _showMyAssignmentsDialog,
+          ),
+          IconButton(
+            tooltip: 'Export calendar',
+            icon: const Icon(Icons.calendar_month),
+            onPressed: _openCalendarExport,
           ),
           IconButton(
             tooltip: l10n.t('monthlyReport'),
@@ -1642,6 +1648,18 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   // method
+  void _openCalendarExport() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CalendarExportScreen(
+          roster: currentRoster,
+          doctor: _currentDoctorFromList(),
+        ),
+      ),
+    );
+  }
+
   void _showMyAssignmentsDialog() {
     final l10n = AppLocalizations.of(context);
     final myAssignments = RosterStatisticsService()
