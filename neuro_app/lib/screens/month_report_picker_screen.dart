@@ -16,6 +16,7 @@ class MonthReportPickerScreen extends StatefulWidget {
 
 class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
   late Future<List<RosterSummary>> _rostersFuture;
+  MonthReportLayout _layout = MonthReportLayout.roles;
 
   @override
   void initState() {
@@ -47,21 +48,50 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
             return const Center(child: Text('No generated rosters yet.'));
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(12),
-            itemCount: rosters.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final roster = rosters[index];
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                child: SegmentedButton<MonthReportLayout>(
+                  segments: const [
+                    ButtonSegment(
+                      value: MonthReportLayout.roles,
+                      icon: Icon(Icons.view_column),
+                      label: Text('Roles'),
+                    ),
+                    ButtonSegment(
+                      value: MonthReportLayout.physicians,
+                      icon: Icon(Icons.badge),
+                      label: Text('Physicians'),
+                    ),
+                  ],
+                  selected: {_layout},
+                  onSelectionChanged: (selection) {
+                    setState(() {
+                      _layout = selection.first;
+                    });
+                  },
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  itemCount: rosters.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final roster = rosters[index];
 
-              return ListTile(
-                leading: const Icon(Icons.calendar_month),
-                title: Text('${_monthName(roster.month)} ${roster.year}'),
-                subtitle: Text(_phaseLabel(roster.phase)),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openReport(roster),
-              );
-            },
+                    return ListTile(
+                      leading: const Icon(Icons.calendar_month),
+                      title: Text('${_monthName(roster.month)} ${roster.year}'),
+                      subtitle: Text(_phaseLabel(roster.phase)),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _openReport(roster),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -101,6 +131,7 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
           roster: roster,
           doctors: widget.doctors,
           reportRoles: reportRoles,
+          layout: _layout,
         ),
       ),
     );

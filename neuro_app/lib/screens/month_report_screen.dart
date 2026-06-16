@@ -3,6 +3,8 @@ import 'package:neuro_core/neuro_core.dart';
 
 import '../services/supabase_roster_service.dart';
 
+enum MonthReportLayout { roles, physicians }
+
 class MonthReportScreen extends StatelessWidget {
   static const List<SlotKind> _displayedSlotKinds = [
     SlotKind.strokeUnitLeader,
@@ -17,12 +19,14 @@ class MonthReportScreen extends StatelessWidget {
   final RosterMonth roster;
   final List<Doctor> doctors;
   final List<ReportRole>? reportRoles;
+  final MonthReportLayout layout;
 
   const MonthReportScreen({
     super.key,
     required this.roster,
     required this.doctors,
     this.reportRoles,
+    this.layout = MonthReportLayout.roles,
   });
 
   @override
@@ -50,6 +54,7 @@ class MonthReportScreen extends StatelessWidget {
                   roster: roster,
                   doctors: doctors,
                   reportRoles: reportRoles,
+                  layout: layout,
                 ),
               ),
             ),
@@ -91,11 +96,13 @@ class _ReportContent extends StatelessWidget {
   final RosterMonth roster;
   final List<Doctor> doctors;
   final List<ReportRole>? reportRoles;
+  final MonthReportLayout layout;
 
   const _ReportContent({
     required this.roster,
     required this.doctors,
     required this.reportRoles,
+    required this.layout,
   });
 
   @override
@@ -106,11 +113,17 @@ class _ReportContent extends StatelessWidget {
         _ReportHeader(roster: roster),
         const SizedBox(height: 12),
         Expanded(
-          child: _ReportTable(
-            roster: roster,
-            doctors: doctors,
-            reportRoles: reportRoles,
-          ),
+          child: layout == MonthReportLayout.roles
+              ? _ReportTable(
+                  roster: roster,
+                  doctors: doctors,
+                  reportRoles: reportRoles,
+                )
+              : _PhysicianReportTable(
+                  roster: roster,
+                  doctors: doctors,
+                  reportRoles: reportRoles,
+                ),
         ),
         const SizedBox(height: 8),
         _ReportFooter(doctors: doctors),
@@ -226,7 +239,12 @@ class _ReportTable extends StatelessWidget {
         final availableHeight = constraints.maxHeight.isFinite
             ? constraints.maxHeight
             : 1350.0;
-        final rowHeight = availableHeight / (roster.days.length + 1);
+        final headerHeight = _reportHeaderRowHeight(availableHeight);
+        final rowUnitHeight = _reportBodyRowUnitHeight(
+          availableHeight: availableHeight,
+          headerHeight: headerHeight,
+          days: roster.days,
+        );
         final columnWidths = <int, TableColumnWidth>{
           0: const FixedColumnWidth(50),
           1: const FixedColumnWidth(36),
@@ -241,8 +259,9 @@ class _ReportTable extends StatelessWidget {
           border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            _headerRow(rowHeight, roleColumns),
-            for (final day in roster.days) _dayRow(day, rowHeight, roleColumns),
+            _headerRow(headerHeight, roleColumns),
+            for (final day in roster.days)
+              _dayRow(day, rowUnitHeight * _reportRowWeight(day), roleColumns),
           ],
         );
       },
@@ -256,7 +275,13 @@ class _ReportTable extends StatelessWidget {
         _cell('Date', height: rowHeight, bold: true),
         _cell('Day', height: rowHeight, bold: true),
         for (final role in roleColumns)
-          _cell(role.code, height: rowHeight, bold: true),
+          _cell(
+            _roleHeaderLabel(role),
+            height: rowHeight,
+            bold: true,
+            maxLines: 2,
+            fontSize: _reportHeaderFontSize(rowHeight, role.name),
+          ),
         _cell('Abs', height: rowHeight, bold: true),
         _cell('Notes', height: rowHeight, bold: true),
       ],
@@ -285,7 +310,13 @@ class _ReportTable extends StatelessWidget {
     );
   }
 
-  Widget _cell(String text, {required double height, bool bold = false}) {
+  Widget _cell(
+    String text, {
+    required double height,
+    bool bold = false,
+    int maxLines = 1,
+    double? fontSize,
+  }) {
     return SizedBox(
       height: height,
       child: Align(
@@ -294,16 +325,22 @@ class _ReportTable extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
           child: Text(
             text,
-            maxLines: 1,
+            maxLines: maxLines,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: bold ? 11 : 12,
+              fontSize: fontSize ?? _reportCellFontSize(height, bold: bold),
+              height: height < 28 ? 0.95 : 1,
               fontWeight: bold ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ),
       ),
     );
+  }
+
+  String _roleHeaderLabel(_ReportRoleColumn role) {
+    final name = role.name.trim();
+    return name.isEmpty ? role.code : name;
   }
 
   List<_ReportRoleColumn> _roleColumns() {
@@ -452,6 +489,227 @@ class _ReportTable extends StatelessWidget {
   }
 }
 
+class _PhysicianReportTable extends StatelessWidget {
+  final RosterMonth roster;
+  final List<Doctor> doctors;
+  final List<ReportRole>? reportRoles;
+
+  const _PhysicianReportTable({
+    required this.roster,
+    required this.doctors,
+    required this.reportRoles,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final reportDoctors = _orderedDoctors();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight
+            : 1350.0;
+        final headerHeight = _reportHeaderRowHeight(availableHeight);
+        final rowUnitHeight = _reportBodyRowUnitHeight(
+          availableHeight: availableHeight,
+          headerHeight: headerHeight,
+          days: roster.days,
+        );
+        final columnWidths = <int, TableColumnWidth>{
+          0: const FixedColumnWidth(50),
+          1: const FixedColumnWidth(36),
+          for (var i = 0; i < reportDoctors.length; i++)
+            i + 2: const FlexColumnWidth(),
+          reportDoctors.length + 2: const FixedColumnWidth(110),
+        };
+
+        return Table(
+          columnWidths: columnWidths,
+          border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            _headerRow(headerHeight, reportDoctors),
+            for (final day in roster.days)
+              _dayRow(
+                day,
+                rowUnitHeight * _reportRowWeight(day),
+                reportDoctors,
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  TableRow _headerRow(double rowHeight, List<Doctor> reportDoctors) {
+    return TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: [
+        _cell('Date', height: rowHeight, bold: true),
+        _cell('Day', height: rowHeight, bold: true),
+        for (final doctor in reportDoctors)
+          _cell(_doctorSurname(doctor), height: rowHeight, bold: true),
+        _cell('Notes', height: rowHeight, bold: true),
+      ],
+    );
+  }
+
+  TableRow _dayRow(
+    RosterDay day,
+    double rowHeight,
+    List<Doctor> reportDoctors,
+  ) {
+    return TableRow(
+      decoration: BoxDecoration(color: _rowColor(day)),
+      children: [
+        _cell(
+          '${day.date.day}.${day.date.month}.',
+          height: rowHeight,
+          bold: true,
+        ),
+        _cell(_weekdayAbbreviation(day.date), height: rowHeight),
+        for (final doctor in reportDoctors)
+          _cell(_doctorDayText(day, doctor), height: rowHeight),
+        _cell(_notes(day), height: rowHeight),
+      ],
+    );
+  }
+
+  Widget _cell(String text, {required double height, bool bold = false}) {
+    return SizedBox(
+      height: height,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: _reportCellFontSize(height, bold: bold),
+              height: height < 28 ? 0.95 : 1,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Doctor> _orderedDoctors() {
+    final ordered = [...doctors]
+      ..sort((a, b) {
+        final printOrderCompare = a.printOrder.compareTo(b.printOrder);
+
+        if (printOrderCompare != 0) {
+          return printOrderCompare;
+        }
+
+        final rankCompare = _rankSortValue(
+          a.rank,
+        ).compareTo(_rankSortValue(b.rank));
+
+        if (rankCompare != 0) {
+          return rankCompare;
+        }
+
+        final lastCompare = a.lastName.compareTo(b.lastName);
+        if (lastCompare != 0) {
+          return lastCompare;
+        }
+
+        return a.firstName.compareTo(b.firstName);
+      });
+
+    return ordered;
+  }
+
+  String _doctorDayText(RosterDay day, Doctor doctor) {
+    final absence = doctor.absenceOn(day.date);
+
+    if (absence != null) {
+      return 'VAC';
+    }
+
+    final roleIds = reportRoles?.map((role) => role.id).toSet();
+    final rows = day.assignments
+        .where((assignment) => assignment.doctor.id == doctor.id)
+        .where(
+          (assignment) =>
+              roleIds == null || roleIds.contains(assignment.slot.template.id),
+        )
+        .map((assignment) => _slotCode(assignment.slot))
+        .toList();
+
+    rows.sort((a, b) => _roleSortValue(a).compareTo(_roleSortValue(b)));
+
+    return rows.join(', ');
+  }
+
+  String _slotCode(DailySlot slot) {
+    ReportRole? role;
+
+    for (final candidate in reportRoles ?? const <ReportRole>[]) {
+      if (candidate.id == slot.template.id) {
+        role = candidate;
+        break;
+      }
+    }
+
+    if (role != null) {
+      return role.code;
+    }
+
+    return _slotKindAbbreviation(slot.template.kind);
+  }
+
+  Color _rowColor(RosterDay day) {
+    if (day.calendarInfo.isPublicHoliday) {
+      return const Color(0xFFFFECEF);
+    }
+
+    if (day.calendarInfo.isWeekend) {
+      return const Color(0xFFEFF4FA);
+    }
+
+    return Colors.white;
+  }
+
+  String _notes(RosterDay day) {
+    if (day.calendarInfo.isPublicHoliday) {
+      return day.calendarInfo.publicHolidayName ?? 'Holiday';
+    }
+
+    if (day.calendarInfo.isWeekend) {
+      return 'Weekend';
+    }
+
+    return '';
+  }
+
+  String _weekdayAbbreviation(DateTime date) {
+    switch (date.weekday) {
+      case DateTime.monday:
+        return 'Mo';
+      case DateTime.tuesday:
+        return 'Tu';
+      case DateTime.wednesday:
+        return 'We';
+      case DateTime.thursday:
+        return 'Th';
+      case DateTime.friday:
+        return 'Fr';
+      case DateTime.saturday:
+        return 'Sa';
+      case DateTime.sunday:
+        return 'Su';
+    }
+
+    return '';
+  }
+}
+
 class _ReportRoleColumn {
   final String id;
   final String code;
@@ -464,6 +722,72 @@ class _ReportRoleColumn {
     required this.name,
     this.kind,
   });
+}
+
+double _reportHeaderRowHeight(double availableHeight) {
+  return availableHeight < 900 ? 34 : 42;
+}
+
+double _reportBodyRowUnitHeight({
+  required double availableHeight,
+  required double headerHeight,
+  required List<RosterDay> days,
+}) {
+  if (days.isEmpty) {
+    return 0;
+  }
+
+  final bodyHeight = (availableHeight - headerHeight).clamp(0, availableHeight);
+  final totalWeight = days.fold<double>(
+    0,
+    (sum, day) => sum + _reportRowWeight(day),
+  );
+
+  if (totalWeight <= 0) {
+    return 0;
+  }
+
+  return bodyHeight / totalWeight;
+}
+
+double _reportRowWeight(RosterDay day) {
+  if (day.calendarInfo.isWeekend) {
+    return 0.45;
+  }
+
+  if (day.calendarInfo.isPublicHoliday) {
+    return 0.65;
+  }
+
+  return 1;
+}
+
+double _reportCellFontSize(double height, {required bool bold}) {
+  if (height < 24) {
+    return bold ? 10 : 10.5;
+  }
+
+  if (height < 34) {
+    return bold ? 12 : 13;
+  }
+
+  return bold ? 14 : 15;
+}
+
+double _reportHeaderFontSize(double height, String text) {
+  if (height < 36) {
+    return text.length > 18 ? 9.5 : 10.5;
+  }
+
+  if (text.length > 22) {
+    return 10;
+  }
+
+  if (text.length > 16) {
+    return 11;
+  }
+
+  return 12;
 }
 
 SlotKind? _slotKindFromReportCode(String code) {
@@ -488,6 +812,67 @@ SlotKind? _slotKindFromReportCode(String code) {
   }
 
   return null;
+}
+
+int _rankSortValue(DoctorRank rank) {
+  switch (rank) {
+    case DoctorRank.head:
+      return 0;
+    case DoctorRank.consultant:
+      return 1;
+    case DoctorRank.seniorSpecialist:
+      return 2;
+    case DoctorRank.specialist:
+      return 3;
+    case DoctorRank.resident:
+      return 4;
+  }
+}
+
+int _roleSortValue(String code) {
+  switch (code.toUpperCase()) {
+    case 'SUL':
+      return 0;
+    case 'SU1':
+      return 1;
+    case 'SU2':
+      return 2;
+    case 'AMB':
+      return 3;
+    case 'ICB':
+      return 4;
+    case 'SON':
+      return 5;
+    case 'NVB':
+      return 6;
+    case 'OFO':
+      return 7;
+    case 'SCI':
+      return 8;
+  }
+
+  return 99;
+}
+
+String _slotKindAbbreviation(SlotKind kind) {
+  switch (kind) {
+    case SlotKind.science:
+      return 'SCI';
+    case SlotKind.strokeUnitLeader:
+      return 'SUL';
+    case SlotKind.strokeUnitTeam1:
+      return 'SU1';
+    case SlotKind.strokeUnitTeam2:
+      return 'SU2';
+    case SlotKind.ambulance:
+      return 'AMB';
+    case SlotKind.neurosonology:
+      return 'SON';
+    case SlotKind.neurovascularBoard:
+      return 'NVB';
+    case SlotKind.ofoBoard:
+      return 'OFO';
+  }
 }
 
 String _doctorInitials(Doctor doctor) {

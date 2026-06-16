@@ -10,8 +10,11 @@ class SupabaseDoctorService {
   Future<List<Doctor>> loadActiveDoctors() async {
     final rows = await _client
         .from('doctors')
-        .select('id, first_name, last_name, rank, capabilities, is_active')
+        .select(
+          'id, first_name, last_name, rank, print_order, capabilities, is_active',
+        )
         .eq('is_active', true)
+        .order('print_order')
         .order('last_name')
         .order('first_name');
 
@@ -64,6 +67,7 @@ Doctor _doctorFromJson(Map<String, dynamic> json) {
     firstName: json['first_name'] as String? ?? '',
     lastName: json['last_name'] as String? ?? '',
     rank: _rankFromDatabase(json['rank'] as String?),
+    printOrder: json['print_order'] as int? ?? 0,
     capabilities: _capabilitiesFromDatabase(json['capabilities']),
   );
 }

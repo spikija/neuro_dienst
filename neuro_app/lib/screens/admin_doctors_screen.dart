@@ -54,13 +54,58 @@ class _AdminDoctorsScreenState extends State<AdminDoctorsScreen> {
               final doctor = doctors[index];
 
               return ListTile(
-                leading: CircleAvatar(child: Text(doctor.initials)),
+                leading: SizedBox(
+                  width: 92,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 34,
+                        child: Text(
+                          '#${doctor.printOrder}',
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      CircleAvatar(child: Text(doctor.initials)),
+                    ],
+                  ),
+                ),
                 title: Text(doctor.fullName),
-                subtitle: Text(_rankLabel(doctor.rank)),
-                trailing: Switch(
-                  value: doctor.isActive,
-                  onChanged: (value) =>
-                      _setDoctorActiveState(doctor: doctor, isActive: value),
+                subtitle: Text(
+                  '${_rankLabel(doctor.rank)} · print order ${doctor.printOrder}',
+                ),
+                trailing: Wrap(
+                  spacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Move up in print report',
+                      onPressed: index == 0
+                          ? null
+                          : () => _swapPrintOrder(
+                              doctors[index],
+                              doctors[index - 1],
+                            ),
+                      icon: const Icon(Icons.arrow_upward),
+                    ),
+                    IconButton(
+                      tooltip: 'Move down in print report',
+                      onPressed: index == doctors.length - 1
+                          ? null
+                          : () => _swapPrintOrder(
+                              doctors[index],
+                              doctors[index + 1],
+                            ),
+                      icon: const Icon(Icons.arrow_downward),
+                    ),
+                    Switch(
+                      value: doctor.isActive,
+                      onChanged: (value) => _setDoctorActiveState(
+                        doctor: doctor,
+                        isActive: value,
+                      ),
+                    ),
+                  ],
                 ),
                 onTap: () => _openDoctorForm(doctor: doctor),
               );
@@ -74,7 +119,10 @@ class _AdminDoctorsScreenState extends State<AdminDoctorsScreen> {
   Future<List<_DoctorRecord>> _loadDoctors() async {
     final rows = await Supabase.instance.client
         .from('doctors')
-        .select('id, first_name, last_name, rank, capabilities, is_active')
+        .select(
+          'id, first_name, last_name, rank, print_order, capabilities, is_active',
+        )
+        .order('print_order')
         .order('last_name')
         .order('first_name');
 
@@ -116,6 +164,27 @@ class _AdminDoctorsScreenState extends State<AdminDoctorsScreen> {
     }
   }
 
+  Future<void> _swapPrintOrder(
+    _DoctorRecord firstDoctor,
+    _DoctorRecord secondDoctor,
+  ) async {
+    try {
+      await Supabase.instance.client
+          .from('doctors')
+          .update({'print_order': secondDoctor.printOrder})
+          .eq('id', firstDoctor.id);
+      await Supabase.instance.client
+          .from('doctors')
+          .update({'print_order': firstDoctor.printOrder})
+          .eq('id', secondDoctor.id);
+      _reloadDoctors();
+    } on PostgrestException catch (error) {
+      _showError(error.message);
+    } catch (_) {
+      _showError('Could not update print order.');
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(
       context,
@@ -136,6 +205,7 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _firstNameController;
   late final TextEditingController _lastNameController;
+  late final TextEditingController _printOrderController;
   late String _rank;
   late Set<String> _capabilities;
   late bool _isActive;
@@ -148,6 +218,9 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
     final doctor = widget.doctor;
     _firstNameController = TextEditingController(text: doctor?.firstName ?? '');
     _lastNameController = TextEditingController(text: doctor?.lastName ?? '');
+    _printOrderController = TextEditingController(
+      text: (doctor?.printOrder ?? 0).toString(),
+    );
     _rank = doctor?.rank ?? 'resident';
     _capabilities = {...?doctor?.capabilities};
     _isActive = doctor?.isActive ?? true;
@@ -157,6 +230,7 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _printOrderController.dispose();
     super.dispose();
   }
 
@@ -227,6 +301,18 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
                     });
                   }
                 },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _printOrderController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Print order',
+                  helperText:
+                      'Lower numbers appear further left in physician reports.',
+                ),
+                validator: _printOrderValidator,
               ),
               const SizedBox(height: 12),
               const Text(
@@ -309,6 +395,18 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
     return null;
   }
 
+  String? _printOrderValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Required';
+    }
+
+    if (int.tryParse(value.trim()) == null) {
+      return 'Enter a whole number';
+    }
+
+    return null;
+  }
+
   void _setCapability(String capability, bool enabled) {
     setState(() {
       if (enabled) {
@@ -333,6 +431,7 @@ class _DoctorFormSheetState extends State<_DoctorFormSheet> {
       'first_name': _firstNameController.text.trim(),
       'last_name': _lastNameController.text.trim(),
       'rank': _rank,
+      'print_order': int.parse(_printOrderController.text.trim()),
       'capabilities': _capabilities.toList()..sort(),
       'is_active': _isActive,
     };
@@ -430,6 +529,7 @@ class _DoctorRecord {
   final String firstName;
   final String lastName;
   final String rank;
+  final int printOrder;
   final Set<String> capabilities;
   final bool isActive;
 
@@ -438,6 +538,7 @@ class _DoctorRecord {
     required this.firstName,
     required this.lastName,
     required this.rank,
+    required this.printOrder,
     required this.capabilities,
     required this.isActive,
   });
@@ -448,6 +549,7 @@ class _DoctorRecord {
       firstName: json['first_name'] as String? ?? '',
       lastName: json['last_name'] as String? ?? '',
       rank: json['rank'] as String? ?? 'resident',
+      printOrder: json['print_order'] as int? ?? 0,
       capabilities: _capabilitiesFromJson(json['capabilities']),
       isActive: json['is_active'] as bool? ?? true,
     );

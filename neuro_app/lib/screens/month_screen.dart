@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_app/extensions/time_formatting.dart';
+import 'package:neuro_app/l10n/app_language.dart';
+import 'package:neuro_app/l10n/app_localizations.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
 import 'package:neuro_app/services/supabase_roster_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -24,6 +26,10 @@ class MonthScreen extends StatefulWidget {
   final List<Doctor> doctors;
   final bool showAdmin;
   final String? signedInEmail;
+  final AppLanguage language;
+  final ValueChanged<AppLanguage>? onLanguageChanged;
+  final bool isDarkMode;
+  final VoidCallback? onToggleDarkMode;
 
   const MonthScreen({
     super.key,
@@ -36,6 +42,10 @@ class MonthScreen extends StatefulWidget {
     this.onVisibleMonthChanged,
     this.showAdmin = false,
     this.signedInEmail,
+    this.language = AppLanguage.english,
+    this.onLanguageChanged,
+    this.isDarkMode = false,
+    this.onToggleDarkMode,
   });
 
   @override
@@ -90,6 +100,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final currentDoctor = _currentDoctorFromList();
     final monthView = MonthViewService().getMonthView(currentRoster);
     final conflictsByDate = _buildConflictsByDate();
@@ -124,24 +135,47 @@ class _MonthScreenState extends State<MonthScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Previous month',
+            tooltip: l10n.t('previousMonth'),
             icon: const Icon(Icons.chevron_left),
             onPressed: () => _openRelativeMonth(-1),
           ),
           IconButton(
-            tooltip: 'Next month',
+            tooltip: l10n.t('nextMonth'),
             icon: const Icon(Icons.chevron_right),
             onPressed: () => _openRelativeMonth(1),
           ),
+          PopupMenuButton<AppLanguage>(
+            tooltip: l10n.t('language'),
+            icon: const Icon(Icons.language),
+            initialValue: widget.language,
+            onSelected: widget.onLanguageChanged,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: AppLanguage.english,
+                child: Text(l10n.t('language.english')),
+              ),
+              PopupMenuItem(
+                value: AppLanguage.german,
+                child: Text(l10n.t('language.german')),
+              ),
+            ],
+          ),
+          IconButton(
+            tooltip: widget.isDarkMode
+                ? l10n.t('lightMode')
+                : l10n.t('darkMode'),
+            icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
+            onPressed: widget.onToggleDarkMode,
+          ),
           if (SupabaseConfig.isConfigured && widget.showAdmin)
             IconButton(
-              tooltip: 'Admin',
+              tooltip: l10n.t('admin'),
               icon: const Icon(Icons.admin_panel_settings),
               onPressed: _openAdmin,
             ),
           if (SupabaseConfig.isConfigured)
             IconButton(
-              tooltip: 'Sign out',
+              tooltip: l10n.t('signOut'),
               icon: const Icon(Icons.logout),
               onPressed: () => Supabase.instance.client.auth.signOut(),
             ),
@@ -165,7 +199,7 @@ class _MonthScreenState extends State<MonthScreen> {
             onPressed: _showMyAssignmentsDialog,
           ),
           IconButton(
-            tooltip: 'Monthly report',
+            tooltip: l10n.t('monthlyReport'),
             icon: const Icon(Icons.print),
             onPressed: _openMonthlyReport,
           ),
@@ -199,7 +233,7 @@ class _MonthScreenState extends State<MonthScreen> {
                 children: [
                   Column(
                     children: [
-                      const Text('Open'),
+                      Text(l10n.t('open')),
                       Text(
                         '$openSlots',
                         style: const TextStyle(
@@ -211,7 +245,7 @@ class _MonthScreenState extends State<MonthScreen> {
                   ),
                   Column(
                     children: [
-                      const Text('Assigned'),
+                      Text(l10n.t('assigned')),
                       Text(
                         '$assignedSlots',
                         style: const TextStyle(
@@ -223,7 +257,7 @@ class _MonthScreenState extends State<MonthScreen> {
                   ),
                   Column(
                     children: [
-                      const Text('Mine'),
+                      Text(l10n.t('mine')),
                       Text(
                         '$myAssignmentsThisMonth',
                         style: const TextStyle(
@@ -235,7 +269,7 @@ class _MonthScreenState extends State<MonthScreen> {
                   ),
                   Column(
                     children: [
-                      const Text('Coverage'),
+                      Text(l10n.t('coverage')),
                       Text(
                         '${coverage.toStringAsFixed(0)}%',
                         style: const TextStyle(
@@ -252,7 +286,7 @@ class _MonthScreenState extends State<MonthScreen> {
                           : null,
                       child: Column(
                         children: [
-                          const Text('Warnings'),
+                          Text(l10n.t('warnings')),
                           Text(
                             '$conflictCount',
                             style: TextStyle(
@@ -297,21 +331,23 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Widget _buildModeBar() {
+    final l10n = AppLocalizations.of(context);
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
       child: Row(
         children: [
           SegmentedButton<bool>(
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: false,
                 icon: Icon(Icons.person),
-                label: Text('Doctor'),
+                label: Text(l10n.t('doctor')),
               ),
               ButtonSegment(
                 value: true,
                 icon: Icon(Icons.edit_calendar),
-                label: Text('Editor'),
+                label: Text(l10n.t('editor')),
               ),
             ],
             selected: {_editorMode},
@@ -326,8 +362,10 @@ class _MonthScreenState extends State<MonthScreen> {
           Expanded(
             child: Text(
               _editorMode
-                  ? 'Bulk edits can assign any doctor.'
-                  : 'Personal planning for ${_currentDoctorFromList().firstName}.',
+                  ? l10n.t('bulkEditorHint')
+                  : l10n.fill('personalPlanning', {
+                      'name': _currentDoctorFromList().firstName,
+                    }),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -480,13 +518,14 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   void _showConflictsDialog(Map<String, List<Conflict>> conflictsByDate) {
+    final l10n = AppLocalizations.of(context);
     final entries = conflictsByDate.entries.toList()
       ..sort((a, b) => a.key.compareTo(b.key));
 
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Roster warnings'),
+        title: Text(l10n.t('rosterWarnings')),
         content: SizedBox(
           width: 520,
           child: ListView(
@@ -511,7 +550,7 @@ class _MonthScreenState extends State<MonthScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(l10n.t('close')),
           ),
         ],
       ),
@@ -549,6 +588,7 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Widget _buildBulkActionBar() {
+    final l10n = AppLocalizations.of(context);
     final selectedCount = _selectedDateKeys.length;
     final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
 
@@ -560,26 +600,33 @@ class _MonthScreenState extends State<MonthScreen> {
           children: [
             Expanded(
               child: Text(
-                '$selectedCount day${selectedCount == 1 ? '' : 's'} selected',
+                l10n.fill('daysSelected', {
+                  'count': selectedCount,
+                  'plural': selectedCount == 1
+                      ? ''
+                      : widget.language == AppLanguage.german
+                      ? 'e'
+                      : 's',
+                }),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
             TextButton.icon(
               onPressed: _clearDateSelection,
               icon: const Icon(Icons.deselect),
-              label: const Text('Deselect'),
+              label: Text(l10n.t('deselect')),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: _setSelectedDatesAsVacation,
               icon: const Icon(Icons.beach_access),
-              label: const Text('Vacation'),
+              label: Text(l10n.t('vacation')),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
               onPressed: _removeVacationFromSelectedDates,
               icon: const Icon(Icons.event_available),
-              label: const Text('Remove vacation'),
+              label: Text(l10n.t('removeVacation')),
             ),
             const SizedBox(width: 8),
             if (_editorMode) ...[
@@ -889,6 +936,7 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _setSelectedDatesAsVacation() async {
+    final l10n = AppLocalizations.of(context);
     final selectedDays = _selectedDays();
 
     if (selectedDays.isEmpty) {
@@ -909,7 +957,7 @@ class _MonthScreenState extends State<MonthScreen> {
         _setStatusMessage(error.message);
         return;
       } catch (_) {
-        _setStatusMessage('Could not save vacation.');
+        _setStatusMessage(l10n.t('couldNotSaveVacation'));
         return;
       }
     }
@@ -951,12 +999,15 @@ class _MonthScreenState extends State<MonthScreen> {
     widget.onDoctorUpdated(updatedDoctor);
 
     _setStatusMessage(
-      'Vacation set for ${selectedDays.length} day'
-      '${selectedDays.length == 1 ? '' : 's'}',
+      l10n.fill('vacationSet', {
+        'count': selectedDays.length,
+        'plural': _dayPlural(selectedDays.length),
+      }),
     );
   }
 
   Future<void> _removeVacationFromSelectedDates() async {
+    final l10n = AppLocalizations.of(context);
     final selectedDays = _selectedDays();
 
     if (selectedDays.isEmpty) {
@@ -978,7 +1029,7 @@ class _MonthScreenState extends State<MonthScreen> {
         _setStatusMessage(error.message);
         return;
       } catch (_) {
-        _setStatusMessage('Could not remove vacation.');
+        _setStatusMessage(l10n.t('couldNotRemoveVacation'));
         return;
       }
     }
@@ -1000,7 +1051,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
     if (removedDays == 0) {
       _clearDateSelection();
-      _setStatusMessage('No vacation found on selected days');
+      _setStatusMessage(l10n.t('noVacationFound'));
       return;
     }
 
@@ -1019,8 +1070,10 @@ class _MonthScreenState extends State<MonthScreen> {
     widget.onDoctorUpdated(updatedDoctor);
 
     _setStatusMessage(
-      'Vacation removed from $removedDays day'
-      '${removedDays == 1 ? '' : 's'}',
+      l10n.fill('vacationRemoved', {
+        'count': removedDays,
+        'plural': _dayPlural(removedDays),
+      }),
     );
   }
 
@@ -1152,7 +1205,7 @@ class _MonthScreenState extends State<MonthScreen> {
     final choices = _slotChoicesForSelectedDays();
 
     if (choices.isEmpty) {
-      _setStatusMessage('No slots available on selected days');
+      _setStatusMessage(AppLocalizations.of(context).t('noSlotsAvailable'));
       return;
     }
 
@@ -1196,7 +1249,7 @@ class _MonthScreenState extends State<MonthScreen> {
     final choices = _slotChoicesForSelectedDays();
 
     if (choices.isEmpty) {
-      _setStatusMessage('No slots available on selected days');
+      _setStatusMessage(AppLocalizations.of(context).t('noSlotsAvailable'));
       return;
     }
 
@@ -1217,11 +1270,13 @@ class _MonthScreenState extends State<MonthScreen> {
     return showModalBottomSheet<SlotKind>(
       context: context,
       builder: (context) {
+        final l10n = AppLocalizations.of(context);
+
         return SafeArea(
           child: ListView(
             shrinkWrap: true,
             children: [
-              const ListTile(title: Text('Assign selected days to role')),
+              ListTile(title: Text(l10n.t('assignSelectedDays'))),
               for (final choice in choices)
                 ListTile(
                   leading: const Icon(Icons.assignment_ind),
@@ -1241,11 +1296,13 @@ class _MonthScreenState extends State<MonthScreen> {
     return showModalBottomSheet<Doctor>(
       context: context,
       builder: (context) {
+        final l10n = AppLocalizations.of(context);
+
         return SafeArea(
           child: ListView(
             shrinkWrap: true,
             children: [
-              const ListTile(title: Text('Assign doctor')),
+              ListTile(title: Text(l10n.t('assignDoctor'))),
               for (final doctor in _doctors)
                 ListTile(
                   leading: const Icon(Icons.person),
@@ -1286,6 +1343,7 @@ class _MonthScreenState extends State<MonthScreen> {
     required SlotKind slotKind,
     required Doctor doctor,
   }) async {
+    final l10n = AppLocalizations.of(context);
     final selectedKeys = _selectedDateKeys.toSet();
     final updatedDays = <RosterDay>[];
     int assigned = 0;
@@ -1350,7 +1408,7 @@ class _MonthScreenState extends State<MonthScreen> {
             continue;
           } catch (_) {
             skipped++;
-            failureReasons.add('Could not save assignment');
+            failureReasons.add(l10n.t('couldNotSaveAssignment'));
             updatedDays.add(day);
             continue;
           }
@@ -1360,7 +1418,7 @@ class _MonthScreenState extends State<MonthScreen> {
         updatedDays.add(result.updatedDay!);
       } else {
         skipped++;
-        failureReasons.add(result.reason ?? 'Assignment failed');
+        failureReasons.add(result.reason ?? l10n.t('assignmentFailed'));
         updatedDays.add(day);
       }
     }
@@ -1382,9 +1440,13 @@ class _MonthScreenState extends State<MonthScreen> {
         : ' (${failureReasons.take(2).join('; ')})';
 
     _setStatusMessage(
-      'Assigned ${doctor.firstName} on $assigned day'
-      '${assigned == 1 ? '' : 's'}, '
-      'skipped $skipped$reasonSuffix',
+      l10n.fill('assignedStatus', {
+        'doctor': doctor.firstName,
+        'assigned': assigned,
+        'assignedPlural': _dayPlural(assigned),
+        'skipped': skipped,
+        'reason': reasonSuffix,
+      }),
     );
   }
 
@@ -1547,6 +1609,14 @@ class _MonthScreenState extends State<MonthScreen> {
     return '${parts[2]}.${parts[1]}.${parts[0]}';
   }
 
+  String _dayPlural(int count) {
+    if (count == 1) {
+      return '';
+    }
+
+    return widget.language == AppLanguage.german ? 'e' : 's';
+  }
+
   DateTime _dateOnly(DateTime date) {
     return DateTime(date.year, date.month, date.day);
   }
@@ -1573,6 +1643,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
   // method
   void _showMyAssignmentsDialog() {
+    final l10n = AppLocalizations.of(context);
     final myAssignments = RosterStatisticsService()
         .getAssignmentsForDoctorInMonth(
           roster: currentRoster,
@@ -1582,11 +1653,11 @@ class _MonthScreenState extends State<MonthScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('My slots this month'),
+        title: Text(l10n.t('mySlotsThisMonth')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (myAssignments.isEmpty) const Text('No slots assigned yet.'),
+            if (myAssignments.isEmpty) Text(l10n.t('noSlotsAssignedYet')),
             for (final assignment in myAssignments)
               Text(
                 '${assignment.slot.date.day}.${assignment.slot.date.month}. '
@@ -1598,7 +1669,7 @@ class _MonthScreenState extends State<MonthScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: Text(l10n.t('close')),
           ),
         ],
       ),

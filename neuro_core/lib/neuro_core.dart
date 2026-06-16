@@ -236,6 +236,7 @@ class Doctor {
   final String firstName;
   final String lastName;
   final DoctorRank rank;
+  final int printOrder;
   final Set<Capability> capabilities;
   final List<AvailabilityPeriod> availabilities;
   PhysicianCategory get category {
@@ -256,6 +257,7 @@ class Doctor {
     required this.firstName,
     required this.lastName,
     required this.rank,
+    this.printOrder = 0,
     this.capabilities = const {},
     this.availabilities = const [],
   });
@@ -267,6 +269,7 @@ class Doctor {
     String? firstName,
     String? lastName,
     DoctorRank? rank,
+    int? printOrder,
     Set<Capability>? capabilities,
     List<AvailabilityPeriod>? availabilities,
   }) {
@@ -275,6 +278,7 @@ class Doctor {
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       rank: rank ?? this.rank,
+      printOrder: printOrder ?? this.printOrder,
       capabilities: capabilities ?? this.capabilities,
       availabilities: availabilities ?? this.availabilities,
     );

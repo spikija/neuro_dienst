@@ -31,6 +31,16 @@ class SupabaseRosterService {
         .eq('id', roleId);
   }
 
+  Future<void> updateRoleDisplayOrder({
+    required String roleId,
+    required int displayOrder,
+  }) async {
+    await _client
+        .from('roles')
+        .update({'display_order': displayOrder})
+        .eq('id', roleId);
+  }
+
   Future<List<RosterSummary>> listRosters() async {
     final rows = await _client
         .from('rosters')

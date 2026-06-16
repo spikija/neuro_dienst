@@ -51,13 +51,48 @@ class _AdminReportSettingsScreenState extends State<AdminReportSettingsScreen> {
             itemBuilder: (context, index) {
               final role = roles[index];
 
-              return CheckboxListTile(
-                value: role.printInReport,
-                title: Text('${role.code} - ${role.name}'),
-                subtitle: const Text('Print in monthly A4 report'),
-                onChanged: (value) => _setPrintInReport(
-                  role: role,
-                  printInReport: value ?? false,
+              return ListTile(
+                leading: SizedBox(
+                  width: 42,
+                  child: Text(
+                    '#${role.displayOrder}',
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                title: Text(role.name),
+                subtitle: Text('${role.code} · Print in monthly A4 report'),
+                trailing: Wrap(
+                  spacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                      tooltip: 'Move up in report',
+                      onPressed: index == 0
+                          ? null
+                          : () => _swapDisplayOrder(
+                              roles[index],
+                              roles[index - 1],
+                            ),
+                      icon: const Icon(Icons.arrow_upward),
+                    ),
+                    IconButton(
+                      tooltip: 'Move down in report',
+                      onPressed: index == roles.length - 1
+                          ? null
+                          : () => _swapDisplayOrder(
+                              roles[index],
+                              roles[index + 1],
+                            ),
+                      icon: const Icon(Icons.arrow_downward),
+                    ),
+                    Checkbox(
+                      value: role.printInReport,
+                      onChanged: (value) => _setPrintInReport(
+                        role: role,
+                        printInReport: value ?? false,
+                      ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -87,6 +122,29 @@ class _AdminReportSettingsScreenState extends State<AdminReportSettingsScreen> {
       _showError(error.message);
     } catch (_) {
       _showError('Could not update report setting.');
+    }
+  }
+
+  Future<void> _swapDisplayOrder(
+    ReportRole firstRole,
+    ReportRole secondRole,
+  ) async {
+    final service = SupabaseRosterService();
+
+    try {
+      await service.updateRoleDisplayOrder(
+        roleId: firstRole.id,
+        displayOrder: secondRole.displayOrder,
+      );
+      await service.updateRoleDisplayOrder(
+        roleId: secondRole.id,
+        displayOrder: firstRole.displayOrder,
+      );
+      _reload();
+    } on PostgrestException catch (error) {
+      _showError(error.message);
+    } catch (_) {
+      _showError('Could not update report order.');
     }
   }
 

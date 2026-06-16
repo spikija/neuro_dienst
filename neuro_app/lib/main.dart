@@ -6,6 +6,8 @@ import 'package:neuro_core/neuro_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'demo/demo_roster.dart';
+import 'l10n/app_language.dart';
+import 'l10n/app_localizations.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
@@ -52,6 +54,8 @@ class NeuroDienstApp extends StatefulWidget {
 class _NeuroDienstAppState extends State<NeuroDienstApp> {
   late Doctor selectedDoctor;
   late List<Doctor> doctors;
+  ThemeMode _themeMode = ThemeMode.light;
+  AppLanguage _language = AppLanguage.english;
 
   @override
   void initState() {
@@ -62,29 +66,70 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'NeuroDienst',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.blue),
-      home: AuthGate(
-        child: _AuthorizedMonthHome(
-          key: ValueKey(
-            SupabaseConfig.isConfigured
-                ? Supabase.instance.client.auth.currentUser?.id
-                : 'demo',
+    return AppLocalizations(
+      language: _language,
+      child: MaterialApp(
+        title: 'NeuroDienst',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(colorSchemeSeed: Colors.blue),
+        darkTheme: ThemeData(
+          colorSchemeSeed: Colors.blue,
+          brightness: Brightness.dark,
+        ),
+        themeMode: _themeMode,
+        home: AuthGate(
+          child: _AuthorizedMonthHome(
+            key: ValueKey(
+              SupabaseConfig.isConfigured
+                  ? Supabase.instance.client.auth.currentUser?.id
+                  : 'demo',
+            ),
+            roster: widget.roster,
+            currentDoctor: selectedDoctor,
+            doctors: doctors,
+            language: _language,
+            onLanguageChanged: _setLanguage,
+            onDoctorChanged: (doctor) {
+              setState(() {
+                selectedDoctor = doctor;
+              });
+            },
+            onDoctorUpdated: _updateDoctor,
+            isDarkMode: _themeMode == ThemeMode.dark,
+            onToggleDarkMode: _toggleDarkMode,
           ),
-          roster: widget.roster,
-          currentDoctor: selectedDoctor,
-          doctors: doctors,
-          onDoctorChanged: (doctor) {
-            setState(() {
-              selectedDoctor = doctor;
-            });
-          },
-          onDoctorUpdated: _updateDoctor,
         ),
       ),
     );
+  }
+
+  void _toggleDarkMode() {
+    setState(() {
+      _themeMode = _themeMode == ThemeMode.dark
+          ? ThemeMode.light
+          : ThemeMode.dark;
+    });
+  }
+
+  Future<void> _setLanguage(AppLanguage language) async {
+    setState(() {
+      _language = language;
+    });
+
+    if (!SupabaseConfig.isConfigured) {
+      return;
+    }
+
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+
+    if (userId == null) {
+      return;
+    }
+
+    await Supabase.instance.client
+        .from('profiles')
+        .update({'preferred_language': language.code})
+        .eq('id', userId);
   }
 
   void _updateDoctor(Doctor updatedDoctor) {
@@ -108,6 +153,10 @@ class _AuthorizedMonthHome extends StatefulWidget {
   final List<Doctor> doctors;
   final ValueChanged<Doctor> onDoctorChanged;
   final ValueChanged<Doctor> onDoctorUpdated;
+  final AppLanguage language;
+  final ValueChanged<AppLanguage> onLanguageChanged;
+  final bool isDarkMode;
+  final VoidCallback onToggleDarkMode;
 
   const _AuthorizedMonthHome({
     super.key,
@@ -116,6 +165,10 @@ class _AuthorizedMonthHome extends StatefulWidget {
     required this.doctors,
     required this.onDoctorChanged,
     required this.onDoctorUpdated,
+    required this.language,
+    required this.onLanguageChanged,
+    required this.isDarkMode,
+    required this.onToggleDarkMode,
   });
 
   @override
@@ -191,10 +244,14 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
           doctors: doctors,
           showAdmin: data?.isAdmin ?? false,
           signedInEmail: data?.signedInEmail,
+          language: widget.language,
+          onLanguageChanged: widget.onLanguageChanged,
           onDoctorChanged: _setSelectedDoctor,
           onDoctorUpdated: _updateDoctor,
           onAdminClosed: _reloadHomeData,
           onVisibleMonthChanged: _setVisibleMonth,
+          isDarkMode: widget.isDarkMode,
+          onToggleDarkMode: widget.onToggleDarkMode,
         );
       },
     );
@@ -219,9 +276,21 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
 
     final profile = await Supabase.instance.client
         .from('profiles')
-        .select('role')
+        .select('role, preferred_language')
         .eq('id', userId)
         .maybeSingle();
+
+    final preferredLanguage = AppLanguage.fromCode(
+      profile?['preferred_language'] as String?,
+    );
+
+    if (preferredLanguage != widget.language) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onLanguageChanged(preferredLanguage);
+        }
+      });
+    }
 
     final databaseDoctors = await SupabaseDoctorService().loadActiveDoctors();
     final databaseRoster = await SupabaseRosterService().loadRoster(
@@ -286,12 +355,14 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('NeuroDienst'),
+        title: Text(l10n.t('app.name')),
         actions: [
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: l10n.t('signOut'),
             icon: const Icon(Icons.logout),
             onPressed: () => Supabase.instance.client.auth.signOut(),
           ),
@@ -309,15 +380,15 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
                 const Icon(Icons.group_off, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  'No doctors configured',
+                  l10n.t('noDoctorsConfigured'),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   isAdmin
-                      ? 'Add the first active doctor in Admin to start using the roster with Supabase data.'
-                      : 'Ask an administrator to add active doctors before using the roster.',
+                      ? l10n.t('noDoctorsConfiguredAdmin')
+                      : l10n.t('noDoctorsConfiguredUser'),
                   textAlign: TextAlign.center,
                 ),
                 if (isAdmin) ...[
@@ -325,7 +396,7 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
                   FilledButton.icon(
                     onPressed: () => _openAdmin(context),
                     icon: const Icon(Icons.admin_panel_settings),
-                    label: const Text('Open Admin'),
+                    label: Text(l10n.t('openAdmin')),
                   ),
                 ],
               ],
@@ -361,12 +432,14 @@ class _HomeErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('NeuroDienst'),
+        title: Text(l10n.t('app.name')),
         actions: [
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: l10n.t('signOut'),
             icon: const Icon(Icons.logout),
             onPressed: () => Supabase.instance.client.auth.signOut(),
           ),
@@ -385,7 +458,7 @@ class _HomeErrorView extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+                label: Text(l10n.t('retry')),
               ),
             ],
           ),
