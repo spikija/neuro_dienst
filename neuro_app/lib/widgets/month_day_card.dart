@@ -8,8 +8,6 @@ class MonthDayCard extends StatelessWidget {
     SlotKind.strokeUnitTeam2,
     SlotKind.ambulance,
   ];
-  static const int _maxVisibleRoleRows = 6;
-
   final RosterDay day;
   final MonthDayViewModel dayView;
   final Doctor currentDoctor;
@@ -17,6 +15,7 @@ class MonthDayCard extends StatelessWidget {
   final bool isSelected;
   final bool dense;
   final bool hasConflict;
+  final bool isEditorMode;
 
   const MonthDayCard({
     super.key,
@@ -27,6 +26,7 @@ class MonthDayCard extends StatelessWidget {
     this.isSelected = false,
     this.dense = false,
     this.hasConflict = false,
+    this.isEditorMode = false,
   });
 
   @override
@@ -41,6 +41,15 @@ class MonthDayCard extends StatelessWidget {
     final absence = currentDoctor.absenceOn(day.date);
     final isAbsent = absence != null;
     final roleRows = _roleRows();
+    final isFullyAssigned = _isFullyAssigned();
+    final hasAnyAssignment = day.assignments.isNotEmpty;
+    final color = _backgroundColor(
+      isAbsent: isAbsent,
+      isDisabled: isDisabled,
+      hasMyAssignment: hasMyAssignment,
+      hasAnyAssignment: hasAnyAssignment,
+      isFullyAssigned: isFullyAssigned,
+    );
 
     return Tooltip(
       message: _tooltipMessage(roleRows),
@@ -48,17 +57,8 @@ class MonthDayCard extends StatelessWidget {
       child: InkWell(
         onTap: isDisabled ? null : onTap,
         child: Card(
-          color: isSelected
-              ? Colors.teal.shade100
-              : isAbsent
-              ? Colors.purple.shade100
-              : day.calendarInfo.isPublicHoliday
-              ? Colors.red.shade100
-              : day.calendarInfo.isWeekend
-              ? Colors.grey.shade300
-              : hasMyAssignment
-              ? Colors.blue.shade100
-              : null,
+          margin: EdgeInsets.zero,
+          color: color,
           shape: isSelected
               ? RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(4),
@@ -71,34 +71,25 @@ class MonthDayCard extends StatelessWidget {
                 )
               : null,
           child: Padding(
-            padding: EdgeInsets.all(dense ? 2 : 4),
+            padding: EdgeInsets.all(dense ? 2 : 6),
             child: Stack(
               children: [
                 Align(
-                  alignment: Alignment.centerRight,
+                  alignment: dense ? Alignment.center : Alignment.centerRight,
                   child: Text(
                     '${day.date.day}',
                     style: TextStyle(
-                      fontSize: dense ? 22 : 52,
+                      fontSize: dense ? 18 : 34,
                       fontWeight: FontWeight.w900,
-                      color: (isDisabled ? Colors.grey.shade700 : Colors.black)
-                          .withAlpha(dense ? 42 : 26),
+                      color:
+                          (isDisabled
+                                  ? Colors.grey.shade700
+                                  : _dayNumberColor(color))
+                              .withAlpha(dense ? 100 : 76),
                       height: 0.9,
                     ),
                   ),
                 ),
-                if (isAbsent && !dense)
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Text(
-                      'VAC',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple.shade900,
-                      ),
-                    ),
-                  ),
                 if (hasConflict && !dense)
                   Align(
                     alignment: Alignment.bottomRight,
@@ -111,8 +102,9 @@ class MonthDayCard extends StatelessWidget {
                 Positioned.fill(
                   child: _buildCellBody(
                     isAbsent: isAbsent,
-                    absence: absence,
-                    roleRows: roleRows,
+                    hasMyAssignment: hasMyAssignment,
+                    hasAnyAssignment: hasAnyAssignment,
+                    isFullyAssigned: isFullyAssigned,
                   ),
                 ),
               ],
@@ -125,53 +117,38 @@ class MonthDayCard extends StatelessWidget {
 
   Widget _buildCellBody({
     required bool isAbsent,
-    required AvailabilityPeriod? absence,
-    required List<String> roleRows,
+    required bool hasMyAssignment,
+    required bool hasAnyAssignment,
+    required bool isFullyAssigned,
   }) {
-    if (dense) {
-      return Align(
-        alignment: Alignment.center,
-        child: Text(
-          isAbsent ? 'VAC' : _shortWeekday(day.date),
-          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-        ),
-      );
-    }
+    final label = _stateLabel(
+      isAbsent: isAbsent,
+      hasMyAssignment: hasMyAssignment,
+      hasAnyAssignment: hasAnyAssignment,
+      isFullyAssigned: isFullyAssigned,
+    );
 
-    if (day.calendarInfo.isPublicHoliday) {
-      return const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('Holiday', style: TextStyle(fontSize: 11)),
-      );
-    }
-
-    if (day.calendarInfo.isWeekend) {
-      return const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('Weekend', style: TextStyle(fontSize: 11)),
-      );
+    if (label == null) {
+      return const SizedBox.shrink();
     }
 
     return Align(
-      alignment: Alignment.centerLeft,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerLeft,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final row in _visibleRoleRows(roleRows))
-              Text(
-                row,
-                textAlign: TextAlign.left,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1.02,
-                ),
-              ),
-          ],
+      alignment: dense ? Alignment.bottomCenter : Alignment.topLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.black.withAlpha(20),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.clip,
+          style: TextStyle(
+            fontSize: dense ? 8 : 10,
+            fontWeight: FontWeight.w800,
+            height: 1,
+          ),
         ),
       ),
     );
@@ -207,14 +184,6 @@ class MonthDayCard extends StatelessWidget {
     }
 
     return rows;
-  }
-
-  List<String> _visibleRoleRows(List<String> roleRows) {
-    if (roleRows.length <= _maxVisibleRoleRows) {
-      return roleRows;
-    }
-
-    return [...roleRows.take(_maxVisibleRoleRows - 1), '...'];
   }
 
   List<SlotKind> _orderedSlotKinds() {
@@ -253,6 +222,91 @@ class MonthDayCard extends StatelessWidget {
     }
 
     return ['Day ${day.date.day}', ...roleRows].join('\n');
+  }
+
+  Color? _backgroundColor({
+    required bool isAbsent,
+    required bool isDisabled,
+    required bool hasMyAssignment,
+    required bool hasAnyAssignment,
+    required bool isFullyAssigned,
+  }) {
+    if (isSelected) {
+      return Colors.teal.shade100;
+    }
+
+    if (isAbsent) {
+      return Colors.purple.shade100;
+    }
+
+    if (isDisabled) {
+      return Colors.grey.shade300;
+    }
+
+    if (isEditorMode && day.slots.isNotEmpty && !isFullyAssigned) {
+      return Colors.red.shade100;
+    }
+
+    if (isFullyAssigned) {
+      return Colors.blue.shade700;
+    }
+
+    if (hasMyAssignment) {
+      return Colors.lightBlue.shade100;
+    }
+
+    return null;
+  }
+
+  Color _dayNumberColor(Color? backgroundColor) {
+    if (backgroundColor == Colors.blue.shade700) {
+      return Colors.white;
+    }
+
+    return Colors.black;
+  }
+
+  String? _stateLabel({
+    required bool isAbsent,
+    required bool hasMyAssignment,
+    required bool hasAnyAssignment,
+    required bool isFullyAssigned,
+  }) {
+    if (isAbsent) {
+      return 'VAC';
+    }
+
+    if (isFullyAssigned) {
+      return 'FULL';
+    }
+
+    if (hasMyAssignment) {
+      return 'ME';
+    }
+
+    if (isEditorMode && hasAnyAssignment) {
+      return 'PART';
+    }
+
+    return null;
+  }
+
+  bool _isFullyAssigned() {
+    if (day.slots.isEmpty) {
+      return false;
+    }
+
+    for (final slot in day.slots) {
+      final assignmentsForSlot = day.assignments
+          .where((assignment) => assignment.slot.id == slot.id)
+          .length;
+
+      if (assignmentsForSlot < slot.template.maxDoctors) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   DailySlot? _firstSlotForKind(SlotKind kind) {

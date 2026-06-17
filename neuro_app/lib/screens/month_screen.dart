@@ -15,7 +15,6 @@ import 'doctor_selector_screen.dart';
 import 'mfa_screen.dart';
 import 'month_report_picker_screen.dart';
 import 'month_report_screen.dart';
-import '../widgets/doctor_selector_bar.dart';
 
 class MonthScreen extends StatefulWidget {
   final RosterMonth roster;
@@ -224,11 +223,6 @@ class _MonthScreenState extends State<MonthScreen> {
       ),
       body: Column(
         children: [
-          DoctorSelectorBar(
-            doctors: _doctors,
-            selectedDoctor: currentDoctor,
-            onSelected: widget.onDoctorChanged,
-          ),
           _buildModeBar(),
           Card(
             margin: const EdgeInsets.all(8),
@@ -479,6 +473,7 @@ class _MonthScreenState extends State<MonthScreen> {
       isSelected: _selectedDateKeys.contains(_dateKey(day.date)),
       onTap: null,
       dense: dense,
+      isEditorMode: _editorMode,
       hasConflict:
           _editorMode &&
           (conflictsByDate[_dateKey(day.date)]?.isNotEmpty ?? false),
