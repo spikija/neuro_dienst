@@ -31,6 +31,7 @@ class MonthDayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final isDisabled =
         day.calendarInfo.isPublicHoliday || day.calendarInfo.isWeekend;
 
@@ -38,12 +39,14 @@ class MonthDayCard extends StatelessWidget {
         .countAssignmentsForDoctorInDay(day: day, doctor: currentDoctor);
 
     final hasMyAssignment = myAssignmentsToday > 0;
+    final myRoleLabel = _myRoleLabel();
     final absence = currentDoctor.absenceOn(day.date);
     final isAbsent = absence != null;
     final roleRows = _roleRows();
     final isFullyAssigned = _isFullyAssigned();
     final hasAnyAssignment = day.assignments.isNotEmpty;
     final color = _backgroundColor(
+      context: context,
       isAbsent: isAbsent,
       isDisabled: isDisabled,
       hasMyAssignment: hasMyAssignment,
@@ -71,23 +74,33 @@ class MonthDayCard extends StatelessWidget {
                 )
               : null,
           child: Padding(
-            padding: EdgeInsets.all(dense ? 2 : 6),
+            padding: EdgeInsets.all(dense ? 1 : 3),
             child: Stack(
               children: [
-                Align(
-                  alignment: dense ? Alignment.center : Alignment.centerRight,
-                  child: Text(
-                    '${day.date.day}',
-                    style: TextStyle(
-                      fontSize: dense ? 18 : 34,
-                      fontWeight: FontWeight.w900,
-                      color:
-                          (isDisabled
-                                  ? Colors.grey.shade700
-                                  : _dayNumberColor(color))
-                              .withAlpha(dense ? 100 : 76),
-                      height: 0.9,
-                    ),
+                Positioned.fill(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final fontSize = _dayNumberFontSize(constraints.biggest);
+
+                      return Align(
+                        alignment: dense
+                            ? Alignment.center
+                            : Alignment.centerRight,
+                        child: Text(
+                          '${day.date.day}',
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.w900,
+                            color:
+                                (isDisabled
+                                        ? theme.colorScheme.onSurface
+                                        : _dayNumberColor(context, color))
+                                    .withAlpha(dense ? 80 : 52),
+                            height: 0.85,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 if (hasConflict && !dense)
@@ -101,10 +114,12 @@ class MonthDayCard extends StatelessWidget {
                   ),
                 Positioned.fill(
                   child: _buildCellBody(
+                    context: context,
                     isAbsent: isAbsent,
                     hasMyAssignment: hasMyAssignment,
                     hasAnyAssignment: hasAnyAssignment,
                     isFullyAssigned: isFullyAssigned,
+                    myRoleLabel: myRoleLabel,
                   ),
                 ),
               ],
@@ -116,16 +131,19 @@ class MonthDayCard extends StatelessWidget {
   }
 
   Widget _buildCellBody({
+    required BuildContext context,
     required bool isAbsent,
     required bool hasMyAssignment,
     required bool hasAnyAssignment,
     required bool isFullyAssigned,
+    required String? myRoleLabel,
   }) {
     final label = _stateLabel(
       isAbsent: isAbsent,
       hasMyAssignment: hasMyAssignment,
       hasAnyAssignment: hasAnyAssignment,
       isFullyAssigned: isFullyAssigned,
+      myRoleLabel: myRoleLabel,
     );
 
     if (label == null) {
@@ -133,21 +151,21 @@ class MonthDayCard extends StatelessWidget {
     }
 
     return Align(
-      alignment: dense ? Alignment.bottomCenter : Alignment.topLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: Colors.black.withAlpha(20),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.clip,
-          style: TextStyle(
-            fontSize: dense ? 8 : 10,
-            fontWeight: FontWeight.w800,
-            height: 1,
+      alignment: dense ? Alignment.bottomCenter : Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            style: TextStyle(
+              fontSize: dense ? 9 : 18,
+              fontWeight: FontWeight.w900,
+              height: 1,
+              color: _labelColor(context),
+            ),
           ),
         ),
       ),
@@ -156,6 +174,19 @@ class MonthDayCard extends StatelessWidget {
 
   String _shortWeekday(DateTime date) {
     return date.weekday == DateTime.saturday ? 'Sat' : 'Sun';
+  }
+
+  double _dayNumberFontSize(Size size) {
+    final shortestSide = size.shortestSide;
+
+    if (shortestSide <= 0) {
+      return dense ? 12 : 20;
+    }
+
+    final sizeFactor = dense ? 0.74 : 0.82;
+    final rawSize = shortestSide * sizeFactor;
+
+    return rawSize.clamp(dense ? 12.0 : 22.0, dense ? 22.0 : 54.0);
   }
 
   List<String> _roleRows() {
@@ -225,6 +256,7 @@ class MonthDayCard extends StatelessWidget {
   }
 
   Color? _backgroundColor({
+    required BuildContext context,
     required bool isAbsent,
     required bool isDisabled,
     required bool hasMyAssignment,
@@ -240,7 +272,7 @@ class MonthDayCard extends StatelessWidget {
     }
 
     if (isDisabled) {
-      return Colors.grey.shade300;
+      return Theme.of(context).colorScheme.surfaceContainerHighest;
     }
 
     if (isEditorMode && day.slots.isNotEmpty && !isFullyAssigned) {
@@ -255,15 +287,23 @@ class MonthDayCard extends StatelessWidget {
       return Colors.lightBlue.shade100;
     }
 
-    return null;
+    return Theme.of(context).colorScheme.surfaceContainerLow;
   }
 
-  Color _dayNumberColor(Color? backgroundColor) {
+  Color _dayNumberColor(BuildContext context, Color? backgroundColor) {
     if (backgroundColor == Colors.blue.shade700) {
       return Colors.white;
     }
 
-    return Colors.black;
+    return Theme.of(context).colorScheme.onSurface;
+  }
+
+  Color _labelColor(BuildContext context) {
+    if (_isFullyAssigned()) {
+      return Colors.white;
+    }
+
+    return Theme.of(context).colorScheme.onSurface;
   }
 
   String? _stateLabel({
@@ -271,17 +311,18 @@ class MonthDayCard extends StatelessWidget {
     required bool hasMyAssignment,
     required bool hasAnyAssignment,
     required bool isFullyAssigned,
+    required String? myRoleLabel,
   }) {
     if (isAbsent) {
       return 'VAC';
     }
 
-    if (isFullyAssigned) {
-      return 'FULL';
+    if (hasMyAssignment) {
+      return myRoleLabel ?? 'ME';
     }
 
-    if (hasMyAssignment) {
-      return 'ME';
+    if (isFullyAssigned) {
+      return 'FULL';
     }
 
     if (isEditorMode && hasAnyAssignment) {
@@ -289,6 +330,23 @@ class MonthDayCard extends StatelessWidget {
     }
 
     return null;
+  }
+
+  String? _myRoleLabel() {
+    final labels = day.assignments
+        .where((assignment) => assignment.doctor.id == currentDoctor.id)
+        .map(
+          (assignment) => _slotKindAbbreviation(assignment.slot.template.kind),
+        )
+        .toSet()
+        .toList();
+
+    if (labels.isEmpty) {
+      return null;
+    }
+
+    labels.sort();
+    return labels.join('+');
   }
 
   bool _isFullyAssigned() {

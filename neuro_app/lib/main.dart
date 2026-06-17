@@ -66,38 +66,38 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
 
   @override
   Widget build(BuildContext context) {
-    return AppLocalizations(
-      language: _language,
-      child: MaterialApp(
-        title: 'NeuroDienst',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(colorSchemeSeed: Colors.blue),
-        darkTheme: ThemeData(
-          colorSchemeSeed: Colors.blue,
-          brightness: Brightness.dark,
-        ),
-        themeMode: _themeMode,
-        home: AuthGate(
-          child: _AuthorizedMonthHome(
-            key: ValueKey(
-              SupabaseConfig.isConfigured
-                  ? Supabase.instance.client.auth.currentUser?.id
-                  : 'demo',
-            ),
-            roster: widget.roster,
-            currentDoctor: selectedDoctor,
-            doctors: doctors,
-            language: _language,
-            onLanguageChanged: _setLanguage,
-            onDoctorChanged: (doctor) {
-              setState(() {
-                selectedDoctor = doctor;
-              });
-            },
-            onDoctorUpdated: _updateDoctor,
-            isDarkMode: _themeMode == ThemeMode.dark,
-            onToggleDarkMode: _toggleDarkMode,
+    return MaterialApp(
+      title: 'NeuroDienst',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(colorSchemeSeed: Colors.blue),
+      darkTheme: ThemeData(
+        colorSchemeSeed: Colors.blue,
+        brightness: Brightness.dark,
+      ),
+      themeMode: _themeMode,
+      builder: (context, child) {
+        return AppLocalizations(language: _language, child: child!);
+      },
+      home: AuthGate(
+        child: _AuthorizedMonthHome(
+          key: ValueKey(
+            SupabaseConfig.isConfigured
+                ? Supabase.instance.client.auth.currentUser?.id
+                : 'demo',
           ),
+          roster: widget.roster,
+          currentDoctor: selectedDoctor,
+          doctors: doctors,
+          language: _language,
+          onLanguageChanged: _setLanguage,
+          onDoctorChanged: (doctor) {
+            setState(() {
+              selectedDoctor = doctor;
+            });
+          },
+          onDoctorUpdated: _updateDoctor,
+          isDarkMode: _themeMode == ThemeMode.dark,
+          onToggleDarkMode: _toggleDarkMode,
         ),
       ),
     );

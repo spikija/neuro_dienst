@@ -15,6 +15,7 @@ import 'doctor_selector_screen.dart';
 import 'mfa_screen.dart';
 import 'month_report_picker_screen.dart';
 import 'month_report_screen.dart';
+import 'vacation_import_screen.dart';
 
 class MonthScreen extends StatefulWidget {
   final RosterMonth roster;
@@ -54,9 +55,9 @@ class MonthScreen extends StatefulWidget {
 
 class _MonthScreenState extends State<MonthScreen> {
   static const int _weekdayColumns = 5;
-  static const double _gridSpacing = 4;
-  static const double _gridPadding = 8;
-  static const double _weekendColumnWidthFactor = 0.58;
+  static const double _gridSpacing = 6;
+  static const double _gridPadding = 6;
+  static const double _weekendColumnWidthFactor = 0.52;
 
   late RosterMonth currentRoster;
   final Set<String> _selectedDateKeys = {};
@@ -104,20 +105,6 @@ class _MonthScreenState extends State<MonthScreen> {
     final currentDoctor = _currentDoctorFromList();
     final monthView = MonthViewService().getMonthView(currentRoster);
     final conflictsByDate = _buildConflictsByDate();
-    final conflictCount = conflictsByDate.values.fold<int>(
-      0,
-      (total, conflicts) => total + conflicts.length,
-    );
-
-    final myAssignmentsThisMonth = _myAssignmentsThisMonthCount();
-
-    final statistics = RosterStatisticsService();
-
-    final coverage = statistics.coveragePercentage(roster: currentRoster);
-
-    final openSlots = statistics.countOpenSlots(roster: currentRoster);
-
-    final assignedSlots = statistics.countAssignedSlots(roster: currentRoster);
 
     return Scaffold(
       appBar: AppBar(
@@ -144,166 +131,109 @@ class _MonthScreenState extends State<MonthScreen> {
             icon: const Icon(Icons.chevron_right),
             onPressed: () => _openRelativeMonth(1),
           ),
-          PopupMenuButton<AppLanguage>(
-            tooltip: l10n.t('language'),
-            icon: const Icon(Icons.language),
-            initialValue: widget.language,
-            onSelected: widget.onLanguageChanged,
+          PopupMenuButton<_MonthMenuAction>(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.menu),
+            onSelected: _handleMenuAction,
             itemBuilder: (context) => [
               PopupMenuItem(
-                value: AppLanguage.english,
-                child: Text(l10n.t('language.english')),
+                value: _MonthMenuAction.switchDoctor,
+                child: _MenuRow(
+                  icon: Icons.switch_account,
+                  label: 'Switch doctor',
+                ),
               ),
               PopupMenuItem(
-                value: AppLanguage.german,
-                child: Text(l10n.t('language.german')),
+                value: _MonthMenuAction.profile,
+                child: _MenuRow(icon: Icons.person, label: 'Profile'),
               ),
+              PopupMenuItem(
+                value: _MonthMenuAction.myAssignments,
+                child: _MenuRow(
+                  icon: Icons.list,
+                  label: l10n.t('mySlotsThisMonth'),
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: _MonthMenuAction.importVacation,
+                child: _MenuRow(icon: Icons.download, label: 'Import vacation'),
+              ),
+              PopupMenuItem(
+                value: _MonthMenuAction.exportCalendar,
+                child: _MenuRow(
+                  icon: Icons.calendar_month,
+                  label: 'Export calendar',
+                ),
+              ),
+              PopupMenuItem(
+                value: _MonthMenuAction.monthlyReport,
+                child: _MenuRow(
+                  icon: Icons.print,
+                  label: l10n.t('monthlyReport'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MonthMenuAction.statistics,
+                child: _MenuRow(
+                  icon: Icons.bar_chart,
+                  label: l10n.t('coverage'),
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: _MonthMenuAction.toggleTheme,
+                child: _MenuRow(
+                  icon: widget.isDarkMode ? Icons.light_mode : Icons.dark_mode,
+                  label: widget.isDarkMode
+                      ? l10n.t('lightMode')
+                      : l10n.t('darkMode'),
+                ),
+              ),
+              PopupMenuItem(
+                value: _MonthMenuAction.languageEnglish,
+                child: _MenuRow(
+                  icon: Icons.language,
+                  label: l10n.t('language.english'),
+                  trailing: widget.language == AppLanguage.english
+                      ? Icons.check
+                      : null,
+                ),
+              ),
+              PopupMenuItem(
+                value: _MonthMenuAction.languageGerman,
+                child: _MenuRow(
+                  icon: Icons.language,
+                  label: l10n.t('language.german'),
+                  trailing: widget.language == AppLanguage.german
+                      ? Icons.check
+                      : null,
+                ),
+              ),
+              if (SupabaseConfig.isConfigured && widget.showAdmin) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: _MonthMenuAction.admin,
+                  child: _MenuRow(
+                    icon: Icons.admin_panel_settings,
+                    label: l10n.t('admin'),
+                  ),
+                ),
+              ],
+              if (SupabaseConfig.isConfigured) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: _MonthMenuAction.signOut,
+                  child: _MenuRow(icon: Icons.logout, label: l10n.t('signOut')),
+                ),
+              ],
             ],
-          ),
-          IconButton(
-            tooltip: widget.isDarkMode
-                ? l10n.t('lightMode')
-                : l10n.t('darkMode'),
-            icon: Icon(widget.isDarkMode ? Icons.light_mode : Icons.dark_mode),
-            onPressed: widget.onToggleDarkMode,
-          ),
-          if (SupabaseConfig.isConfigured && widget.showAdmin)
-            IconButton(
-              tooltip: l10n.t('admin'),
-              icon: const Icon(Icons.admin_panel_settings),
-              onPressed: _openAdmin,
-            ),
-          if (SupabaseConfig.isConfigured)
-            IconButton(
-              tooltip: l10n.t('signOut'),
-              icon: const Icon(Icons.logout),
-              onPressed: () => Supabase.instance.client.auth.signOut(),
-            ),
-          IconButton(
-            icon: const Icon(Icons.switch_account),
-            onPressed: () async {
-              final selectedDoctor = await Navigator.push<Doctor>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DoctorSelectorScreen(doctors: _doctors),
-                ),
-              );
-
-              if (selectedDoctor != null) {
-                widget.onDoctorChanged(selectedDoctor);
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.list),
-            onPressed: _showMyAssignmentsDialog,
-          ),
-          IconButton(
-            tooltip: 'Export calendar',
-            icon: const Icon(Icons.calendar_month),
-            onPressed: _openCalendarExport,
-          ),
-          IconButton(
-            tooltip: l10n.t('monthlyReport'),
-            icon: const Icon(Icons.print),
-            onPressed: _openMonthlyReport,
-          ),
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => DoctorProfileScreen(doctor: currentDoctor),
-                ),
-              );
-            },
           ),
         ],
       ),
       body: Column(
         children: [
           _buildModeBar(),
-          Card(
-            margin: const EdgeInsets.all(8),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Column(
-                    children: [
-                      Text(l10n.t('open')),
-                      Text(
-                        '$openSlots',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      Text(l10n.t('assigned')),
-                      Text(
-                        '$assignedSlots',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      Text(l10n.t('mine')),
-                      Text(
-                        '$myAssignmentsThisMonth',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    children: [
-                      Text(l10n.t('coverage')),
-                      Text(
-                        '${coverage.toStringAsFixed(0)}%',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_editorMode)
-                    InkWell(
-                      onTap: conflictCount > 0
-                          ? () => _showConflictsDialog(conflictsByDate)
-                          : null,
-                      child: Column(
-                        children: [
-                          Text(l10n.t('warnings')),
-                          Text(
-                            '$conflictCount',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: conflictCount > 0
-                                  ? Colors.orange.shade900
-                                  : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
           Expanded(
             child: Stack(
               children: [
@@ -334,10 +264,14 @@ class _MonthScreenState extends State<MonthScreen> {
     final l10n = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+      padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
       child: Row(
         children: [
           SegmentedButton<bool>(
+            style: const ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             segments: [
               ButtonSegment(
                 value: false,
@@ -374,6 +308,77 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
+  Future<void> _handleMenuAction(_MonthMenuAction action) async {
+    switch (action) {
+      case _MonthMenuAction.switchDoctor:
+        await _openDoctorSelector();
+      case _MonthMenuAction.profile:
+        _openDoctorProfile();
+      case _MonthMenuAction.myAssignments:
+        _showMyAssignmentsDialog();
+      case _MonthMenuAction.importVacation:
+        await _openVacationImport();
+      case _MonthMenuAction.exportCalendar:
+        _openCalendarExport();
+      case _MonthMenuAction.monthlyReport:
+        _openMonthlyReport();
+      case _MonthMenuAction.statistics:
+        _showStatisticsDialog();
+      case _MonthMenuAction.toggleTheme:
+        widget.onToggleDarkMode?.call();
+      case _MonthMenuAction.languageEnglish:
+        widget.onLanguageChanged?.call(AppLanguage.english);
+      case _MonthMenuAction.languageGerman:
+        widget.onLanguageChanged?.call(AppLanguage.german);
+      case _MonthMenuAction.admin:
+        await _openAdmin();
+      case _MonthMenuAction.signOut:
+        await Supabase.instance.client.auth.signOut();
+    }
+  }
+
+  Future<void> _openDoctorSelector() async {
+    final selectedDoctor = await Navigator.push<Doctor>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DoctorSelectorScreen(doctors: _doctors),
+      ),
+    );
+
+    if (!mounted || selectedDoctor == null) {
+      return;
+    }
+
+    widget.onDoctorChanged(selectedDoctor);
+  }
+
+  void _openDoctorProfile() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DoctorProfileScreen(doctor: _currentDoctorFromList()),
+      ),
+    );
+  }
+
+  Future<void> _openVacationImport() async {
+    final dates = await Navigator.push<List<DateTime>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VacationImportScreen(
+          year: currentRoster.year,
+          month: currentRoster.month,
+        ),
+      ),
+    );
+
+    if (!mounted || dates == null || dates.isEmpty) {
+      return;
+    }
+
+    await _setVacationDatesFromImport(dates);
+  }
+
   Widget _buildMonthGrid(
     List<MonthDayViewModel> monthView,
     Map<String, List<Conflict>> conflictsByDate,
@@ -382,6 +387,8 @@ class _MonthScreenState extends State<MonthScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final gridMetrics = _gridMetricsForWidth(constraints.maxWidth);
+
         return Listener(
           onPointerDown: (event) {
             _handleGridPointerDown(event.localPosition, constraints.biggest);
@@ -406,7 +413,8 @@ class _MonthScreenState extends State<MonthScreen> {
                           weekday < _weekdayColumns;
                           weekday++
                         ) ...[
-                          Expanded(
+                          SizedBox(
+                            width: gridMetrics.weekdayCellWidth,
                             child: _buildDayCell(
                               weekRows[row][weekday],
                               monthView,
@@ -416,7 +424,7 @@ class _MonthScreenState extends State<MonthScreen> {
                           const SizedBox(width: _gridSpacing),
                         ],
                         SizedBox(
-                          width: _weekendColumnWidth(constraints.maxWidth),
+                          width: gridMetrics.weekendColumnWidth,
                           child: Column(
                             children: [
                               Expanded(
@@ -558,6 +566,58 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
+  void _showStatisticsDialog() {
+    final l10n = AppLocalizations.of(context);
+    final statistics = RosterStatisticsService();
+    final conflictsByDate = _buildConflictsByDate();
+    final conflictCount = conflictsByDate.values.fold<int>(
+      0,
+      (total, conflicts) => total + conflicts.length,
+    );
+    final openSlots = statistics.countOpenSlots(roster: currentRoster);
+    final assignedSlots = statistics.countAssignedSlots(roster: currentRoster);
+    final coverage = statistics.coveragePercentage(roster: currentRoster);
+    final myAssignmentsThisMonth = _myAssignmentsThisMonthCount();
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(l10n.t('coverage')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _StatisticRow(label: l10n.t('open'), value: '$openSlots'),
+            _StatisticRow(label: l10n.t('assigned'), value: '$assignedSlots'),
+            _StatisticRow(
+              label: l10n.t('mine'),
+              value: '$myAssignmentsThisMonth',
+            ),
+            _StatisticRow(
+              label: l10n.t('coverage'),
+              value: '${coverage.toStringAsFixed(0)}%',
+            ),
+            if (_editorMode)
+              _StatisticRow(label: l10n.t('warnings'), value: '$conflictCount'),
+          ],
+        ),
+        actions: [
+          if (_editorMode && conflictCount > 0)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showConflictsDialog(conflictsByDate);
+              },
+              child: Text(l10n.t('warnings')),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.t('close')),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<List<int?>> _buildWeekRows() {
     final firstWeekday = currentRoster.days.first.date.weekday;
     final leadingEmptyCells = firstWeekday - DateTime.monday;
@@ -579,94 +639,162 @@ class _MonthScreenState extends State<MonthScreen> {
     return rows;
   }
 
-  double _weekendColumnWidth(double gridWidth) {
-    final contentWidth = gridWidth - (_gridPadding * 2);
-    final normalCellWidth =
-        (contentWidth - (_gridSpacing * _weekdayColumns)) /
-        (_weekdayColumns + _weekendColumnWidthFactor);
+  _MonthGridMetrics _gridMetricsForWidth(double gridWidth) {
+    final contentWidth = (gridWidth - (_gridPadding * 2)).clamp(
+      0.0,
+      double.infinity,
+    );
+    final spacingWidth = _gridSpacing * _weekdayColumns;
+    final availableCellWidth = (contentWidth - spacingWidth).clamp(
+      0.0,
+      double.infinity,
+    );
+    final weekdayCellWidth =
+        availableCellWidth / (_weekdayColumns + _weekendColumnWidthFactor);
 
-    return normalCellWidth * _weekendColumnWidthFactor;
+    return _MonthGridMetrics(
+      weekdayCellWidth: weekdayCellWidth,
+      weekendColumnWidth: weekdayCellWidth * _weekendColumnWidthFactor,
+    );
   }
 
   Widget _buildBulkActionBar() {
     final l10n = AppLocalizations.of(context);
     final selectedCount = _selectedDateKeys.length;
-    final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
 
-    return Card(
-      margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                l10n.fill('daysSelected', {
-                  'count': selectedCount,
-                  'plural': selectedCount == 1
-                      ? ''
-                      : widget.language == AppLanguage.german
-                      ? 'e'
-                      : 's',
-                }),
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: _clearDateSelection,
-              icon: const Icon(Icons.deselect),
-              label: Text(l10n.t('deselect')),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: _setSelectedDatesAsVacation,
-              icon: const Icon(Icons.beach_access),
-              label: Text(l10n.t('vacation')),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: _removeVacationFromSelectedDates,
-              icon: const Icon(Icons.event_available),
-              label: Text(l10n.t('removeVacation')),
-            ),
-            const SizedBox(width: 8),
-            if (_editorMode) ...[
-              OutlinedButton.icon(
-                onPressed: _setEditorDoctor,
-                icon: const Icon(Icons.person),
-                label: Text(editorDoctor.firstName),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _setEditorRole,
-                icon: const Icon(Icons.assignment_ind),
-                label: Text(
-                  _editorSlotKind == null
-                      ? 'Role'
-                      : _slotKindLabel(_editorSlotKind!),
+    return SafeArea(
+      top: false,
+      child: Card(
+        margin: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  l10n.fill('daysSelected', {
+                    'count': selectedCount,
+                    'plural': selectedCount == 1
+                        ? ''
+                        : widget.language == AppLanguage.german
+                        ? 'e'
+                        : 's',
+                  }),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                onPressed: _editorSlotKind == null
-                    ? null
-                    : () => _assignSelectedDatesToSlotKind(
-                        slotKind: _editorSlotKind!,
-                        doctor: editorDoctor,
+              IconButton(
+                tooltip: l10n.t('deselect'),
+                onPressed: _clearDateSelection,
+                icon: const Icon(Icons.deselect),
+              ),
+              PopupMenuButton<_BulkAction>(
+                tooltip: 'Actions',
+                icon: const Icon(Icons.more_vert),
+                onSelected: _handleBulkAction,
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: _BulkAction.setVacation,
+                    child: _MenuRow(
+                      icon: Icons.beach_access,
+                      label: l10n.t('vacation'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _BulkAction.removeVacation,
+                    child: _MenuRow(
+                      icon: Icons.event_available,
+                      label: l10n.t('removeVacation'),
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  if (_editorMode) ...[
+                    PopupMenuItem(
+                      value: _BulkAction.chooseDoctor,
+                      child: _MenuRow(
+                        icon: Icons.person,
+                        label: (_editorDoctor ?? _currentDoctorFromList())
+                            .firstName,
                       ),
-                icon: const Icon(Icons.check),
-                label: const Text('Apply'),
+                    ),
+                    PopupMenuItem(
+                      value: _BulkAction.chooseRole,
+                      child: _MenuRow(
+                        icon: Icons.assignment_ind,
+                        label: _editorSlotKind == null
+                            ? l10n.t('chooseRole')
+                            : _slotKindLabel(_editorSlotKind!),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      enabled: _editorSlotKind != null,
+                      value: _BulkAction.applyEditorAssignment,
+                      child: _MenuRow(
+                        icon: Icons.check,
+                        label: l10n.t('apply'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _BulkAction.removeRole,
+                      child: _MenuRow(
+                        icon: Icons.delete_outline,
+                        label: l10n.t('removeRole'),
+                      ),
+                    ),
+                  ] else ...[
+                    PopupMenuItem(
+                      value: _BulkAction.chooseRole,
+                      child: _MenuRow(
+                        icon: Icons.assignment_ind,
+                        label: l10n.t('chooseRole'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: _BulkAction.removeRole,
+                      child: _MenuRow(
+                        icon: Icons.delete_outline,
+                        label: l10n.t('removeRole'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ] else
-              FilledButton.icon(
-                onPressed: _chooseRoleForSelectedDates,
-                icon: const Icon(Icons.assignment_ind),
-                label: const Text('Role'),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleBulkAction(_BulkAction action) async {
+    switch (action) {
+      case _BulkAction.setVacation:
+        await _setSelectedDatesAsVacation();
+      case _BulkAction.removeVacation:
+        await _removeVacationFromSelectedDates();
+      case _BulkAction.chooseDoctor:
+        await _setEditorDoctor();
+      case _BulkAction.chooseRole:
+        if (_editorMode) {
+          await _setEditorRole();
+        } else {
+          await _chooseRoleForSelectedDates();
+        }
+      case _BulkAction.removeRole:
+        await _removeRoleFromSelectedDates();
+      case _BulkAction.applyEditorAssignment:
+        final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
+        final editorSlotKind = _editorSlotKind;
+
+        if (editorSlotKind == null) {
+          return;
+        }
+
+        await _assignSelectedDatesToSlotKind(
+          slotKind: editorSlotKind,
+          doctor: editorDoctor,
+        );
+    }
   }
 
   Widget _buildStatusStrip() {
@@ -750,13 +878,16 @@ class _MonthScreenState extends State<MonthScreen> {
       return null;
     }
 
-    final normalCellWidth =
-        (contentWidth - (_gridSpacing * _weekdayColumns)) /
-        (_weekdayColumns + _weekendColumnWidthFactor);
-    final weekendColumnWidth = normalCellWidth * _weekendColumnWidthFactor;
+    final gridMetrics = _gridMetricsForWidth(gridSize.width);
+    final normalCellWidth = gridMetrics.weekdayCellWidth;
+    final weekendColumnWidth = gridMetrics.weekendColumnWidth;
     final rowHeight =
         (contentHeight - (_gridSpacing * (weekRows.length - 1))) /
         weekRows.length;
+
+    if (normalCellWidth <= 0 || weekendColumnWidth <= 0 || rowHeight <= 0) {
+      return null;
+    }
 
     final x = position.dx - _gridPadding;
     final y = position.dy - _gridPadding;
@@ -1005,6 +1136,113 @@ class _MonthScreenState extends State<MonthScreen> {
         'plural': _dayPlural(selectedDays.length),
       }),
     );
+  }
+
+  Future<void> _setVacationDatesFromImport(List<DateTime> dates) async {
+    final l10n = AppLocalizations.of(context);
+    final normalizedDates = dates.map(_dateOnly).toSet().toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    if (normalizedDates.isEmpty) {
+      return;
+    }
+
+    final periods = _contiguousVacationPeriods(normalizedDates);
+    final doctor = _currentDoctorFromList();
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        for (final period in periods) {
+          await _insertAbsenceInSupabase(doctor: doctor, period: period);
+        }
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage(l10n.t('couldNotSaveVacation'));
+        return;
+      }
+    }
+
+    final selectedKeys = normalizedDates.map(_dateKey).toSet();
+    final updatedDoctor = doctor.copyWith(
+      availabilities: [...doctor.availabilities, ...periods],
+    );
+    final updatedDays = currentRoster.days.map((day) {
+      if (!selectedKeys.contains(_dateKey(day.date))) {
+        return day;
+      }
+
+      return RosterDay(
+        calendarInfo: day.calendarInfo,
+        slots: day.slots,
+        availabilities: day.availabilities,
+        assignments: day.assignments
+            .where((assignment) => assignment.doctor.id != doctor.id)
+            .toList(),
+      );
+    }).toList();
+
+    setState(() {
+      _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
+      currentRoster = RosterMonth(
+        year: currentRoster.year,
+        month: currentRoster.month,
+        phase: currentRoster.phase,
+        days: updatedDays,
+      );
+      if (_editorDoctor?.id == updatedDoctor.id) {
+        _editorDoctor = updatedDoctor;
+      }
+    });
+
+    widget.onDoctorUpdated(updatedDoctor);
+
+    _setStatusMessage(
+      l10n.fill('vacationSet', {
+        'count': normalizedDates.length,
+        'plural': _dayPlural(normalizedDates.length),
+      }),
+    );
+  }
+
+  List<AvailabilityPeriod> _contiguousVacationPeriods(List<DateTime> dates) {
+    if (dates.isEmpty) {
+      return const [];
+    }
+
+    final periods = <AvailabilityPeriod>[];
+    var start = dates.first;
+    var previous = dates.first;
+
+    for (final date in dates.skip(1)) {
+      final expectedNext = previous.add(const Duration(days: 1));
+
+      if (_dateOnly(date) == _dateOnly(expectedNext)) {
+        previous = date;
+        continue;
+      }
+
+      periods.add(
+        AvailabilityPeriod(
+          start: start,
+          end: previous,
+          type: AvailabilityType.vacation,
+        ),
+      );
+      start = date;
+      previous = date;
+    }
+
+    periods.add(
+      AvailabilityPeriod(
+        start: start,
+        end: previous,
+        type: AvailabilityType.vacation,
+      ),
+    );
+
+    return periods;
   }
 
   Future<void> _removeVacationFromSelectedDates() async {
@@ -1451,6 +1689,82 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
+  Future<void> _removeRoleFromSelectedDates() async {
+    final l10n = AppLocalizations.of(context);
+    final selectedKeys = _selectedDateKeys.toSet();
+    final doctor = _editorMode
+        ? (_editorDoctor ?? _currentDoctorFromList())
+        : _currentDoctorFromList();
+    final scopedSlotKind = _editorMode ? _editorSlotKind : null;
+    final updatedDays = <RosterDay>[];
+    final removedAssignments = <Assignment>[];
+
+    for (final day in currentRoster.days) {
+      if (!selectedKeys.contains(_dateKey(day.date))) {
+        updatedDays.add(day);
+        continue;
+      }
+
+      final retainedAssignments = <Assignment>[];
+
+      for (final assignment in day.assignments) {
+        final sameDoctor = assignment.doctor.id == doctor.id;
+        final sameRole =
+            scopedSlotKind == null ||
+            assignment.slot.template.kind == scopedSlotKind;
+
+        if (sameDoctor && sameRole) {
+          removedAssignments.add(assignment);
+        } else {
+          retainedAssignments.add(assignment);
+        }
+      }
+
+      updatedDays.add(
+        RosterDay(
+          calendarInfo: day.calendarInfo,
+          slots: day.slots,
+          availabilities: day.availabilities,
+          assignments: retainedAssignments,
+        ),
+      );
+    }
+
+    if (removedAssignments.isEmpty) {
+      _setStatusMessage(l10n.t('noRoleFound'));
+      return;
+    }
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _persistAssignmentChanges(removedAssignments: removedAssignments);
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage(l10n.t('couldNotRemoveAssignment'));
+        return;
+      }
+    }
+
+    setState(() {
+      currentRoster = RosterMonth(
+        year: currentRoster.year,
+        month: currentRoster.month,
+        phase: currentRoster.phase,
+        days: updatedDays,
+      );
+      _selectedDateKeys.clear();
+    });
+
+    _setStatusMessage(
+      l10n.fill('roleRemoved', {
+        'count': removedAssignments.length,
+        'plural': _dayPlural(removedAssignments.length),
+      }),
+    );
+  }
+
   Future<void> _persistAssignmentChanges({
     required List<Assignment> removedAssignments,
     Assignment? addedAssignment,
@@ -1698,6 +2012,90 @@ class _SlotChoice {
   _SlotChoice({required this.kind, required this.name, required this.area});
 }
 
+class _MonthGridMetrics {
+  final double weekdayCellWidth;
+  final double weekendColumnWidth;
+
+  const _MonthGridMetrics({
+    required this.weekdayCellWidth,
+    required this.weekendColumnWidth,
+  });
+}
+
+class _StatisticRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatisticRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          const SizedBox(width: 24),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final IconData? trailing;
+
+  const _MenuRow({required this.icon, required this.label, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 220,
+      child: Row(
+        children: [
+          Icon(icon, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 12),
+            Icon(trailing, size: 18),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 Widget _buildAdminHomeScreen(BuildContext context) {
   return const AdminHomeScreen();
+}
+
+enum _MonthMenuAction {
+  switchDoctor,
+  profile,
+  myAssignments,
+  importVacation,
+  exportCalendar,
+  monthlyReport,
+  statistics,
+  toggleTheme,
+  languageEnglish,
+  languageGerman,
+  admin,
+  signOut,
+}
+
+enum _BulkAction {
+  setVacation,
+  removeVacation,
+  chooseDoctor,
+  chooseRole,
+  removeRole,
+  applyEditorAssignment,
 }
