@@ -59,11 +59,69 @@ class DeviceCalendarExportService {
       );
     }
 
-    final target = calendarId == null
+    var target = calendarId == null
         ? await defaultTargetCalendar()
         : await _targetCalendarById(calendarId);
     final monthStart = DateTime(roster.year, roster.month);
     final monthEnd = DateTime(roster.year, roster.month + 1, 1);
+
+    if (target.isNeuroDienst) {
+      target = await _freshNeuroDienstTarget(fallback: target);
+      await _primeCalendarProvider(
+        exceptCalendarId: target.id,
+        start: monthStart,
+        end: monthEnd,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+    }
+
+    final result = await _syncDoctorAssignmentsOnce(
+      roster: roster,
+      doctor: doctor,
+      target: target,
+      monthStart: monthStart,
+      monthEnd: monthEnd,
+    );
+
+    if (!target.isNeuroDienst) {
+      return result;
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+    final visibleCount = await _countExistingMonthEvents(
+      calendarId: target.id,
+      doctor: doctor,
+      start: monthStart,
+      end: monthEnd,
+    );
+
+    if (visibleCount >= result.createdCount) {
+      return result;
+    }
+
+    await _primeCalendarProvider(
+      exceptCalendarId: target.id,
+      start: monthStart,
+      end: monthEnd,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+
+    return _syncDoctorAssignmentsOnce(
+      roster: roster,
+      doctor: doctor,
+      target: target,
+      monthStart: monthStart,
+      monthEnd: monthEnd,
+    );
+  }
+
+  Future<DeviceCalendarExportResult> _syncDoctorAssignmentsOnce({
+    required RosterMonth roster,
+    required Doctor doctor,
+    required DeviceCalendarTarget target,
+    required DateTime monthStart,
+    required DateTime monthEnd,
+  }) async {
     final deletedCount = await _deleteExistingMonthEvents(
       calendarId: target.id,
       doctor: doctor,
@@ -98,6 +156,35 @@ class DeviceCalendarExportService {
       createdCount: createdCount,
       deletedCount: deletedCount,
     );
+  }
+
+  Future<void> _primeCalendarProvider({
+    required String exceptCalendarId,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final calendarsResult = await _plugin.retrieveCalendars();
+
+    if (!calendarsResult.isSuccess) {
+      return;
+    }
+
+    for (final calendar in calendarsResult.data ?? const <Calendar>[]) {
+      final id = calendar.id;
+
+      if (id == null ||
+          id.isEmpty ||
+          id == exceptCalendarId ||
+          calendar.isReadOnly == true) {
+        continue;
+      }
+
+      await _plugin.retrieveEvents(
+        id,
+        RetrieveEventsParams(startDate: start, endDate: end),
+      );
+      return;
+    }
   }
 
   Future<List<DeviceCalendarTarget>> writableCalendars() async {
@@ -144,6 +231,13 @@ class DeviceCalendarExportService {
       }
     }
 
+    final preferredNeuroDienst = _preferredNeuroDienstTarget(targets);
+    if (preferredNeuroDienst != null) {
+      targets
+        ..removeWhere((target) => target.isNeuroDienst)
+        ..insert(0, preferredNeuroDienst);
+    }
+
     targets.sort((a, b) {
       if (a.isNeuroDienst != b.isNeuroDienst) {
         return a.isNeuroDienst ? -1 : 1;
@@ -173,7 +267,13 @@ class DeviceCalendarExportService {
       return null;
     }
 
-    return DeviceCalendarTarget(id: createResult.data!, name: calendarName);
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    return _freshNeuroDienstTarget(
+      fallback: DeviceCalendarTarget(
+        id: createResult.data!,
+        name: calendarName,
+      ),
+    );
   }
 
   Future<DeviceCalendarTarget> defaultTargetCalendar() async {
@@ -211,6 +311,72 @@ class DeviceCalendarExportService {
     throw const DeviceCalendarExportException(
       'Selected calendar is no longer available.',
     );
+  }
+
+  Future<DeviceCalendarTarget> _freshNeuroDienstTarget({
+    required DeviceCalendarTarget fallback,
+  }) async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final calendarsResult = await _plugin.retrieveCalendars();
+
+      if (calendarsResult.isSuccess) {
+        final targets = <DeviceCalendarTarget>[];
+
+        for (final calendar in calendarsResult.data ?? const <Calendar>[]) {
+          final id = calendar.id;
+
+          if (id == null || id.isEmpty || calendar.isReadOnly == true) {
+            continue;
+          }
+
+          final target = DeviceCalendarTarget(
+            id: id,
+            name: calendar.name ?? 'Calendar',
+            accountName: calendar.accountName,
+            accountType: calendar.accountType,
+            isDefault: calendar.isDefault ?? false,
+          );
+
+          if (target.isNeuroDienst) {
+            targets.add(target);
+          }
+        }
+
+        final preferred = _preferredNeuroDienstTarget(targets);
+        if (preferred != null) {
+          return preferred;
+        }
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+    }
+
+    return fallback;
+  }
+
+  DeviceCalendarTarget? _preferredNeuroDienstTarget(
+    List<DeviceCalendarTarget> targets,
+  ) {
+    final neuroDienstTargets = targets
+        .where((target) => target.isNeuroDienst)
+        .toList();
+
+    if (neuroDienstTargets.isEmpty) {
+      return null;
+    }
+
+    neuroDienstTargets.sort((a, b) {
+      final aId = int.tryParse(a.id);
+      final bId = int.tryParse(b.id);
+
+      if (aId != null && bId != null) {
+        return bId.compareTo(aId);
+      }
+
+      return b.id.compareTo(a.id);
+    });
+
+    return neuroDienstTargets.first;
   }
 
   bool _isGoogleCalendar(DeviceCalendarTarget calendar) {
@@ -254,6 +420,32 @@ class DeviceCalendarExportService {
     }
 
     return deletedCount;
+  }
+
+  Future<int> _countExistingMonthEvents({
+    required String calendarId,
+    required Doctor doctor,
+    required DateTime start,
+    required DateTime end,
+  }) async {
+    final eventsResult = await _plugin.retrieveEvents(
+      calendarId,
+      RetrieveEventsParams(startDate: start, endDate: end),
+    );
+
+    if (!eventsResult.isSuccess) {
+      return 0;
+    }
+
+    var count = 0;
+
+    for (final event in eventsResult.data ?? const <Event>[]) {
+      if (_isNeuroDienstEventForDoctor(event, doctor)) {
+        count++;
+      }
+    }
+
+    return count;
   }
 
   Event _eventForAssignment({

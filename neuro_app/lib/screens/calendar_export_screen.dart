@@ -28,7 +28,7 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
   late final DeviceCalendarExportService _deviceCalendarExportService;
   late final String _ics;
   late final int _assignmentCount;
-  late final Future<List<DeviceCalendarTarget>> _calendarTargetsFuture;
+  late Future<List<DeviceCalendarTarget>> _calendarTargetsFuture;
   List<DeviceCalendarTarget> _calendarTargets = const [];
   DeviceCalendarTarget? _selectedCalendar;
   String? _savedPath;
@@ -286,6 +286,10 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
       if (!mounted) {
         return;
       }
+
+      setState(() {
+        _calendarTargetsFuture = _loadCalendarTargets();
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
