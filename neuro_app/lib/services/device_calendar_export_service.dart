@@ -36,6 +36,14 @@ class DeviceCalendarTarget {
   }
 
   bool get isNeuroDienst => name.toLowerCase() == 'neurodienst';
+
+  @override
+  bool operator ==(Object other) {
+    return other is DeviceCalendarTarget && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 class DeviceCalendarExportService {

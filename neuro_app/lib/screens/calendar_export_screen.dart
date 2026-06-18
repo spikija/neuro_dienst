@@ -94,7 +94,12 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                         return const Text('No writable phone calendars found.');
                       }
 
-                      final selected = _selectedCalendar ?? targets.first;
+                      final selected = _selectedCalendar == null
+                          ? targets.first
+                          : targets.firstWhere(
+                              (target) => target.id == _selectedCalendar!.id,
+                              orElse: () => targets.first,
+                            );
 
                       return DropdownButtonFormField<DeviceCalendarTarget>(
                         initialValue: selected,
@@ -243,12 +248,22 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
     final targets = await _deviceCalendarExportService.writableCalendars();
 
     if (mounted && targets.isNotEmpty) {
+      final selected = _selectedCalendar == null
+          ? targets.firstWhere(
+              (target) => target.isNeuroDienst,
+              orElse: () => targets.first,
+            )
+          : targets.firstWhere(
+              (target) => target.id == _selectedCalendar!.id,
+              orElse: () => targets.firstWhere(
+                (target) => target.isNeuroDienst,
+                orElse: () => targets.first,
+              ),
+            );
+
       setState(() {
         _calendarTargets = targets;
-        _selectedCalendar ??= targets.firstWhere(
-          (target) => target.isNeuroDienst,
-          orElse: () => targets.first,
-        );
+        _selectedCalendar = selected;
       });
     }
 
