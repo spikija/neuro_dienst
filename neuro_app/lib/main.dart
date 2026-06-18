@@ -279,6 +279,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         .select('role, preferred_language')
         .eq('id', userId)
         .maybeSingle();
+    final isAdmin = profile?['role'] == 'admin';
 
     final preferredLanguage = AppLanguage.fromCode(
       profile?['preferred_language'] as String?,
@@ -293,6 +294,7 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     }
 
     final databaseDoctors = await SupabaseDoctorService().loadActiveDoctors();
+    final linkedDoctorId = await _loadLinkedDoctorId(userId);
     final databaseRoster = await SupabaseRosterService().loadRoster(
       year: _visibleMonth.year,
       month: _visibleMonth.month,
@@ -300,17 +302,27 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
     );
 
     _databaseDoctors = databaseDoctors;
-    _selectedDoctor = _doctorFromListOrFallback(
-      databaseDoctors,
-      _selectedDoctor,
-    );
+    _selectedDoctor = isAdmin
+        ? _doctorFromListOrFallback(databaseDoctors, _selectedDoctor)
+        : _doctorByIdOrFallback(databaseDoctors, linkedDoctorId);
 
     return _AuthorizedHomeData(
-      isAdmin: profile?['role'] == 'admin',
+      isAdmin: isAdmin,
       doctors: databaseDoctors,
       roster: databaseRoster,
       signedInEmail: Supabase.instance.client.auth.currentUser?.email,
     );
+  }
+
+  Future<String?> _loadLinkedDoctorId(String userId) async {
+    final row = await Supabase.instance.client
+        .from('doctors')
+        .select('id')
+        .eq('auth_user_id', userId)
+        .eq('is_active', true)
+        .maybeSingle();
+
+    return row?['id'] as String?;
   }
 
   void _setSelectedDoctor(Doctor doctor) {
@@ -494,6 +506,22 @@ Doctor _doctorFromListOrFallback(List<Doctor> doctors, Doctor fallback) {
   }
 
   return fallback;
+}
+
+Doctor _doctorByIdOrFallback(List<Doctor> doctors, String? doctorId) {
+  if (doctorId != null) {
+    for (final doctor in doctors) {
+      if (doctor.id == doctorId) {
+        return doctor;
+      }
+    }
+  }
+
+  if (doctors.isNotEmpty) {
+    return doctors.first;
+  }
+
+  return DemoRoster.createCurrentDoctor();
 }
 
 Widget _buildAdminHomeScreen(BuildContext context) {

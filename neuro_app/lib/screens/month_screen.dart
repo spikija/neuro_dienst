@@ -97,6 +97,12 @@ class _MonthScreenState extends State<MonthScreen> {
     if (oldWidget.roster != widget.roster) {
       currentRoster = widget.roster;
     }
+
+    if (!widget.showAdmin && _editorMode) {
+      _editorMode = false;
+      _editorDoctor = widget.currentDoctor;
+      _editorSlotKind = null;
+    }
   }
 
   @override
@@ -136,13 +142,14 @@ class _MonthScreenState extends State<MonthScreen> {
             icon: const Icon(Icons.menu),
             onSelected: _handleMenuAction,
             itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _MonthMenuAction.switchDoctor,
-                child: _MenuRow(
-                  icon: Icons.switch_account,
-                  label: 'Switch doctor',
+              if (widget.showAdmin)
+                PopupMenuItem(
+                  value: _MonthMenuAction.switchDoctor,
+                  child: _MenuRow(
+                    icon: Icons.switch_account,
+                    label: 'Switch doctor',
+                  ),
                 ),
-              ),
               PopupMenuItem(
                 value: _MonthMenuAction.profile,
                 child: _MenuRow(icon: Icons.person, label: 'Profile'),
@@ -212,6 +219,13 @@ class _MonthScreenState extends State<MonthScreen> {
               ),
               if (SupabaseConfig.isConfigured && widget.showAdmin) ...[
                 const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: _MonthMenuAction.mfa,
+                  child: _MenuRow(
+                    icon: Icons.verified_user,
+                    label: 'Two-factor verification',
+                  ),
+                ),
                 PopupMenuItem(
                   value: _MonthMenuAction.admin,
                   child: _MenuRow(
@@ -263,6 +277,22 @@ class _MonthScreenState extends State<MonthScreen> {
   Widget _buildModeBar() {
     final l10n = AppLocalizations.of(context);
 
+    if (!widget.showAdmin) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 2),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            l10n.fill('personalPlanning', {
+              'name': _currentDoctorFromList().firstName,
+            }),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
       child: Row(
@@ -311,7 +341,9 @@ class _MonthScreenState extends State<MonthScreen> {
   Future<void> _handleMenuAction(_MonthMenuAction action) async {
     switch (action) {
       case _MonthMenuAction.switchDoctor:
-        await _openDoctorSelector();
+        if (widget.showAdmin) {
+          await _openDoctorSelector();
+        }
       case _MonthMenuAction.profile:
         _openDoctorProfile();
       case _MonthMenuAction.myAssignments:
@@ -332,6 +364,8 @@ class _MonthScreenState extends State<MonthScreen> {
         widget.onLanguageChanged?.call(AppLanguage.german);
       case _MonthMenuAction.admin:
         await _openAdmin();
+      case _MonthMenuAction.mfa:
+        await _openMfa();
       case _MonthMenuAction.signOut:
         await Supabase.instance.client.auth.signOut();
     }
@@ -708,7 +742,7 @@ class _MonthScreenState extends State<MonthScreen> {
                     ),
                   ),
                   const PopupMenuDivider(),
-                  if (_editorMode) ...[
+                  if (_editorMode && widget.showAdmin) ...[
                     PopupMenuItem(
                       value: _BulkAction.chooseDoctor,
                       child: _MenuRow(
@@ -773,9 +807,11 @@ class _MonthScreenState extends State<MonthScreen> {
       case _BulkAction.removeVacation:
         await _removeVacationFromSelectedDates();
       case _BulkAction.chooseDoctor:
-        await _setEditorDoctor();
+        if (widget.showAdmin) {
+          await _setEditorDoctor();
+        }
       case _BulkAction.chooseRole:
-        if (_editorMode) {
+        if (_editorMode && widget.showAdmin) {
           await _setEditorRole();
         } else {
           await _chooseRoleForSelectedDates();
@@ -783,6 +819,10 @@ class _MonthScreenState extends State<MonthScreen> {
       case _BulkAction.removeRole:
         await _removeRoleFromSelectedDates();
       case _BulkAction.applyEditorAssignment:
+        if (!widget.showAdmin) {
+          return;
+        }
+
         final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
         final editorSlotKind = _editorSlotKind;
 
@@ -1049,6 +1089,13 @@ class _MonthScreenState extends State<MonthScreen> {
     );
 
     widget.onAdminClosed?.call();
+  }
+
+  Future<void> _openMfa() async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const MfaScreen()),
+    );
   }
 
   void _clearDateSelection() {
@@ -2088,6 +2135,7 @@ enum _MonthMenuAction {
   languageEnglish,
   languageGerman,
   admin,
+  mfa,
   signOut,
 }
 

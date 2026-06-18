@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../screens/login_screen.dart';
 import '../services/supabase_bootstrap.dart';
+import 'entry_splash.dart';
 
 class AuthGate extends StatefulWidget {
   final Widget child;
@@ -18,6 +19,7 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   Session? _session;
   StreamSubscription<AuthState>? _authSubscription;
+  bool _showEntrySplash = false;
 
   @override
   void initState() {
@@ -34,8 +36,12 @@ class _AuthGateState extends State<AuthGate> {
         return;
       }
 
+      final wasSignedOut = _session == null;
+      final isSignedIn = event.session != null;
+
       setState(() {
         _session = event.session;
+        _showEntrySplash = wasSignedOut && isSignedIn;
       });
     });
   }
@@ -53,9 +59,34 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     if (_session == null) {
-      return const LoginScreen();
+      return LoginScreen(onSignedIn: _handleSignedIn);
+    }
+
+    if (_showEntrySplash) {
+      return EntrySplash(
+        onFinished: () {
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            _showEntrySplash = false;
+          });
+        },
+      );
     }
 
     return widget.child;
+  }
+
+  void _handleSignedIn() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _session = Supabase.instance.client.auth.currentSession;
+      _showEntrySplash = _session != null;
+    });
   }
 }

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final VoidCallback? onSignedIn;
+
+  const LoginScreen({super.key, this.onSignedIn});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -105,6 +107,8 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _loginEmailFromUsername(_usernameController.text),
         password: _passwordController.text,
       );
+
+      widget.onSignedIn?.call();
     } on AuthException catch (error) {
       setState(() {
         _errorMessage = error.message;

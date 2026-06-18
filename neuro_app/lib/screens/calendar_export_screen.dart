@@ -124,12 +124,7 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                               value: target,
                               child: Row(
                                 children: [
-                                  Icon(
-                                    target.isNeuroDienst
-                                        ? Icons.event_available
-                                        : Icons.calendar_month,
-                                    size: 18,
-                                  ),
+                                  Icon(Icons.calendar_month, size: 18),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
@@ -249,16 +244,10 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
 
     if (mounted && targets.isNotEmpty) {
       final selected = _selectedCalendar == null
-          ? targets.firstWhere(
-              (target) => target.isNeuroDienst,
-              orElse: () => targets.first,
-            )
+          ? targets.first
           : targets.firstWhere(
               (target) => target.id == _selectedCalendar!.id,
-              orElse: () => targets.firstWhere(
-                (target) => target.isNeuroDienst,
-                orElse: () => targets.first,
-              ),
+              orElse: () => targets.first,
             );
 
       setState(() {
@@ -271,10 +260,6 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
   }
 
   String _calendarLabel(DeviceCalendarTarget target) {
-    if (target.isNeuroDienst) {
-      return 'NeuroDienst';
-    }
-
     return target.displayName;
   }
 
