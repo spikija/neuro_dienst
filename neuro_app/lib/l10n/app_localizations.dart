@@ -75,6 +75,8 @@ const _en = <String, String>{
   'vacationRemoved': 'Vacation removed from {count} day{plural}',
   'noVacationFound': 'No vacation found on selected days',
   'noSlotsAvailable': 'No slots available on selected days',
+  'noEligibleSlotsAvailable':
+      'No eligible roles available for {doctor} on selected days',
   'noRoleFound': 'No role found on selected days',
   'assignSelectedDays': 'Assign selected days to role',
   'assignDoctor': 'Assign doctor',
@@ -131,6 +133,8 @@ const _de = <String, String>{
   'vacationRemoved': 'Urlaub von {count} Tag{plural} entfernt',
   'noVacationFound': 'Kein Urlaub an den ausgewaehlten Tagen gefunden',
   'noSlotsAvailable': 'Keine Dienste an den ausgewaehlten Tagen verfuegbar',
+  'noEligibleSlotsAvailable':
+      'Keine passenden Rollen fuer {doctor} an den ausgewaehlten Tagen verfuegbar',
   'noRoleFound': 'Keine Rolle an den ausgewaehlten Tagen gefunden',
   'assignSelectedDays': 'Ausgewaehlte Tage einer Rolle zuweisen',
   'assignDoctor': 'Arzt zuweisen',

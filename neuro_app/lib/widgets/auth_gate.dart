@@ -31,6 +31,7 @@ class _AuthGateState extends State<AuthGate> {
 
     final auth = Supabase.instance.client.auth;
     _session = auth.currentSession;
+    _showEntrySplash = _session != null;
     _authSubscription = auth.onAuthStateChange.listen((event) {
       if (!mounted) {
         return;
@@ -41,7 +42,14 @@ class _AuthGateState extends State<AuthGate> {
 
       setState(() {
         _session = event.session;
-        _showEntrySplash = wasSignedOut && isSignedIn;
+        if (!isSignedIn) {
+          _showEntrySplash = false;
+          return;
+        }
+
+        if (wasSignedOut) {
+          _showEntrySplash = true;
+        }
       });
     });
   }

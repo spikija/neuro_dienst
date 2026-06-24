@@ -58,6 +58,8 @@ class _MonthScreenState extends State<MonthScreen> {
   static const double _gridSpacing = 6;
   static const double _gridPadding = 6;
   static const double _weekendColumnWidthFactor = 0.52;
+  static const double _calendarHeightFactor = 0.80;
+  static const double _dayCardHeightFactor = 1.0;
 
   late RosterMonth currentRoster;
   final Set<String> _selectedDateKeys = {};
@@ -111,6 +113,11 @@ class _MonthScreenState extends State<MonthScreen> {
     final currentDoctor = _currentDoctorFromList();
     final monthView = MonthViewService().getMonthView(currentRoster);
     final conflictsByDate = _buildConflictsByDate();
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
+    final bulkActionBottom = bottomInset + 8;
+    final statusBottom = _selectedDateKeys.isNotEmpty
+        ? bulkActionBottom + 76
+        : bottomInset + 22;
 
     return Scaffold(
       appBar: AppBar(
@@ -249,24 +256,37 @@ class _MonthScreenState extends State<MonthScreen> {
         children: [
           _buildModeBar(),
           Expanded(
-            child: Stack(
-              children: [
-                _buildMonthGrid(monthView, conflictsByDate),
-                if (_statusMessage != null)
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: _selectedDateKeys.isNotEmpty ? 76 : 16,
-                    child: _buildStatusStrip(),
-                  ),
-                if (_selectedDateKeys.isNotEmpty)
-                  Positioned(
-                    left: 8,
-                    right: 8,
-                    bottom: 8,
-                    child: _buildBulkActionBar(),
-                  ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final calendarHeight =
+                    constraints.maxHeight * _calendarHeightFactor;
+
+                return Stack(
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: calendarHeight,
+                      child: _buildMonthGrid(monthView, conflictsByDate),
+                    ),
+                    if (_statusMessage != null)
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: statusBottom,
+                        child: _buildStatusStrip(),
+                      ),
+                    if (_selectedDateKeys.isNotEmpty)
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: bulkActionBottom,
+                        child: _buildBulkActionBar(),
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -508,17 +528,23 @@ class _MonthScreenState extends State<MonthScreen> {
     final day = currentRoster.days[index];
     final dayView = monthView[index];
 
-    return MonthDayCard(
-      day: day,
-      dayView: dayView,
-      currentDoctor: _currentDoctorFromList(),
-      isSelected: _selectedDateKeys.contains(_dateKey(day.date)),
-      onTap: null,
-      dense: dense,
-      isEditorMode: _editorMode,
-      hasConflict:
-          _editorMode &&
-          (conflictsByDate[_dateKey(day.date)]?.isNotEmpty ?? false),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: FractionallySizedBox(
+        heightFactor: _dayCardHeightFactor,
+        child: MonthDayCard(
+          day: day,
+          dayView: dayView,
+          currentDoctor: _currentDoctorFromList(),
+          isSelected: _selectedDateKeys.contains(_dateKey(day.date)),
+          onTap: null,
+          dense: dense,
+          isEditorMode: _editorMode,
+          hasConflict:
+              _editorMode &&
+              (conflictsByDate[_dateKey(day.date)]?.isNotEmpty ?? false),
+        ),
+      ),
     );
   }
 
@@ -1488,13 +1514,6 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _chooseRoleForSelectedDates() async {
-    final choices = _slotChoicesForSelectedDays();
-
-    if (choices.isEmpty) {
-      _setStatusMessage(AppLocalizations.of(context).t('noSlotsAvailable'));
-      return;
-    }
-
     final targetDoctor = _editorMode
         ? await _chooseDoctorForBulkAssignment()
         : _currentDoctorFromList();
@@ -1504,6 +1523,17 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     if (targetDoctor == null) {
+      return;
+    }
+
+    final choices = _slotChoicesForSelectedDays(doctor: targetDoctor);
+
+    if (choices.isEmpty) {
+      _setStatusMessage(
+        AppLocalizations.of(
+          context,
+        ).fill('noEligibleSlotsAvailable', {'doctor': targetDoctor.firstName}),
+      );
       return;
     }
 
@@ -1532,10 +1562,15 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _setEditorRole() async {
-    final choices = _slotChoicesForSelectedDays();
+    final doctor = _editorDoctor ?? _currentDoctorFromList();
+    final choices = _slotChoicesForSelectedDays(doctor: doctor);
 
     if (choices.isEmpty) {
-      _setStatusMessage(AppLocalizations.of(context).t('noSlotsAvailable'));
+      _setStatusMessage(
+        AppLocalizations.of(
+          context,
+        ).fill('noEligibleSlotsAvailable', {'doctor': doctor.firstName}),
+      );
       return;
     }
 
@@ -1630,6 +1665,13 @@ class _MonthScreenState extends State<MonthScreen> {
     required Doctor doctor,
   }) async {
     final l10n = AppLocalizations.of(context);
+    if (SupabaseConfig.isConfigured &&
+        widget.showAdmin &&
+        !await _ensureAdminMfa()) {
+      _setStatusMessage('Two-factor verification is required.');
+      return;
+    }
+
     final selectedKeys = _selectedDateKeys.toSet();
     final updatedDays = <RosterDay>[];
     int assigned = 0;
@@ -1783,6 +1825,11 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     if (SupabaseConfig.isConfigured) {
+      if (widget.showAdmin && !await _ensureAdminMfa()) {
+        _setStatusMessage('Two-factor verification is required.');
+        return;
+      }
+
       try {
         await _persistAssignmentChanges(removedAssignments: removedAssignments);
       } on PostgrestException catch (error) {
@@ -1836,6 +1883,22 @@ class _MonthScreenState extends State<MonthScreen> {
     });
   }
 
+  Future<bool> _ensureAdminMfa() async {
+    final aal = Supabase.instance.client.auth.mfa
+        .getAuthenticatorAssuranceLevel();
+
+    if (aal.currentLevel == AuthenticatorAssuranceLevels.aal2) {
+      return true;
+    }
+
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const MfaScreen()),
+    );
+
+    return result == true;
+  }
+
   bool _isConflictingAssignmentForDoctor(
     Assignment assignment,
     DailySlot targetSlot,
@@ -1859,7 +1922,7 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
-  List<_SlotChoice> _slotChoicesForSelectedDays() {
+  List<_SlotChoice> _slotChoicesForSelectedDays({required Doctor doctor}) {
     final selectedKeys = _selectedDateKeys.toSet();
     final choicesByKind = <SlotKind, _SlotChoice>{};
 
@@ -1869,6 +1932,10 @@ class _MonthScreenState extends State<MonthScreen> {
       }
 
       for (final slot in day.slots) {
+        if (!slot.template.canBeFilledBy(doctor)) {
+          continue;
+        }
+
         choicesByKind.putIfAbsent(
           slot.template.kind,
           () => _SlotChoice(

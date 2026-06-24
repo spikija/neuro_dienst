@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,7 @@ class _EntrySplashState extends State<EntrySplash>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _curve;
+  Timer? _finishTimer;
 
   @override
   void initState() {
@@ -25,8 +27,8 @@ class _EntrySplashState extends State<EntrySplash>
     );
     _curve = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
     _controller.forward();
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
+    _finishTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) {
         widget.onFinished();
       }
     });
@@ -34,6 +36,7 @@ class _EntrySplashState extends State<EntrySplash>
 
   @override
   void dispose() {
+    _finishTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

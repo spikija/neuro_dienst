@@ -59,20 +59,14 @@ class MonthDayCard extends StatelessWidget {
       waitDuration: const Duration(milliseconds: 450),
       child: InkWell(
         onTap: isDisabled ? null : onTap,
-        child: Card(
-          margin: EdgeInsets.zero,
-          color: color,
-          shape: isSelected
-              ? RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                  side: BorderSide(color: Colors.teal.shade700, width: 2),
-                )
-              : hasConflict
-              ? RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(4),
-                  side: BorderSide(color: Colors.orange.shade800, width: 2),
-                )
-              : null,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color,
+            border: Border.all(
+              color: _borderColor(context, hasConflict: hasConflict),
+              width: isSelected || hasConflict ? 2 : 1,
+            ),
+          ),
           child: Padding(
             padding: EdgeInsets.all(dense ? 1 : 3),
             child: Stack(
@@ -264,34 +258,39 @@ class MonthDayCard extends StatelessWidget {
     required bool isFullyAssigned,
   }) {
     if (isSelected) {
-      return Colors.teal.shade100;
+      return Colors.yellow.shade200;
     }
 
     if (isAbsent) {
-      return Colors.purple.shade100;
+      return Colors.purple.shade300;
     }
 
     if (isDisabled) {
-      return Theme.of(context).colorScheme.surfaceContainerHighest;
+      return Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF2B2F33)
+          : const Color(0xFFE1E5EA);
     }
 
     if (isEditorMode && day.slots.isNotEmpty && !isFullyAssigned) {
-      return Colors.red.shade100;
+      return Colors.red.shade300;
     }
 
     if (isFullyAssigned) {
-      return Colors.blue.shade700;
+      return Colors.blue.shade800;
     }
 
     if (hasMyAssignment) {
-      return Colors.lightBlue.shade100;
+      return Colors.cyan.shade300;
     }
 
-    return Theme.of(context).colorScheme.surfaceContainerLow;
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF14171A)
+        : Colors.white;
   }
 
   Color _dayNumberColor(BuildContext context, Color? backgroundColor) {
-    if (backgroundColor == Colors.blue.shade700) {
+    if (backgroundColor == Colors.blue.shade800 ||
+        backgroundColor == Colors.purple.shade300) {
       return Colors.white;
     }
 
@@ -299,11 +298,25 @@ class MonthDayCard extends StatelessWidget {
   }
 
   Color _labelColor(BuildContext context) {
-    if (_isFullyAssigned()) {
+    if (_isFullyAssigned() || currentDoctor.absenceOn(day.date) != null) {
       return Colors.white;
     }
 
     return Theme.of(context).colorScheme.onSurface;
+  }
+
+  Color _borderColor(BuildContext context, {required bool hasConflict}) {
+    if (isSelected) {
+      return Colors.black;
+    }
+
+    if (hasConflict) {
+      return Colors.red.shade900;
+    }
+
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF6D747C)
+        : const Color(0xFF2F3842);
   }
 
   String? _stateLabel({
