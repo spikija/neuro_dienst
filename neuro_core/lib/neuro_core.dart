@@ -53,6 +53,9 @@ enum AvailabilityType {
   sickLeave,
   conference,
   externalRoatation,
+  duty24,
+  postDuty,
+  efDay,
 }
 
 extension DailySlotStatusExtension on DailySlot {
@@ -188,6 +191,12 @@ class AvailabilityPeriod {
         return 'Conference';
       case AvailabilityType.externalRoatation:
         return 'External rotation';
+      case AvailabilityType.duty24:
+        return '24h duty';
+      case AvailabilityType.postDuty:
+        return 'Post-duty';
+      case AvailabilityType.efDay:
+        return 'EF day';
     }
   }
 }
@@ -286,11 +295,22 @@ class Doctor {
 
   AvailabilityPeriod? absenceOn(DateTime date) {
     for (final availability in availabilities) {
-      if (availability.type == AvailabilityType.available) {
+      if (availability.type == AvailabilityType.available ||
+          availability.type == AvailabilityType.duty24) {
         continue;
       }
 
       if (availability.includes(date)) {
+        return availability;
+      }
+    }
+
+    return null;
+  }
+
+  AvailabilityPeriod? availabilityOn(DateTime date, AvailabilityType type) {
+    for (final availability in availabilities) {
+      if (availability.type == type && availability.includes(date)) {
         return availability;
       }
     }

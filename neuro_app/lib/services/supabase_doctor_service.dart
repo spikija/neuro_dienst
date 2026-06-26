@@ -130,6 +130,12 @@ AvailabilityType _availabilityTypeFromDatabase(String? value) {
       return AvailabilityType.conference;
     case 'external_rotation':
       return AvailabilityType.externalRoatation;
+    case 'duty_24':
+      return AvailabilityType.duty24;
+    case 'post_duty':
+      return AvailabilityType.postDuty;
+    case 'ef_day':
+      return AvailabilityType.efDay;
   }
 
   return AvailabilityType.vacation;

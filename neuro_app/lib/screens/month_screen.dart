@@ -443,75 +443,140 @@ class _MonthScreenState extends State<MonthScreen> {
       builder: (context, constraints) {
         final gridMetrics = _gridMetricsForWidth(constraints.maxWidth);
 
-        return Listener(
-          onPointerDown: (event) {
-            _handleGridPointerDown(event.localPosition, constraints.biggest);
-          },
-          onPointerMove: (event) {
-            _handleGridPointerMove(event.localPosition, constraints.biggest);
-          },
-          onPointerUp: (event) {
-            _handleGridPointerUp(event.localPosition, constraints.biggest);
-          },
-          onPointerCancel: (_) => _resetPointerSelection(),
-          child: Padding(
-            padding: const EdgeInsets.all(_gridPadding),
-            child: Column(
-              children: [
-                for (var row = 0; row < weekRows.length; row++) ...[
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (
-                          var weekday = 0;
-                          weekday < _weekdayColumns;
-                          weekday++
-                        ) ...[
-                          SizedBox(
-                            width: gridMetrics.weekdayCellWidth,
-                            child: _buildDayCell(
-                              weekRows[row][weekday],
-                              monthView,
-                              conflictsByDate: conflictsByDate,
-                            ),
-                          ),
-                          const SizedBox(width: _gridSpacing),
-                        ],
-                        SizedBox(
-                          width: gridMetrics.weekendColumnWidth,
-                          child: Column(
-                            children: [
-                              Expanded(
-                                child: _buildDayCell(
-                                  weekRows[row][DateTime.saturday - 1],
-                                  monthView,
-                                  conflictsByDate: conflictsByDate,
-                                  dense: true,
-                                ),
-                              ),
-                              const SizedBox(height: _gridSpacing),
-                              Expanded(
-                                child: _buildDayCell(
-                                  weekRows[row][DateTime.sunday - 1],
-                                  monthView,
-                                  conflictsByDate: conflictsByDate,
-                                  dense: true,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (row < weekRows.length - 1)
-                    const SizedBox(height: _gridSpacing),
-                ],
-              ],
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                _gridPadding,
+                _gridPadding,
+                _gridPadding,
+                0,
+              ),
+              child: _buildWeekdayHeader(gridMetrics),
             ),
-          ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, gridConstraints) {
+                  return Listener(
+                    onPointerDown: (event) {
+                      _handleGridPointerDown(
+                        event.localPosition,
+                        gridConstraints.biggest,
+                      );
+                    },
+                    onPointerMove: (event) {
+                      _handleGridPointerMove(
+                        event.localPosition,
+                        gridConstraints.biggest,
+                      );
+                    },
+                    onPointerUp: (event) {
+                      _handleGridPointerUp(
+                        event.localPosition,
+                        gridConstraints.biggest,
+                      );
+                    },
+                    onPointerCancel: (_) => _resetPointerSelection(),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _gridPadding,
+                        0,
+                        _gridPadding,
+                        _gridPadding,
+                      ),
+                      child: Column(
+                        children: [
+                          for (var row = 0; row < weekRows.length; row++) ...[
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  for (
+                                    var weekday = 0;
+                                    weekday < _weekdayColumns;
+                                    weekday++
+                                  ) ...[
+                                    SizedBox(
+                                      width: gridMetrics.weekdayCellWidth,
+                                      child: _buildDayCell(
+                                        weekRows[row][weekday],
+                                        monthView,
+                                        conflictsByDate: conflictsByDate,
+                                      ),
+                                    ),
+                                    const SizedBox(width: _gridSpacing),
+                                  ],
+                                  SizedBox(
+                                    width: gridMetrics.weekendColumnWidth,
+                                    child: Column(
+                                      children: [
+                                        Expanded(
+                                          child: _buildDayCell(
+                                            weekRows[row][DateTime.saturday -
+                                                1],
+                                            monthView,
+                                            conflictsByDate: conflictsByDate,
+                                            dense: true,
+                                          ),
+                                        ),
+                                        const SizedBox(height: _gridSpacing),
+                                        Expanded(
+                                          child: _buildDayCell(
+                                            weekRows[row][DateTime.sunday - 1],
+                                            monthView,
+                                            conflictsByDate: conflictsByDate,
+                                            dense: true,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (row < weekRows.length - 1)
+                              const SizedBox(height: _gridSpacing),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildWeekdayHeader(_MonthGridMetrics gridMetrics) {
+    final labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final textStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      fontWeight: FontWeight.w800,
+      letterSpacing: 0,
+    );
+
+    return Row(
+      children: [
+        for (final label in labels) ...[
+          SizedBox(
+            width: gridMetrics.weekdayCellWidth,
+            child: Center(child: Text(label, style: textStyle)),
+          ),
+          const SizedBox(width: _gridSpacing),
+        ],
+        SizedBox(
+          width: gridMetrics.weekendColumnWidth,
+          child: Column(
+            children: [
+              Text('Sat', style: textStyle),
+              const SizedBox(height: 1),
+              Text('Sun', style: textStyle),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -767,6 +832,34 @@ class _MonthScreenState extends State<MonthScreen> {
                       label: l10n.t('removeVacation'),
                     ),
                   ),
+                  PopupMenuItem(
+                    value: _BulkAction.setDuty24,
+                    child: _MenuRow(
+                      icon: Icons.nightlight_round,
+                      label: l10n.t('duty24'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _BulkAction.removeDuty24,
+                    child: _MenuRow(
+                      icon: Icons.wb_sunny_outlined,
+                      label: l10n.t('removeDuty24'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _BulkAction.setEfDay,
+                    child: _MenuRow(
+                      icon: Icons.event_busy,
+                      label: l10n.t('efDay'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _BulkAction.removeEfDay,
+                    child: _MenuRow(
+                      icon: Icons.event_available,
+                      label: l10n.t('removeEfDay'),
+                    ),
+                  ),
                   const PopupMenuDivider(),
                   if (_editorMode && widget.showAdmin) ...[
                     PopupMenuItem(
@@ -832,6 +925,14 @@ class _MonthScreenState extends State<MonthScreen> {
         await _setSelectedDatesAsVacation();
       case _BulkAction.removeVacation:
         await _removeVacationFromSelectedDates();
+      case _BulkAction.setDuty24:
+        await _setSelectedDatesAsDuty24();
+      case _BulkAction.removeDuty24:
+        await _removeDuty24FromSelectedDates();
+      case _BulkAction.setEfDay:
+        await _setSelectedDatesAsEfDay();
+      case _BulkAction.removeEfDay:
+        await _removeEfDayFromSelectedDates();
       case _BulkAction.chooseDoctor:
         if (widget.showAdmin) {
           await _setEditorDoctor();
@@ -1141,6 +1242,14 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _setSelectedDatesAsVacation() async {
+    await _setSelectedDatesAsBlockingAvailability(
+      type: AvailabilityType.vacation,
+      statusKey: 'vacationSet',
+      failureKey: 'couldNotSaveVacation',
+    );
+  }
+
+  Future<void> _setSelectedDatesAsDuty24() async {
     final l10n = AppLocalizations.of(context);
     final selectedDays = _selectedDays();
 
@@ -1149,15 +1258,42 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final doctor = _currentDoctorFromList();
-    final vacationPeriod = AvailabilityPeriod(
-      start: selectedDays.first.date,
-      end: selectedDays.last.date,
-      type: AvailabilityType.vacation,
-    );
+    final dutyPeriods = <AvailabilityPeriod>[];
+    final postDutyPeriods = <AvailabilityPeriod>[];
+
+    for (final day in selectedDays) {
+      final dutyDate = _dateOnly(day.date);
+      final postDutyDate = dutyDate.add(const Duration(days: 1));
+
+      dutyPeriods.add(
+        AvailabilityPeriod(
+          start: dutyDate,
+          end: dutyDate,
+          type: AvailabilityType.duty24,
+        ),
+      );
+      postDutyPeriods.add(
+        AvailabilityPeriod(
+          start: postDutyDate,
+          end: postDutyDate,
+          type: AvailabilityType.postDuty,
+        ),
+      );
+    }
+
+    final periods = [...dutyPeriods, ...postDutyPeriods];
 
     if (SupabaseConfig.isConfigured) {
       try {
-        await _insertAbsenceInSupabase(doctor: doctor, period: vacationPeriod);
+        for (final period in periods) {
+          await _insertAbsenceInSupabase(doctor: doctor, period: period);
+        }
+        await _deleteDoctorAssignmentsForDates(
+          doctor: doctor,
+          dateKeys: postDutyPeriods
+              .map((period) => _dateKey(period.start))
+              .toSet(),
+        );
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
         return;
@@ -1168,24 +1304,15 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final updatedDoctor = doctor.copyWith(
-      availabilities: [...doctor.availabilities, vacationPeriod],
+      availabilities: [...doctor.availabilities, ...periods],
     );
-
-    final selectedKeys = _selectedDateKeys.toSet();
-    final updatedDays = currentRoster.days.map((day) {
-      if (!selectedKeys.contains(_dateKey(day.date))) {
-        return day;
-      }
-
-      return RosterDay(
-        calendarInfo: day.calendarInfo,
-        slots: day.slots,
-        availabilities: day.availabilities,
-        assignments: day.assignments
-            .where((assignment) => assignment.doctor.id != doctor.id)
-            .toList(),
-      );
-    }).toList();
+    final postDutyKeys = postDutyPeriods
+        .map((period) => _dateKey(period.start))
+        .toSet();
+    final updatedDays = _removeDoctorAssignmentsOnDates(
+      doctor: doctor,
+      dateKeys: postDutyKeys,
+    );
 
     setState(() {
       _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
@@ -1204,7 +1331,84 @@ class _MonthScreenState extends State<MonthScreen> {
     widget.onDoctorUpdated(updatedDoctor);
 
     _setStatusMessage(
-      l10n.fill('vacationSet', {
+      l10n.fill('duty24Set', {
+        'count': selectedDays.length,
+        'plural': _dayPlural(selectedDays.length),
+      }),
+    );
+  }
+
+  Future<void> _setSelectedDatesAsEfDay() async {
+    await _setSelectedDatesAsBlockingAvailability(
+      type: AvailabilityType.efDay,
+      statusKey: 'efDaySet',
+      failureKey: 'couldNotSaveVacation',
+    );
+  }
+
+  Future<void> _setSelectedDatesAsBlockingAvailability({
+    required AvailabilityType type,
+    required String statusKey,
+    required String failureKey,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    final selectedDays = _selectedDays();
+
+    if (selectedDays.isEmpty) {
+      return;
+    }
+
+    final doctor = _currentDoctorFromList();
+    final period = AvailabilityPeriod(
+      start: selectedDays.first.date,
+      end: selectedDays.last.date,
+      type: type,
+    );
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _insertAbsenceInSupabase(doctor: doctor, period: period);
+        await _deleteDoctorAssignmentsForDates(
+          doctor: doctor,
+          dateKeys: _selectedDateKeys.toSet(),
+        );
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage(l10n.t(failureKey));
+        return;
+      }
+    }
+
+    final updatedDoctor = doctor.copyWith(
+      availabilities: [...doctor.availabilities, period],
+    );
+
+    final selectedKeys = _selectedDateKeys.toSet();
+    final updatedDays = _removeDoctorAssignmentsOnDates(
+      doctor: doctor,
+      dateKeys: selectedKeys,
+    );
+
+    setState(() {
+      _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
+      currentRoster = RosterMonth(
+        year: currentRoster.year,
+        month: currentRoster.month,
+        phase: currentRoster.phase,
+        days: updatedDays,
+      );
+      _selectedDateKeys.clear();
+      if (_editorDoctor?.id == updatedDoctor.id) {
+        _editorDoctor = updatedDoctor;
+      }
+    });
+
+    widget.onDoctorUpdated(updatedDoctor);
+
+    _setStatusMessage(
+      l10n.fill(statusKey, {
         'count': selectedDays.length,
         'plural': _dayPlural(selectedDays.length),
       }),
@@ -1319,6 +1523,15 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _removeVacationFromSelectedDates() async {
+    await _removeAvailabilityFromSelectedDates(
+      type: AvailabilityType.vacation,
+      noEntryKey: 'noVacationFound',
+      removedKey: 'vacationRemoved',
+      failureKey: 'couldNotRemoveVacation',
+    );
+  }
+
+  Future<void> _removeDuty24FromSelectedDates() async {
     final l10n = AppLocalizations.of(context);
     final selectedDays = _selectedDays();
 
@@ -1326,16 +1539,25 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    final selectedKeys = _selectedDateKeys.toSet();
-    final updatedAvailabilities = <AvailabilityPeriod>[];
-    var removedDays = 0;
     final doctor = _currentDoctorFromList();
+    final dutyKeys = _selectedDateKeys.toSet();
+    final postDutyKeys = selectedDays
+        .map(
+          (day) => _dateKey(_dateOnly(day.date).add(const Duration(days: 1))),
+        )
+        .toSet();
 
     if (SupabaseConfig.isConfigured) {
       try {
-        await _removeVacationFromSupabase(
+        await _removeAvailabilityFromSupabase(
           doctor: doctor,
-          selectedKeys: selectedKeys,
+          selectedKeys: dutyKeys,
+          type: AvailabilityType.duty24,
+        );
+        await _removeAvailabilityFromSupabase(
+          doctor: doctor,
+          selectedKeys: postDutyKeys,
+          type: AvailabilityType.postDuty,
         );
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
@@ -1346,24 +1568,34 @@ class _MonthScreenState extends State<MonthScreen> {
       }
     }
 
+    final updatedAvailabilities = <AvailabilityPeriod>[];
+    var removedDays = 0;
+
     for (final availability in doctor.availabilities) {
-      if (availability.type != AvailabilityType.vacation) {
+      if (availability.type != AvailabilityType.duty24 &&
+          availability.type != AvailabilityType.postDuty) {
         updatedAvailabilities.add(availability);
         continue;
       }
 
+      final selectedKeysForType = availability.type == AvailabilityType.duty24
+          ? dutyKeys
+          : postDutyKeys;
       final retainedRanges = _removeSelectedDatesFromPeriod(
         availability,
-        selectedKeys,
+        selectedKeysForType,
       );
 
-      removedDays += _countSelectedDaysInPeriod(availability, selectedKeys);
+      if (availability.type == AvailabilityType.duty24) {
+        removedDays += _countSelectedDaysInPeriod(availability, dutyKeys);
+      }
+
       updatedAvailabilities.addAll(retainedRanges);
     }
 
     if (removedDays == 0) {
       _clearDateSelection();
-      _setStatusMessage(l10n.t('noVacationFound'));
+      _setStatusMessage(l10n.t('noDuty24Found'));
       return;
     }
 
@@ -1382,7 +1614,93 @@ class _MonthScreenState extends State<MonthScreen> {
     widget.onDoctorUpdated(updatedDoctor);
 
     _setStatusMessage(
-      l10n.fill('vacationRemoved', {
+      l10n.fill('duty24Removed', {
+        'count': removedDays,
+        'plural': _dayPlural(removedDays),
+      }),
+    );
+  }
+
+  Future<void> _removeEfDayFromSelectedDates() async {
+    await _removeAvailabilityFromSelectedDates(
+      type: AvailabilityType.efDay,
+      noEntryKey: 'noEfDayFound',
+      removedKey: 'efDayRemoved',
+      failureKey: 'couldNotRemoveVacation',
+    );
+  }
+
+  Future<void> _removeAvailabilityFromSelectedDates({
+    required AvailabilityType type,
+    required String noEntryKey,
+    required String removedKey,
+    required String failureKey,
+  }) async {
+    final l10n = AppLocalizations.of(context);
+    final selectedDays = _selectedDays();
+
+    if (selectedDays.isEmpty) {
+      return;
+    }
+
+    final selectedKeys = _selectedDateKeys.toSet();
+    final updatedAvailabilities = <AvailabilityPeriod>[];
+    var removedDays = 0;
+    final doctor = _currentDoctorFromList();
+
+    if (SupabaseConfig.isConfigured) {
+      try {
+        await _removeAvailabilityFromSupabase(
+          doctor: doctor,
+          selectedKeys: selectedKeys,
+          type: type,
+        );
+      } on PostgrestException catch (error) {
+        _setStatusMessage(error.message);
+        return;
+      } catch (_) {
+        _setStatusMessage(l10n.t(failureKey));
+        return;
+      }
+    }
+
+    for (final availability in doctor.availabilities) {
+      if (availability.type != type) {
+        updatedAvailabilities.add(availability);
+        continue;
+      }
+
+      final retainedRanges = _removeSelectedDatesFromPeriod(
+        availability,
+        selectedKeys,
+      );
+
+      removedDays += _countSelectedDaysInPeriod(availability, selectedKeys);
+      updatedAvailabilities.addAll(retainedRanges);
+    }
+
+    if (removedDays == 0) {
+      _clearDateSelection();
+      _setStatusMessage(l10n.t(noEntryKey));
+      return;
+    }
+
+    final updatedDoctor = doctor.copyWith(
+      availabilities: updatedAvailabilities,
+    );
+
+    setState(() {
+      _doctors = _replaceDoctorInList(_doctors, updatedDoctor);
+      _selectedDateKeys.clear();
+      if (_editorDoctor?.id == updatedDoctor.id) {
+        _editorDoctor = updatedDoctor;
+      }
+    });
+
+    widget.onDoctorUpdated(updatedDoctor);
+
+    _setStatusMessage(
+      l10n.fill(removedKey, {
         'count': removedDays,
         'plural': _dayPlural(removedDays),
       }),
@@ -1402,9 +1720,49 @@ class _MonthScreenState extends State<MonthScreen> {
     });
   }
 
-  Future<void> _removeVacationFromSupabase({
+  Future<void> _deleteDoctorAssignmentsForDates({
+    required Doctor doctor,
+    required Set<String> dateKeys,
+  }) async {
+    for (final day in currentRoster.days) {
+      if (!dateKeys.contains(_dateKey(day.date))) {
+        continue;
+      }
+
+      for (final slot in day.slots) {
+        await Supabase.instance.client
+            .from('assignments')
+            .delete()
+            .eq('roster_slot_id', slot.id)
+            .eq('doctor_id', doctor.id);
+      }
+    }
+  }
+
+  List<RosterDay> _removeDoctorAssignmentsOnDates({
+    required Doctor doctor,
+    required Set<String> dateKeys,
+  }) {
+    return currentRoster.days.map((day) {
+      if (!dateKeys.contains(_dateKey(day.date))) {
+        return day;
+      }
+
+      return RosterDay(
+        calendarInfo: day.calendarInfo,
+        slots: day.slots,
+        availabilities: day.availabilities,
+        assignments: day.assignments
+            .where((assignment) => assignment.doctor.id != doctor.id)
+            .toList(),
+      );
+    }).toList();
+  }
+
+  Future<void> _removeAvailabilityFromSupabase({
     required Doctor doctor,
     required Set<String> selectedKeys,
+    required AvailabilityType type,
   }) async {
     final selectedDates = selectedKeys.map(_dateFromKey).toList()
       ..sort((a, b) => a.compareTo(b));
@@ -1419,7 +1777,7 @@ class _MonthScreenState extends State<MonthScreen> {
         .from('absences')
         .select('id, starts_on, ends_on, type')
         .eq('doctor_id', doctor.id)
-        .eq('type', 'vacation')
+        .eq('type', _availabilityTypeDatabaseValue(type))
         .lte('starts_on', _dateIso(lastSelected))
         .gte('ends_on', _dateIso(firstSelected));
 
@@ -1428,7 +1786,7 @@ class _MonthScreenState extends State<MonthScreen> {
       final period = AvailabilityPeriod(
         start: DateTime.parse(row['starts_on'] as String),
         end: DateTime.parse(row['ends_on'] as String),
-        type: AvailabilityType.vacation,
+        type: type,
       );
       final retainedRanges = _removeSelectedDatesFromPeriod(
         period,
@@ -2025,6 +2383,12 @@ class _MonthScreenState extends State<MonthScreen> {
         return 'conference';
       case AvailabilityType.externalRoatation:
         return 'external_rotation';
+      case AvailabilityType.duty24:
+        return 'duty_24';
+      case AvailabilityType.postDuty:
+        return 'post_duty';
+      case AvailabilityType.efDay:
+        return 'ef_day';
     }
   }
 
@@ -2209,6 +2573,10 @@ enum _MonthMenuAction {
 enum _BulkAction {
   setVacation,
   removeVacation,
+  setDuty24,
+  removeDuty24,
+  setEfDay,
+  removeEfDay,
   chooseDoctor,
   chooseRole,
   removeRole,

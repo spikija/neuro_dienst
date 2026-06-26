@@ -42,12 +42,18 @@ class MonthDayCard extends StatelessWidget {
     final myRoleLabel = _myRoleLabel();
     final absence = currentDoctor.absenceOn(day.date);
     final isAbsent = absence != null;
+    final duty24 = currentDoctor.availabilityOn(
+      day.date,
+      AvailabilityType.duty24,
+    );
+    final hasDuty24 = duty24 != null;
     final roleRows = _roleRows();
     final isFullyAssigned = _isFullyAssigned();
     final hasAnyAssignment = day.assignments.isNotEmpty;
     final color = _backgroundColor(
       context: context,
       isAbsent: isAbsent,
+      hasDuty24: hasDuty24,
       isDisabled: isDisabled,
       hasMyAssignment: hasMyAssignment,
       hasAnyAssignment: hasAnyAssignment,
@@ -109,7 +115,8 @@ class MonthDayCard extends StatelessWidget {
                 Positioned.fill(
                   child: _buildCellBody(
                     context: context,
-                    isAbsent: isAbsent,
+                    absence: absence,
+                    hasDuty24: hasDuty24,
                     hasMyAssignment: hasMyAssignment,
                     hasAnyAssignment: hasAnyAssignment,
                     isFullyAssigned: isFullyAssigned,
@@ -126,14 +133,17 @@ class MonthDayCard extends StatelessWidget {
 
   Widget _buildCellBody({
     required BuildContext context,
-    required bool isAbsent,
+    required AvailabilityPeriod? absence,
+    required bool hasDuty24,
     required bool hasMyAssignment,
     required bool hasAnyAssignment,
     required bool isFullyAssigned,
     required String? myRoleLabel,
   }) {
     final label = _stateLabel(
-      isAbsent: isAbsent,
+      isAbsent: absence != null,
+      absence: absence,
+      hasDuty24: hasDuty24,
       hasMyAssignment: hasMyAssignment,
       hasAnyAssignment: hasAnyAssignment,
       isFullyAssigned: isFullyAssigned,
@@ -252,6 +262,7 @@ class MonthDayCard extends StatelessWidget {
   Color? _backgroundColor({
     required BuildContext context,
     required bool isAbsent,
+    required bool hasDuty24,
     required bool isDisabled,
     required bool hasMyAssignment,
     required bool hasAnyAssignment,
@@ -262,7 +273,21 @@ class MonthDayCard extends StatelessWidget {
     }
 
     if (isAbsent) {
+      final absence = currentDoctor.absenceOn(day.date);
+
+      if (absence?.type == AvailabilityType.postDuty) {
+        return Colors.indigo.shade300;
+      }
+
+      if (absence?.type == AvailabilityType.efDay) {
+        return Colors.deepOrange.shade300;
+      }
+
       return Colors.purple.shade300;
+    }
+
+    if (hasDuty24) {
+      return Colors.green.shade300;
     }
 
     if (isDisabled) {
@@ -290,7 +315,8 @@ class MonthDayCard extends StatelessWidget {
 
   Color _dayNumberColor(BuildContext context, Color? backgroundColor) {
     if (backgroundColor == Colors.blue.shade800 ||
-        backgroundColor == Colors.purple.shade300) {
+        backgroundColor == Colors.purple.shade300 ||
+        backgroundColor == Colors.indigo.shade300) {
       return Colors.white;
     }
 
@@ -321,13 +347,35 @@ class MonthDayCard extends StatelessWidget {
 
   String? _stateLabel({
     required bool isAbsent,
+    required AvailabilityPeriod? absence,
+    required bool hasDuty24,
     required bool hasMyAssignment,
     required bool hasAnyAssignment,
     required bool isFullyAssigned,
     required String? myRoleLabel,
   }) {
     if (isAbsent) {
-      return 'VAC';
+      switch (absence?.type) {
+        case AvailabilityType.postDuty:
+          return 'POST';
+        case AvailabilityType.efDay:
+          return 'EF';
+        case AvailabilityType.sickLeave:
+          return 'SICK';
+        case AvailabilityType.conference:
+          return 'CONF';
+        case AvailabilityType.externalRoatation:
+          return 'EXT';
+        case AvailabilityType.vacation:
+        case AvailabilityType.available:
+        case AvailabilityType.duty24:
+        case null:
+          return 'VAC';
+      }
+    }
+
+    if (hasDuty24) {
+      return '24H';
     }
 
     if (hasMyAssignment) {
