@@ -44,6 +44,7 @@ class _EntrySplashState extends State<EntrySplash>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
       body: AnimatedBuilder(
@@ -137,6 +138,20 @@ class _EntrySplashState extends State<EntrySplash>
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: bottomPadding + 20,
+                child: Text(
+                  'v 0.1, Designed by Slaven Pikija, Created by Codex',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Colors.white.withAlpha(170),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
                   ),
                 ),
               ),

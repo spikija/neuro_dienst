@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../services/feedback_sound_service.dart';
 import '../widgets/entry_splash.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -125,6 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _loginEmailFromUsername(_usernameController.text),
         password: _passwordController.text,
       );
+      await FeedbackSoundService.playLogin();
 
       if (mounted) {
         await _showEntrySplash();

@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_app/extensions/time_formatting.dart';
 import 'package:neuro_app/l10n/app_language.dart';
 import 'package:neuro_app/l10n/app_localizations.dart';
+import 'package:neuro_app/services/feedback_sound_service.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
 import 'package:neuro_app/services/supabase_roster_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -65,6 +68,9 @@ class _MonthScreenState extends State<MonthScreen> {
   final Set<String> _selectedDateKeys = {};
   int? _pointerDownIndex;
   bool _isRangeSelecting = false;
+  Timer? _longPressSelectionTimer;
+  Offset? _latestPointerPosition;
+  Size? _latestGridSize;
   String? _statusMessage;
   bool _editorMode = false;
   Doctor? _editorDoctor;
@@ -94,10 +100,19 @@ class _MonthScreenState extends State<MonthScreen> {
 
     if (oldWidget.doctors != widget.doctors) {
       _doctors = widget.doctors;
+      _editorDoctor = _doctorFromListOrFallback(
+        widget.doctors,
+        _editorDoctor ?? widget.currentDoctor,
+      );
     }
 
     if (oldWidget.roster != widget.roster) {
       currentRoster = widget.roster;
+    }
+
+    if (oldWidget.currentDoctor.id != widget.currentDoctor.id &&
+        (!_editorMode || _editorDoctor?.id == oldWidget.currentDoctor.id)) {
+      _editorDoctor = widget.currentDoctor;
     }
 
     if (!widget.showAdmin && _editorMode) {
@@ -105,6 +120,12 @@ class _MonthScreenState extends State<MonthScreen> {
       _editorDoctor = widget.currentDoctor;
       _editorSlotKind = null;
     }
+  }
+
+  @override
+  void dispose() {
+    _longPressSelectionTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -551,7 +572,14 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Widget _buildWeekdayHeader(_MonthGridMetrics gridMetrics) {
-    final labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    final l10n = AppLocalizations.of(context);
+    final labels = [
+      l10n.t('weekday.mon'),
+      l10n.t('weekday.tue'),
+      l10n.t('weekday.wed'),
+      l10n.t('weekday.thu'),
+      l10n.t('weekday.fri'),
+    ];
     final textStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
       fontWeight: FontWeight.w800,
       letterSpacing: 0,
@@ -570,9 +598,9 @@ class _MonthScreenState extends State<MonthScreen> {
           width: gridMetrics.weekendColumnWidth,
           child: Column(
             children: [
-              Text('Sat', style: textStyle),
+              Text(l10n.t('weekday.sat'), style: textStyle),
               const SizedBox(height: 1),
-              Text('Sun', style: textStyle),
+              Text(l10n.t('weekday.sun'), style: textStyle),
             ],
           ),
         ),
@@ -600,7 +628,7 @@ class _MonthScreenState extends State<MonthScreen> {
         child: MonthDayCard(
           day: day,
           dayView: dayView,
-          currentDoctor: _currentDoctorFromList(),
+          currentDoctor: _calendarDisplayDoctor(),
           isSelected: _selectedDateKeys.contains(_dateKey(day.date)),
           onTap: null,
           dense: dense,
@@ -1000,9 +1028,36 @@ class _MonthScreenState extends State<MonthScreen> {
   void _handleGridPointerDown(Offset position, Size gridSize) {
     _pointerDownIndex = _indexForGridPosition(position, gridSize);
     _isRangeSelecting = false;
+    _latestPointerPosition = position;
+    _latestGridSize = gridSize;
+    _longPressSelectionTimer?.cancel();
+
+    final startIndex = _pointerDownIndex;
+
+    if (startIndex == null) {
+      return;
+    }
+
+    _longPressSelectionTimer = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted || _pointerDownIndex != startIndex) {
+        return;
+      }
+
+      final latestPosition = _latestPointerPosition;
+      final latestGridSize = _latestGridSize;
+      final currentIndex = latestPosition == null || latestGridSize == null
+          ? startIndex
+          : _indexForGridPosition(latestPosition, latestGridSize);
+
+      _isRangeSelecting = true;
+      _selectDateRange(startIndex, currentIndex ?? startIndex);
+    });
   }
 
   void _handleGridPointerMove(Offset position, Size gridSize) {
+    _latestPointerPosition = position;
+    _latestGridSize = gridSize;
+
     final startIndex = _pointerDownIndex;
     final currentIndex = _indexForGridPosition(position, gridSize);
 
@@ -1010,15 +1065,19 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    if (currentIndex == startIndex && !_isRangeSelecting) {
+    if (!_isRangeSelecting) {
       return;
     }
 
-    _isRangeSelecting = true;
     _selectDateRange(startIndex, currentIndex);
   }
 
   void _handleGridPointerUp(Offset position, Size gridSize) {
+    _longPressSelectionTimer?.cancel();
+    _longPressSelectionTimer = null;
+    _latestPointerPosition = position;
+    _latestGridSize = gridSize;
+
     final startIndex = _pointerDownIndex;
     final endIndex = _indexForGridPosition(position, gridSize);
     final openedByTap =
@@ -1032,6 +1091,10 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   void _resetPointerSelection() {
+    _longPressSelectionTimer?.cancel();
+    _longPressSelectionTimer = null;
+    _latestPointerPosition = null;
+    _latestGridSize = null;
     _pointerDownIndex = null;
     _isRangeSelecting = false;
   }
@@ -1130,7 +1193,7 @@ class _MonthScreenState extends State<MonthScreen> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            DayScreen(day: day, currentDoctor: _currentDoctorFromList()),
+            DayScreen(day: day, currentDoctor: _calendarDisplayDoctor()),
       ),
     );
 
@@ -1257,7 +1320,7 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    final doctor = _currentDoctorFromList();
+    final doctor = _bulkAvailabilityDoctor();
     final dutyPeriods = <AvailabilityPeriod>[];
     final postDutyPeriods = <AvailabilityPeriod>[];
 
@@ -1332,6 +1395,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
     _setStatusMessage(
       l10n.fill('duty24Set', {
+        'doctor': doctor.firstName,
         'count': selectedDays.length,
         'plural': _dayPlural(selectedDays.length),
       }),
@@ -1358,7 +1422,7 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    final doctor = _currentDoctorFromList();
+    final doctor = _bulkAvailabilityDoctor();
     final period = AvailabilityPeriod(
       start: selectedDays.first.date,
       end: selectedDays.last.date,
@@ -1425,7 +1489,7 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final periods = _contiguousVacationPeriods(normalizedDates);
-    final doctor = _currentDoctorFromList();
+    final doctor = _bulkAvailabilityDoctor();
 
     if (SupabaseConfig.isConfigured) {
       try {
@@ -1539,7 +1603,7 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    final doctor = _currentDoctorFromList();
+    final doctor = _bulkAvailabilityDoctor();
     final dutyKeys = _selectedDateKeys.toSet();
     final postDutyKeys = selectedDays
         .map(
@@ -1646,7 +1710,7 @@ class _MonthScreenState extends State<MonthScreen> {
     final selectedKeys = _selectedDateKeys.toSet();
     final updatedAvailabilities = <AvailabilityPeriod>[];
     var removedDays = 0;
-    final doctor = _currentDoctorFromList();
+    final doctor = _bulkAvailabilityDoctor();
 
     if (SupabaseConfig.isConfigured) {
       try {
@@ -1901,6 +1965,8 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
+    await FeedbackSoundService.playRoleSelected();
+
     _assignSelectedDatesToSlotKind(
       slotKind: selectedKind,
       doctor: targetDoctor,
@@ -1937,6 +2003,8 @@ class _MonthScreenState extends State<MonthScreen> {
     if (!mounted || slotKind == null) {
       return;
     }
+
+    await FeedbackSoundService.playRoleSelected();
 
     setState(() {
       _editorSlotKind = slotKind;
@@ -1976,6 +2044,7 @@ class _MonthScreenState extends State<MonthScreen> {
       context: context,
       builder: (context) {
         final l10n = AppLocalizations.of(context);
+        final selectedDoctor = _editorDoctor ?? _currentDoctorFromList();
 
         return SafeArea(
           child: ListView(
@@ -1987,7 +2056,7 @@ class _MonthScreenState extends State<MonthScreen> {
                   leading: const Icon(Icons.person),
                   title: Text(doctor.fullName),
                   subtitle: Text(doctor.rank.name),
-                  selected: doctor.id == _currentDoctorFromList().id,
+                  selected: doctor.id == selectedDoctor.id,
                   onTap: () => Navigator.pop(context, doctor),
                 ),
             ],
@@ -2134,6 +2203,10 @@ class _MonthScreenState extends State<MonthScreen> {
         'reason': reasonSuffix,
       }),
     );
+
+    if (assigned > 0) {
+      await FeedbackSoundService.playSuccess();
+    }
   }
 
   Future<void> _removeRoleFromSelectedDates() async {
@@ -2328,6 +2401,32 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     return widget.currentDoctor;
+  }
+
+  Doctor _bulkAvailabilityDoctor() {
+    if (_editorMode && widget.showAdmin) {
+      return _editorDoctor ?? _currentDoctorFromList();
+    }
+
+    return _currentDoctorFromList();
+  }
+
+  Doctor _calendarDisplayDoctor() {
+    if (_editorMode && widget.showAdmin) {
+      return _editorDoctor ?? _currentDoctorFromList();
+    }
+
+    return _currentDoctorFromList();
+  }
+
+  Doctor _doctorFromListOrFallback(List<Doctor> doctors, Doctor fallback) {
+    for (final doctor in doctors) {
+      if (doctor.id == fallback.id) {
+        return doctor;
+      }
+    }
+
+    return fallback;
   }
 
   List<Doctor> _replaceDoctorInList(
