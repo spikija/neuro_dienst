@@ -72,6 +72,7 @@ class _MonthScreenState extends State<MonthScreen> {
   Offset? _latestPointerPosition;
   Size? _latestGridSize;
   String? _statusMessage;
+  String? _busyMessage;
   bool _editorMode = false;
   Doctor? _editorDoctor;
   SlotKind? _editorSlotKind;
@@ -158,17 +159,22 @@ class _MonthScreenState extends State<MonthScreen> {
           IconButton(
             tooltip: l10n.t('previousMonth'),
             icon: const Icon(Icons.chevron_left),
-            onPressed: () => _openRelativeMonth(-1),
+            onPressed: _busyMessage == null
+                ? () => _openRelativeMonth(-1)
+                : null,
           ),
           IconButton(
             tooltip: l10n.t('nextMonth'),
             icon: const Icon(Icons.chevron_right),
-            onPressed: () => _openRelativeMonth(1),
+            onPressed: _busyMessage == null
+                ? () => _openRelativeMonth(1)
+                : null,
           ),
           PopupMenuButton<_MonthMenuAction>(
             tooltip: 'Menu',
             icon: const Icon(Icons.menu),
             onSelected: _handleMenuAction,
+            enabled: _busyMessage == null,
             itemBuilder: (context) => [
               if (widget.showAdmin)
                 PopupMenuItem(
@@ -305,6 +311,8 @@ class _MonthScreenState extends State<MonthScreen> {
                         bottom: bulkActionBottom,
                         child: _buildBulkActionBar(),
                       ),
+                    if (_busyMessage != null)
+                      Positioned.fill(child: _buildBusyOverlay()),
                   ],
                 );
               },
@@ -838,13 +846,14 @@ class _MonthScreenState extends State<MonthScreen> {
               ),
               IconButton(
                 tooltip: l10n.t('deselect'),
-                onPressed: _clearDateSelection,
+                onPressed: _busyMessage == null ? _clearDateSelection : null,
                 icon: const Icon(Icons.deselect),
               ),
               PopupMenuButton<_BulkAction>(
                 tooltip: 'Actions',
                 icon: const Icon(Icons.more_vert),
                 onSelected: _handleBulkAction,
+                enabled: _busyMessage == null,
                 itemBuilder: (context) => [
                   PopupMenuItem(
                     value: _BulkAction.setVacation,
@@ -950,17 +959,35 @@ class _MonthScreenState extends State<MonthScreen> {
   Future<void> _handleBulkAction(_BulkAction action) async {
     switch (action) {
       case _BulkAction.setVacation:
-        await _setSelectedDatesAsVacation();
+        await _runWithBusyMessage(
+          'Updating vacation...',
+          _setSelectedDatesAsVacation,
+        );
       case _BulkAction.removeVacation:
-        await _removeVacationFromSelectedDates();
+        await _runWithBusyMessage(
+          'Updating vacation...',
+          _removeVacationFromSelectedDates,
+        );
       case _BulkAction.setDuty24:
-        await _setSelectedDatesAsDuty24();
+        await _runWithBusyMessage(
+          'Updating 24h duty...',
+          _setSelectedDatesAsDuty24,
+        );
       case _BulkAction.removeDuty24:
-        await _removeDuty24FromSelectedDates();
+        await _runWithBusyMessage(
+          'Updating 24h duty...',
+          _removeDuty24FromSelectedDates,
+        );
       case _BulkAction.setEfDay:
-        await _setSelectedDatesAsEfDay();
+        await _runWithBusyMessage(
+          'Updating EF day...',
+          _setSelectedDatesAsEfDay,
+        );
       case _BulkAction.removeEfDay:
-        await _removeEfDayFromSelectedDates();
+        await _runWithBusyMessage(
+          'Updating EF day...',
+          _removeEfDayFromSelectedDates,
+        );
       case _BulkAction.chooseDoctor:
         if (widget.showAdmin) {
           await _setEditorDoctor();
@@ -972,7 +999,10 @@ class _MonthScreenState extends State<MonthScreen> {
           await _chooseRoleForSelectedDates();
         }
       case _BulkAction.removeRole:
-        await _removeRoleFromSelectedDates();
+        await _runWithBusyMessage(
+          'Removing role...',
+          _removeRoleFromSelectedDates,
+        );
       case _BulkAction.applyEditorAssignment:
         if (!widget.showAdmin) {
           return;
@@ -985,9 +1015,12 @@ class _MonthScreenState extends State<MonthScreen> {
           return;
         }
 
-        await _assignSelectedDatesToSlotKind(
-          slotKind: editorSlotKind,
-          doctor: editorDoctor,
+        await _runWithBusyMessage(
+          'Assigning role...',
+          () => _assignSelectedDatesToSlotKind(
+            slotKind: editorSlotKind,
+            doctor: editorDoctor,
+          ),
         );
     }
   }
@@ -1025,7 +1058,69 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
+  Widget _buildBusyOverlay() {
+    final message = _busyMessage ?? '';
+
+    return AbsorbPointer(
+      child: ColoredBox(
+        color: Colors.black.withAlpha(70),
+        child: Center(
+          child: Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(6),
+            color: Theme.of(context).colorScheme.surface,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.6),
+                  ),
+                  const SizedBox(width: 14),
+                  Text(
+                    message,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _runWithBusyMessage(
+    String message,
+    Future<void> Function() action,
+  ) async {
+    if (_busyMessage != null) {
+      return;
+    }
+
+    setState(() {
+      _busyMessage = message;
+    });
+
+    try {
+      await action();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _busyMessage = null;
+        });
+      }
+    }
+  }
+
   void _handleGridPointerDown(Offset position, Size gridSize) {
+    if (_busyMessage != null) {
+      return;
+    }
+
     _pointerDownIndex = _indexForGridPosition(position, gridSize);
     _isRangeSelecting = false;
     _latestPointerPosition = position;
@@ -1967,9 +2062,12 @@ class _MonthScreenState extends State<MonthScreen> {
 
     await FeedbackSoundService.playRoleSelected();
 
-    _assignSelectedDatesToSlotKind(
-      slotKind: selectedKind,
-      doctor: targetDoctor,
+    await _runWithBusyMessage(
+      'Assigning role...',
+      () => _assignSelectedDatesToSlotKind(
+        slotKind: selectedKind,
+        doctor: targetDoctor,
+      ),
     );
   }
 
