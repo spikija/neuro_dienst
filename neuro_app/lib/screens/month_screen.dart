@@ -14,7 +14,6 @@ import 'admin_home_screen.dart';
 import 'calendar_export_screen.dart';
 import 'day_screen.dart';
 import 'doctor_profile_screen.dart';
-import 'doctor_selector_screen.dart';
 import 'mfa_screen.dart';
 import 'month_report_picker_screen.dart';
 import 'month_report_screen.dart';
@@ -79,11 +78,11 @@ class _MonthScreenState extends State<MonthScreen> {
   late List<Doctor> _doctors;
 
   int _myAssignmentsThisMonthCount() {
-    final currentDoctor = _currentDoctorFromList();
+    final displayedDoctor = _calendarDisplayDoctor();
 
     return currentRoster.days
         .expand((day) => day.assignments)
-        .where((assignment) => assignment.doctor.id == currentDoctor.id)
+        .where((assignment) => assignment.doctor.id == displayedDoctor.id)
         .length;
   }
 
@@ -92,6 +91,7 @@ class _MonthScreenState extends State<MonthScreen> {
     super.initState();
     currentRoster = widget.roster;
     _doctors = widget.doctors;
+    _editorMode = widget.showAdmin;
     _editorDoctor = widget.currentDoctor;
   }
 
@@ -121,6 +121,11 @@ class _MonthScreenState extends State<MonthScreen> {
       _editorDoctor = widget.currentDoctor;
       _editorSlotKind = null;
     }
+
+    if (widget.showAdmin && !_editorMode) {
+      _editorMode = true;
+      _editorDoctor ??= _currentDoctorFromList();
+    }
   }
 
   @override
@@ -132,7 +137,7 @@ class _MonthScreenState extends State<MonthScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final currentDoctor = _currentDoctorFromList();
+    final displayedDoctor = _calendarDisplayDoctor();
     final monthView = MonthViewService().getMonthView(currentRoster);
     final conflictsByDate = _buildConflictsByDate();
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
@@ -149,8 +154,8 @@ class _MonthScreenState extends State<MonthScreen> {
             Text('${currentRoster.month}/${currentRoster.year}'),
             Text(
               widget.signedInEmail == null
-                  ? currentDoctor.fullName
-                  : '${currentDoctor.fullName} · ${widget.signedInEmail}',
+                  ? displayedDoctor.fullName
+                  : '${displayedDoctor.fullName} - ${widget.signedInEmail}',
               style: const TextStyle(fontSize: 12),
             ),
           ],
@@ -181,7 +186,7 @@ class _MonthScreenState extends State<MonthScreen> {
                   value: _MonthMenuAction.switchDoctor,
                   child: _MenuRow(
                     icon: Icons.switch_account,
-                    label: 'Switch doctor',
+                    label: 'Select doctor',
                   ),
                 ),
               PopupMenuItem(
@@ -342,43 +347,23 @@ class _MonthScreenState extends State<MonthScreen> {
       );
     }
 
+    final editorDoctor = _editorDoctor ?? _currentDoctorFromList();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(6, 0, 6, 2),
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 2),
       child: Row(
         children: [
-          SegmentedButton<bool>(
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            segments: [
-              ButtonSegment(
-                value: false,
-                icon: Icon(Icons.person),
-                label: Text(l10n.t('doctor')),
-              ),
-              ButtonSegment(
-                value: true,
-                icon: Icon(Icons.edit_calendar),
-                label: Text(l10n.t('editor')),
-              ),
-            ],
-            selected: {_editorMode},
-            onSelectionChanged: (selection) {
-              setState(() {
-                _editorMode = selection.first;
-                _editorDoctor ??= _currentDoctorFromList();
-              });
-            },
+          const Icon(Icons.edit_calendar, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            l10n.t('editor'),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              _editorMode
-                  ? l10n.t('bulkEditorHint')
-                  : l10n.fill('personalPlanning', {
-                      'name': _currentDoctorFromList().firstName,
-                    }),
+              '${editorDoctor.firstName}: ${l10n.t('bulkEditorHint')}',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -391,7 +376,7 @@ class _MonthScreenState extends State<MonthScreen> {
     switch (action) {
       case _MonthMenuAction.switchDoctor:
         if (widget.showAdmin) {
-          await _openDoctorSelector();
+          await _setEditorDoctor();
         }
       case _MonthMenuAction.profile:
         _openDoctorProfile();
@@ -420,26 +405,11 @@ class _MonthScreenState extends State<MonthScreen> {
     }
   }
 
-  Future<void> _openDoctorSelector() async {
-    final selectedDoctor = await Navigator.push<Doctor>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DoctorSelectorScreen(doctors: _doctors),
-      ),
-    );
-
-    if (!mounted || selectedDoctor == null) {
-      return;
-    }
-
-    widget.onDoctorChanged(selectedDoctor);
-  }
-
   void _openDoctorProfile() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => DoctorProfileScreen(doctor: _currentDoctorFromList()),
+        builder: (_) => DoctorProfileScreen(doctor: _calendarDisplayDoctor()),
       ),
     );
   }
@@ -2638,7 +2608,7 @@ class _MonthScreenState extends State<MonthScreen> {
       MaterialPageRoute(
         builder: (_) => CalendarExportScreen(
           roster: currentRoster,
-          doctor: _currentDoctorFromList(),
+          doctor: _calendarDisplayDoctor(),
         ),
       ),
     );
@@ -2649,7 +2619,7 @@ class _MonthScreenState extends State<MonthScreen> {
     final myAssignments = RosterStatisticsService()
         .getAssignmentsForDoctorInMonth(
           roster: currentRoster,
-          doctor: _currentDoctorFromList(),
+          doctor: _calendarDisplayDoctor(),
         );
 
     showDialog(

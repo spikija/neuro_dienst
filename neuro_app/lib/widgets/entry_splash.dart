@@ -14,6 +14,8 @@ class EntrySplash extends StatefulWidget {
 
 class _EntrySplashState extends State<EntrySplash>
     with SingleTickerProviderStateMixin {
+  static const _splashImagePath = 'lib/screens/splasch_screen_1.png';
+
   late final AnimationController _controller;
   late final Animation<double> _curve;
   Timer? _finishTimer;
@@ -79,44 +81,36 @@ class _EntrySplashState extends State<EntrySplash>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 118,
-                        height: 118,
+                      DecoratedBox(
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withAlpha(24),
-                          border: Border.all(
-                            color: Colors.white.withAlpha(170),
-                            width: 1.4,
-                          ),
+                          borderRadius: BorderRadius.circular(30),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(
                                 0xFFE53935,
-                              ).withAlpha(42 + (pulse * 48).round()),
-                              blurRadius: 34 + (pulse * 18),
-                              spreadRadius: 4,
+                              ).withAlpha(26 + (pulse * 34).round()),
+                              blurRadius: 36 + (pulse * 16),
+                              spreadRadius: 2,
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withAlpha(
+                                18 + (pulse * 28).round(),
+                              ),
+                              blurRadius: 26,
+                              spreadRadius: -6,
                             ),
                           ],
                         ),
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Icon(
-                              Icons.psychology_alt,
-                              size: 62,
-                              color: Colors.white.withAlpha(235),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: SizedBox(
+                            width: 184,
+                            height: 184,
+                            child: Image.asset(
+                              _splashImagePath,
+                              fit: BoxFit.cover,
                             ),
-                            Positioned(
-                              right: 24,
-                              bottom: 31,
-                              child: Icon(
-                                Icons.bolt,
-                                size: 24,
-                                color: const Color(0xFFFF5252).withAlpha(230),
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 22),
