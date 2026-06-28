@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/supabase_roster_service.dart';
 
 enum MonthReportLayout { roles, physicians }
@@ -31,12 +32,19 @@ class MonthReportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Print preview ${roster.month}/${roster.year}'),
+        title: Text(
+          l10n.fill('printPreviewForMonth', {
+            'month': roster.month,
+            'year': roster.year,
+          }),
+        ),
         actions: [
           IconButton(
-            tooltip: 'Print export comes next',
+            tooltip: l10n.t('printExportComesNext'),
             onPressed: null,
             icon: const Icon(Icons.print),
           ),
@@ -139,6 +147,7 @@ class _ReportFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final doctorLegend = doctors
         .map((doctor) => '${_doctorInitials(doctor)} ${doctor.fullName}')
         .join('   ');
@@ -146,14 +155,10 @@ class _ReportFooter extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Roles: SUL Stroke Unit Leader, SU1/SU2 Stroke Unit Team, AMB Outpatient Clinic, '
-          'SON Neurosonology, NVB Neurovascular Board, OFO OFO Board',
-          style: TextStyle(fontSize: 9),
-        ),
+        Text(l10n.t('reportRoleLegend'), style: const TextStyle(fontSize: 9)),
         const SizedBox(height: 3),
         Text(
-          'Doctors: $doctorLegend',
+          l10n.fill('reportDoctorLegend', {'doctors': doctorLegend}),
           style: const TextStyle(fontSize: 9),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -170,52 +175,45 @@ class _ReportHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final now = DateTime.now();
+
     return Row(
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Neurology Department Duty Roster',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              Text(
+                l10n.t('reportTitle'),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
-                '${_monthName(roster.month)} ${roster.year}',
+                '${_monthName(roster.month, l10n)} ${roster.year}',
                 style: const TextStyle(fontSize: 14),
               ),
             ],
           ),
         ),
         Text(
-          'Generated: ${DateTime.now().day}.${DateTime.now().month}.${DateTime.now().year}',
+          l10n.fill('reportGenerated', {
+            'date': '${now.day}.${now.month}.${now.year}',
+          }),
           style: const TextStyle(fontSize: 10),
         ),
       ],
     );
   }
 
-  String _monthName(int month) {
-    const names = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-
+  String _monthName(int month, AppLocalizations l10n) {
     if (month < 1 || month > 12) {
-      return 'Month $month';
+      return l10n.fill('monthNumber', {'month': month});
     }
 
-    return names[month - 1];
+    return l10n.t('month.$month');
   }
 }
 
@@ -232,6 +230,7 @@ class _ReportTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final roleColumns = _roleColumns();
 
     return LayoutBuilder(
@@ -259,31 +258,40 @@ class _ReportTable extends StatelessWidget {
           border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            _headerRow(headerHeight, roleColumns),
+            _headerRow(headerHeight, roleColumns, l10n),
             for (final day in roster.days)
-              _dayRow(day, rowUnitHeight * _reportRowWeight(day), roleColumns),
+              _dayRow(
+                day,
+                rowUnitHeight * _reportRowWeight(day),
+                roleColumns,
+                l10n,
+              ),
           ],
         );
       },
     );
   }
 
-  TableRow _headerRow(double rowHeight, List<_ReportRoleColumn> roleColumns) {
+  TableRow _headerRow(
+    double rowHeight,
+    List<_ReportRoleColumn> roleColumns,
+    AppLocalizations l10n,
+  ) {
     return TableRow(
       decoration: BoxDecoration(color: Colors.grey.shade200),
       children: [
-        _cell('Date', height: rowHeight, bold: true),
-        _cell('Day', height: rowHeight, bold: true),
+        _cell(l10n.t('reportDate'), height: rowHeight, bold: true),
+        _cell(l10n.t('reportDay'), height: rowHeight, bold: true),
         for (final role in roleColumns)
           _cell(
-            _roleHeaderLabel(role),
+            _roleHeaderLabel(role, l10n),
             height: rowHeight,
             bold: true,
             maxLines: 2,
             fontSize: _reportHeaderFontSize(rowHeight, role.name),
           ),
-        _cell('Abs', height: rowHeight, bold: true),
-        _cell('Notes', height: rowHeight, bold: true),
+        _cell(l10n.t('reportAbsenceShort'), height: rowHeight, bold: true),
+        _cell(l10n.t('reportNotes'), height: rowHeight, bold: true),
       ],
     );
   }
@@ -292,6 +300,7 @@ class _ReportTable extends StatelessWidget {
     RosterDay day,
     double rowHeight,
     List<_ReportRoleColumn> roleColumns,
+    AppLocalizations l10n,
   ) {
     return TableRow(
       decoration: BoxDecoration(color: _rowColor(day)),
@@ -301,11 +310,11 @@ class _ReportTable extends StatelessWidget {
           height: rowHeight,
           bold: true,
         ),
-        _cell(_weekdayAbbreviation(day.date), height: rowHeight),
+        _cell(_weekdayAbbreviation(day.date, l10n), height: rowHeight),
         for (final role in roleColumns)
           _cell(_assignmentText(day, role), height: rowHeight),
         _cell(_absenceText(day), height: rowHeight),
-        _cell(_notes(day), height: rowHeight),
+        _cell(_notes(day, l10n), height: rowHeight),
       ],
     );
   }
@@ -338,7 +347,13 @@ class _ReportTable extends StatelessWidget {
     );
   }
 
-  String _roleHeaderLabel(_ReportRoleColumn role) {
+  String _roleHeaderLabel(_ReportRoleColumn role, AppLocalizations l10n) {
+    final localizedName = l10n.t('reportRole.${role.code.toUpperCase()}');
+
+    if (!localizedName.startsWith('reportRole.')) {
+      return localizedName;
+    }
+
     final name = role.name.trim();
     return name.isEmpty ? role.code : name;
   }
@@ -422,13 +437,13 @@ class _ReportTable extends StatelessWidget {
     return absentDoctors.join(', ');
   }
 
-  String _notes(RosterDay day) {
+  String _notes(RosterDay day, AppLocalizations l10n) {
     if (day.calendarInfo.isPublicHoliday) {
-      return day.calendarInfo.publicHolidayName ?? 'Holiday';
+      return day.calendarInfo.publicHolidayName ?? l10n.t('holiday');
     }
 
     if (day.calendarInfo.isWeekend) {
-      return 'Weekend';
+      return l10n.t('weekend');
     }
 
     return '';
@@ -446,22 +461,22 @@ class _ReportTable extends StatelessWidget {
     return Colors.white;
   }
 
-  String _weekdayAbbreviation(DateTime date) {
+  String _weekdayAbbreviation(DateTime date, AppLocalizations l10n) {
     switch (date.weekday) {
       case DateTime.monday:
-        return 'Mo';
+        return l10n.t('weekday.mon');
       case DateTime.tuesday:
-        return 'Tu';
+        return l10n.t('weekday.tue');
       case DateTime.wednesday:
-        return 'We';
+        return l10n.t('weekday.wed');
       case DateTime.thursday:
-        return 'Th';
+        return l10n.t('weekday.thu');
       case DateTime.friday:
-        return 'Fr';
+        return l10n.t('weekday.fri');
       case DateTime.saturday:
-        return 'Sa';
+        return l10n.t('weekday.sat');
       case DateTime.sunday:
-        return 'Su';
+        return l10n.t('weekday.sun');
     }
 
     return '';
@@ -502,6 +517,7 @@ class _PhysicianReportTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final reportDoctors = _orderedDoctors();
 
     return LayoutBuilder(
@@ -528,12 +544,13 @@ class _PhysicianReportTable extends StatelessWidget {
           border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
           defaultVerticalAlignment: TableCellVerticalAlignment.middle,
           children: [
-            _headerRow(headerHeight, reportDoctors),
+            _headerRow(headerHeight, reportDoctors, l10n),
             for (final day in roster.days)
               _dayRow(
                 day,
                 rowUnitHeight * _reportRowWeight(day),
                 reportDoctors,
+                l10n,
               ),
           ],
         );
@@ -541,15 +558,19 @@ class _PhysicianReportTable extends StatelessWidget {
     );
   }
 
-  TableRow _headerRow(double rowHeight, List<Doctor> reportDoctors) {
+  TableRow _headerRow(
+    double rowHeight,
+    List<Doctor> reportDoctors,
+    AppLocalizations l10n,
+  ) {
     return TableRow(
       decoration: BoxDecoration(color: Colors.grey.shade200),
       children: [
-        _cell('Date', height: rowHeight, bold: true),
-        _cell('Day', height: rowHeight, bold: true),
+        _cell(l10n.t('reportDate'), height: rowHeight, bold: true),
+        _cell(l10n.t('reportDay'), height: rowHeight, bold: true),
         for (final doctor in reportDoctors)
           _cell(_doctorSurname(doctor), height: rowHeight, bold: true),
-        _cell('Notes', height: rowHeight, bold: true),
+        _cell(l10n.t('reportNotes'), height: rowHeight, bold: true),
       ],
     );
   }
@@ -558,6 +579,7 @@ class _PhysicianReportTable extends StatelessWidget {
     RosterDay day,
     double rowHeight,
     List<Doctor> reportDoctors,
+    AppLocalizations l10n,
   ) {
     return TableRow(
       decoration: BoxDecoration(color: _rowColor(day)),
@@ -567,10 +589,10 @@ class _PhysicianReportTable extends StatelessWidget {
           height: rowHeight,
           bold: true,
         ),
-        _cell(_weekdayAbbreviation(day.date), height: rowHeight),
+        _cell(_weekdayAbbreviation(day.date, l10n), height: rowHeight),
         for (final doctor in reportDoctors)
-          _cell(_doctorDayText(day, doctor), height: rowHeight),
-        _cell(_notes(day), height: rowHeight),
+          _cell(_doctorDayText(day, doctor, l10n), height: rowHeight),
+        _cell(_notes(day, l10n), height: rowHeight),
       ],
     );
   }
@@ -625,11 +647,11 @@ class _PhysicianReportTable extends StatelessWidget {
     return ordered;
   }
 
-  String _doctorDayText(RosterDay day, Doctor doctor) {
+  String _doctorDayText(RosterDay day, Doctor doctor, AppLocalizations l10n) {
     final absence = doctor.absenceOn(day.date);
 
     if (absence != null) {
-      return 'VAC';
+      return l10n.t('reportVacationShort');
     }
 
     final roleIds = reportRoles?.map((role) => role.id).toSet();
@@ -676,34 +698,34 @@ class _PhysicianReportTable extends StatelessWidget {
     return Colors.white;
   }
 
-  String _notes(RosterDay day) {
+  String _notes(RosterDay day, AppLocalizations l10n) {
     if (day.calendarInfo.isPublicHoliday) {
-      return day.calendarInfo.publicHolidayName ?? 'Holiday';
+      return day.calendarInfo.publicHolidayName ?? l10n.t('holiday');
     }
 
     if (day.calendarInfo.isWeekend) {
-      return 'Weekend';
+      return l10n.t('weekend');
     }
 
     return '';
   }
 
-  String _weekdayAbbreviation(DateTime date) {
+  String _weekdayAbbreviation(DateTime date, AppLocalizations l10n) {
     switch (date.weekday) {
       case DateTime.monday:
-        return 'Mo';
+        return l10n.t('weekday.mon');
       case DateTime.tuesday:
-        return 'Tu';
+        return l10n.t('weekday.tue');
       case DateTime.wednesday:
-        return 'We';
+        return l10n.t('weekday.wed');
       case DateTime.thursday:
-        return 'Th';
+        return l10n.t('weekday.thu');
       case DateTime.friday:
-        return 'Fr';
+        return l10n.t('weekday.fri');
       case DateTime.saturday:
-        return 'Sa';
+        return l10n.t('weekday.sat');
       case DateTime.sunday:
-        return 'Su';
+        return l10n.t('weekday.sun');
     }
 
     return '';
