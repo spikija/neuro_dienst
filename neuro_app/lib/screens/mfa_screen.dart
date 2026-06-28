@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../l10n/app_localizations.dart';
+
 class MfaScreen extends StatefulWidget {
   final WidgetBuilder? verifiedDestinationBuilder;
 
@@ -33,8 +35,10 @@ class _MfaScreenState extends State<MfaScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Two-factor verification')),
+      appBar: AppBar(title: Text(l10n.t('twoFactorVerification'))),
       body: FutureBuilder<_MfaState>(
         future: _stateFuture,
         builder: (context, snapshot) {
@@ -94,15 +98,14 @@ class _MfaScreenState extends State<MfaScreen> {
   }
 
   Widget _buildEnrollmentPrompt() {
+    final l10n = AppLocalizations.of(context);
+
     return _MfaPanel(
-      title: 'Set up two-factor verification',
+      title: l10n.t('mfaSetupTitle'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'Admin actions require an authenticator code. Set up a TOTP factor '
-            'with your authenticator app, then enter the six-digit code.',
-          ),
+          Text(l10n.t('mfaSetupDescription')),
           const SizedBox(height: 18),
           FilledButton.icon(
             onPressed: _isWorking ? null : _startEnrollment,
@@ -113,7 +116,7 @@ class _MfaScreenState extends State<MfaScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.qr_code_2),
-            label: const Text('Start setup'),
+            label: Text(l10n.t('startSetup')),
           ),
           _ErrorText(message: _errorMessage),
         ],
@@ -122,19 +125,16 @@ class _MfaScreenState extends State<MfaScreen> {
   }
 
   Widget _buildEnrollmentVerification(AuthMFAEnrollResponse enrollment) {
+    final l10n = AppLocalizations.of(context);
     final totp = enrollment.totp;
 
     return _MfaPanel(
-      title: 'Scan and verify',
+      title: l10n.t('mfaScanAndVerify'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (totp != null) ...[
-            const Text(
-              'Open your authenticator app and use its add-account QR scanner. '
-              'A normal phone camera may only show the setup text.',
-              textAlign: TextAlign.center,
-            ),
+            Text(l10n.t('mfaScanDescription'), textAlign: TextAlign.center),
             const SizedBox(height: 12),
             Center(
               child: QrImageView(
@@ -146,7 +146,7 @@ class _MfaScreenState extends State<MfaScreen> {
             ),
             const SizedBox(height: 12),
             SelectableText(
-              'Secret: ${totp.secret}',
+              '${l10n.t('secret')}: ${totp.secret}',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 18),
@@ -165,7 +165,7 @@ class _MfaScreenState extends State<MfaScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.verified_user),
-            label: const Text('Verify code'),
+            label: Text(l10n.t('verifyCode')),
           ),
           _ErrorText(message: _errorMessage),
         ],
@@ -174,8 +174,10 @@ class _MfaScreenState extends State<MfaScreen> {
   }
 
   Widget _buildExistingFactorVerification(List<Factor> factors) {
+    final l10n = AppLocalizations.of(context);
+
     return _MfaPanel(
-      title: 'Enter authenticator code',
+      title: l10n.t('enterAuthenticatorCode'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -190,7 +192,7 @@ class _MfaScreenState extends State<MfaScreen> {
                 for (final factor in factors)
                   DropdownMenuItem(
                     value: factor,
-                    child: Text(factor.friendlyName ?? 'Authenticator'),
+                    child: Text(factor.friendlyName ?? l10n.t('authenticator')),
                   ),
               ],
               onChanged: (factor) {
@@ -212,7 +214,7 @@ class _MfaScreenState extends State<MfaScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.verified_user),
-            label: const Text('Verify'),
+            label: Text(l10n.t('verify')),
           ),
           _ErrorText(message: _errorMessage),
         ],
@@ -241,7 +243,7 @@ class _MfaScreenState extends State<MfaScreen> {
       });
     } catch (_) {
       setState(() {
-        _errorMessage = 'Could not start MFA setup.';
+        _errorMessage = AppLocalizations.of(context).t('couldNotStartMfaSetup');
       });
     } finally {
       if (mounted) {
@@ -267,7 +269,7 @@ class _MfaScreenState extends State<MfaScreen> {
 
     if (factor == null) {
       setState(() {
-        _errorMessage = 'No MFA factor selected.';
+        _errorMessage = AppLocalizations.of(context).t('noMfaFactorSelected');
       });
       return;
     }
@@ -280,7 +282,7 @@ class _MfaScreenState extends State<MfaScreen> {
 
     if (code.isEmpty) {
       setState(() {
-        _errorMessage = 'Enter the six-digit code.';
+        _errorMessage = AppLocalizations.of(context).t('enterSixDigitCode');
       });
       return;
     }
@@ -305,7 +307,7 @@ class _MfaScreenState extends State<MfaScreen> {
       });
     } catch (_) {
       setState(() {
-        _errorMessage = 'Could not verify the MFA code.';
+        _errorMessage = AppLocalizations.of(context).t('couldNotVerifyMfaCode');
       });
     } finally {
       if (mounted) {
@@ -374,14 +376,16 @@ class _CodeField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => onSubmitted(),
-      decoration: const InputDecoration(
-        border: OutlineInputBorder(),
-        labelText: 'Verification code',
+      decoration: InputDecoration(
+        border: const OutlineInputBorder(),
+        labelText: l10n.t('verificationCode'),
       ),
     );
   }
@@ -416,6 +420,8 @@ class _MfaErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -429,7 +435,7 @@ class _MfaErrorView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(l10n.t('retry')),
             ),
           ],
         ),

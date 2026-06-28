@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
+import 'package:neuro_app/l10n/app_localizations.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/slot_card.dart';
@@ -26,6 +27,7 @@ class _DayScreenState extends State<DayScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final slotModels = SlotDisplayService().buildSlotDisplayModels(
       day: currentDay,
       doctor: widget.currentDoctor,
@@ -88,7 +90,7 @@ class _DayScreenState extends State<DayScreen> {
             Padding(
               padding: const EdgeInsets.all(8),
               child: Text(
-                'My slots today: $myAssignmentsToday',
+                l10n.fill('mySlotsToday', {'count': myAssignmentsToday}),
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -102,18 +104,18 @@ class _DayScreenState extends State<DayScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.beach_access),
                   title: Text(absence.label),
-                  subtitle: const Text('Assignments are blocked for this day.'),
+                  subtitle: Text(l10n.t('assignmentsBlockedForDay')),
                 ),
               ),
-            const Padding(
-              padding: EdgeInsets.all(8),
+            Padding(
+              padding: const EdgeInsets.all(8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _LegendItem(label: 'Open', color: Colors.green),
-                  _LegendItem(label: 'Mine', color: Colors.blue),
-                  _LegendItem(label: 'Absent', color: Colors.purple),
-                  _LegendItem(label: 'Full', color: Colors.grey),
+                  _LegendItem(label: l10n.t('open'), color: Colors.green),
+                  _LegendItem(label: l10n.t('mine'), color: Colors.blue),
+                  _LegendItem(label: l10n.t('absent'), color: Colors.purple),
+                  _LegendItem(label: l10n.t('full'), color: Colors.grey),
                 ],
               ),
             ),
@@ -130,6 +132,7 @@ class _DayScreenState extends State<DayScreen> {
   }
 
   Future<void> _toggleAssignment(SlotViewModel slotView) async {
+    final l10n = AppLocalizations.of(context);
     final alreadyAssigned = slotView.assignments.any(
       (assignment) => assignment.doctor.id == widget.currentDoctor.id,
     );
@@ -147,9 +150,9 @@ class _DayScreenState extends State<DayScreen> {
           );
 
     if (!result.success) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.reason ?? 'Action failed')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.reason ?? l10n.t('actionFailed'))),
+      );
       return;
     }
 
@@ -184,7 +187,7 @@ class _DayScreenState extends State<DayScreen> {
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not save assignment')),
+          SnackBar(content: Text(l10n.t('couldNotSaveAssignment'))),
         );
         return;
       }
@@ -199,8 +202,8 @@ class _DayScreenState extends State<DayScreen> {
     });
 
     final message = alreadyAssigned
-        ? 'Removed from ${slotView.slot.template.name}'
-        : 'Assigned to ${slotView.slot.template.name}';
+        ? l10n.fill('removedFromSlot', {'slot': slotView.slot.template.name})
+        : l10n.fill('assignedToSlot', {'slot': slotView.slot.template.name});
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), duration: const Duration(seconds: 1)),

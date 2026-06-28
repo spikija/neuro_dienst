@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/feedback_sound_service.dart';
 import '../widgets/entry_splash.dart';
@@ -15,6 +16,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   static const _internalEmailDomain = 'neurodienst.local';
+  static const _supportEmail = 'spikija@gmail.com';
 
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -47,17 +49,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Sign in to continue',
+                  'Sign in to continue / Anmelden zum Fortfahren',
                   style: TextStyle(color: Theme.of(context).hintColor),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
+                Text(
+                  'Plan neurology duty rosters, absences, and monthly '
+                  'coverage in one shared workspace.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Neurologische Dienstplaene, Abwesenheiten und '
+                  'Monatsabdeckung gemeinsam planen.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 20),
                 TextField(
                   controller: _usernameController,
                   keyboardType: TextInputType.text,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    labelText: 'Username',
+                    labelText: 'Username / Benutzername',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -68,11 +82,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   onSubmitted: (_) => _signIn(),
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
-                    labelText: 'Password',
+                    labelText: 'Password / Passwort',
                     suffixIcon: IconButton(
                       tooltip: _obscurePassword
-                          ? 'Show password'
-                          : 'Hide password',
+                          ? 'Show password / Passwort anzeigen'
+                          : 'Hide password / Passwort verbergen',
                       icon: Icon(
                         _obscurePassword
                             ? Icons.visibility
@@ -105,7 +119,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.login),
-                  label: const Text('Sign in'),
+                  label: const Text('Sign in / Anmelden'),
+                ),
+                const SizedBox(height: 16),
+                TextButton.icon(
+                  onPressed: _openSupportEmail,
+                  icon: const Icon(Icons.mail_outline),
+                  label: Text(
+                    'Support and feedback / Support und Feedback: '
+                    '$_supportEmail',
+                  ),
                 ),
               ],
             ),
@@ -139,7 +162,9 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     } catch (_) {
       setState(() {
-        _errorMessage = 'Sign in failed. Please try again.';
+        _errorMessage =
+            'Sign in failed. Please try again. / '
+            'Anmeldung fehlgeschlagen. Bitte erneut versuchen.';
       });
     } finally {
       if (mounted) {
@@ -148,6 +173,16 @@ class _LoginScreenState extends State<LoginScreen> {
         });
       }
     }
+  }
+
+  Future<void> _openSupportEmail() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: _supportEmail,
+      queryParameters: const {'subject': 'NeuroDienst feedback'},
+    );
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   String _loginEmailFromUsername(String value) {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/supabase_roster_service.dart';
 import 'month_report_screen.dart';
 
@@ -26,8 +27,10 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Monthly report')),
+      appBar: AppBar(title: Text(l10n.t('monthlyReport'))),
       body: FutureBuilder<List<RosterSummary>>(
         future: _rostersFuture,
         builder: (context, snapshot) {
@@ -45,7 +48,7 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
           final rosters = snapshot.data ?? [];
 
           if (rosters.isEmpty) {
-            return const Center(child: Text('No generated rosters yet.'));
+            return Center(child: Text(l10n.t('noGeneratedRostersYet')));
           }
 
           return Column(
@@ -53,16 +56,16 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                 child: SegmentedButton<MonthReportLayout>(
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: MonthReportLayout.roles,
-                      icon: Icon(Icons.view_column),
-                      label: Text('Roles'),
+                      icon: const Icon(Icons.view_column),
+                      label: Text(l10n.t('roles')),
                     ),
                     ButtonSegment(
                       value: MonthReportLayout.physicians,
-                      icon: Icon(Icons.badge),
-                      label: Text('Physicians'),
+                      icon: const Icon(Icons.badge),
+                      label: Text(l10n.t('physicians')),
                     ),
                   ],
                   selected: {_layout},
@@ -83,8 +86,10 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
 
                     return ListTile(
                       leading: const Icon(Icons.calendar_month),
-                      title: Text('${_monthName(roster.month)} ${roster.year}'),
-                      subtitle: Text(_phaseLabel(roster.phase)),
+                      title: Text(
+                        '${_monthName(roster.month, l10n)} ${roster.year}',
+                      ),
+                      subtitle: Text(_phaseLabel(roster.phase, l10n)),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () => _openReport(roster),
                     );
@@ -119,7 +124,11 @@ class _MonthReportPickerScreenState extends State<MonthReportPickerScreen> {
 
     if (roster == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Roster could not be loaded.')),
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context).t('rosterCouldNotBeLoaded'),
+          ),
+        ),
       );
       return;
     }
@@ -159,7 +168,7 @@ class _ReportPickerErrorView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: Text(AppLocalizations.of(context).t('retry')),
             ),
           ],
         ),
@@ -168,38 +177,23 @@ class _ReportPickerErrorView extends StatelessWidget {
   }
 }
 
-String _phaseLabel(RosterPhase phase) {
+String _phaseLabel(RosterPhase phase, AppLocalizations l10n) {
   switch (phase) {
     case RosterPhase.draft:
-      return 'Draft';
+      return l10n.t('phaseDraft');
     case RosterPhase.openForSelection:
-      return 'Open for selection';
+      return l10n.t('phaseOpenForSelection');
     case RosterPhase.locked:
-      return 'Locked';
+      return l10n.t('phaseLocked');
     case RosterPhase.published:
-      return 'Published';
+      return l10n.t('phasePublished');
   }
 }
 
-String _monthName(int month) {
-  const names = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
+String _monthName(int month, AppLocalizations l10n) {
   if (month < 1 || month > 12) {
-    return 'Month $month';
+    return l10n.fill('monthNumber', {'month': month});
   }
 
-  return names[month - 1];
+  return l10n.t('month.$month');
 }

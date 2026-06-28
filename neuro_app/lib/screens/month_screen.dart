@@ -176,7 +176,7 @@ class _MonthScreenState extends State<MonthScreen> {
                 : null,
           ),
           PopupMenuButton<_MonthMenuAction>(
-            tooltip: 'Menu',
+            tooltip: l10n.t('menu'),
             icon: const Icon(Icons.menu),
             onSelected: _handleMenuAction,
             enabled: _busyMessage == null,
@@ -186,12 +186,12 @@ class _MonthScreenState extends State<MonthScreen> {
                   value: _MonthMenuAction.switchDoctor,
                   child: _MenuRow(
                     icon: Icons.switch_account,
-                    label: 'Select doctor',
+                    label: l10n.t('selectDoctor'),
                   ),
                 ),
               PopupMenuItem(
                 value: _MonthMenuAction.profile,
-                child: _MenuRow(icon: Icons.person, label: 'Profile'),
+                child: _MenuRow(icon: Icons.person, label: l10n.t('profile')),
               ),
               PopupMenuItem(
                 value: _MonthMenuAction.myAssignments,
@@ -201,15 +201,18 @@ class _MonthScreenState extends State<MonthScreen> {
                 ),
               ),
               const PopupMenuDivider(),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: _MonthMenuAction.importVacation,
-                child: _MenuRow(icon: Icons.download, label: 'Import vacation'),
+                child: _MenuRow(
+                  icon: Icons.download,
+                  label: l10n.t('importVacation'),
+                ),
               ),
               PopupMenuItem(
                 value: _MonthMenuAction.exportCalendar,
                 child: _MenuRow(
                   icon: Icons.calendar_month,
-                  label: 'Export calendar',
+                  label: l10n.t('exportCalendar'),
                 ),
               ),
               PopupMenuItem(
@@ -258,11 +261,11 @@ class _MonthScreenState extends State<MonthScreen> {
               ),
               if (SupabaseConfig.isConfigured && widget.showAdmin) ...[
                 const PopupMenuDivider(),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: _MonthMenuAction.mfa,
                   child: _MenuRow(
                     icon: Icons.verified_user,
-                    label: 'Two-factor verification',
+                    label: l10n.t('twoFactorVerification'),
                   ),
                 ),
                 PopupMenuItem(
@@ -820,7 +823,7 @@ class _MonthScreenState extends State<MonthScreen> {
                 icon: const Icon(Icons.deselect),
               ),
               PopupMenuButton<_BulkAction>(
-                tooltip: 'Actions',
+                tooltip: l10n.t('actions'),
                 icon: const Icon(Icons.more_vert),
                 onSelected: _handleBulkAction,
                 enabled: _busyMessage == null,
@@ -927,35 +930,37 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _handleBulkAction(_BulkAction action) async {
+    final l10n = AppLocalizations.of(context);
+
     switch (action) {
       case _BulkAction.setVacation:
         await _runWithBusyMessage(
-          'Updating vacation...',
+          l10n.t('updatingVacation'),
           _setSelectedDatesAsVacation,
         );
       case _BulkAction.removeVacation:
         await _runWithBusyMessage(
-          'Updating vacation...',
+          l10n.t('updatingVacation'),
           _removeVacationFromSelectedDates,
         );
       case _BulkAction.setDuty24:
         await _runWithBusyMessage(
-          'Updating 24h duty...',
+          l10n.t('updatingDuty24'),
           _setSelectedDatesAsDuty24,
         );
       case _BulkAction.removeDuty24:
         await _runWithBusyMessage(
-          'Updating 24h duty...',
+          l10n.t('updatingDuty24'),
           _removeDuty24FromSelectedDates,
         );
       case _BulkAction.setEfDay:
         await _runWithBusyMessage(
-          'Updating EF day...',
+          l10n.t('updatingEfDay'),
           _setSelectedDatesAsEfDay,
         );
       case _BulkAction.removeEfDay:
         await _runWithBusyMessage(
-          'Updating EF day...',
+          l10n.t('updatingEfDay'),
           _removeEfDayFromSelectedDates,
         );
       case _BulkAction.chooseDoctor:
@@ -970,7 +975,7 @@ class _MonthScreenState extends State<MonthScreen> {
         }
       case _BulkAction.removeRole:
         await _runWithBusyMessage(
-          'Removing role...',
+          l10n.t('removingRole'),
           _removeRoleFromSelectedDates,
         );
       case _BulkAction.applyEditorAssignment:
@@ -986,7 +991,7 @@ class _MonthScreenState extends State<MonthScreen> {
         }
 
         await _runWithBusyMessage(
-          'Assigning role...',
+          l10n.t('assigningRole'),
           () => _assignSelectedDatesToSlotKind(
             slotKind: editorSlotKind,
             doctor: editorDoctor,
@@ -1288,6 +1293,7 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _openRelativeMonth(int delta) async {
+    final l10n = AppLocalizations.of(context);
     final target = DateTime(currentRoster.year, currentRoster.month + delta, 1);
 
     if (SupabaseConfig.isConfigured) {
@@ -1300,7 +1306,10 @@ class _MonthScreenState extends State<MonthScreen> {
 
         if (roster == null) {
           _setStatusMessage(
-            'No generated roster for ${target.month}/${target.year}',
+            l10n.fill('noGeneratedRoster', {
+              'month': target.month,
+              'year': target.year,
+            }),
           );
           return;
         }
@@ -1313,7 +1322,12 @@ class _MonthScreenState extends State<MonthScreen> {
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
       } catch (_) {
-        _setStatusMessage('Could not load ${target.month}/${target.year}.');
+        _setStatusMessage(
+          l10n.fill('couldNotLoadMonth', {
+            'month': target.month,
+            'year': target.year,
+          }),
+        );
       }
 
       return;
@@ -2163,7 +2177,7 @@ class _MonthScreenState extends State<MonthScreen> {
     if (SupabaseConfig.isConfigured &&
         widget.showAdmin &&
         !await _ensureAdminMfa()) {
-      _setStatusMessage('Two-factor verification is required.');
+      _setStatusMessage(l10n.t('twoFactorVerificationRequired'));
       return;
     }
 
@@ -2325,7 +2339,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
     if (SupabaseConfig.isConfigured) {
       if (widget.showAdmin && !await _ensureAdminMfa()) {
-        _setStatusMessage('Two-factor verification is required.');
+        _setStatusMessage(l10n.t('twoFactorVerificationRequired'));
         return;
       }
 

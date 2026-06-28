@@ -6,6 +6,7 @@ import 'package:neuro_core/neuro_core.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/ics_calendar_export_service.dart';
 import '../services/device_calendar_export_service.dart';
 
@@ -54,8 +55,10 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendar export')),
+      appBar: AppBar(title: Text(l10n.t('exportCalendar'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -72,7 +75,7 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                   const SizedBox(height: 4),
                   Text(
                     '${widget.roster.month}/${widget.roster.year} · '
-                    '$_assignmentCount assigned duties',
+                    '${l10n.t('assigned')}: $_assignmentCount',
                   ),
                   const SizedBox(height: 16),
                   FutureBuilder<List<DeviceCalendarTarget>>(
@@ -84,14 +87,16 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
 
                       if (snapshot.hasError) {
                         return Text(
-                          'Could not load phone calendars: ${snapshot.error}',
+                          l10n.fill('couldNotLoadPhoneCalendars', {
+                            'error': snapshot.error.toString(),
+                          }),
                         );
                       }
 
                       final targets = snapshot.data ?? const [];
 
                       if (targets.isEmpty) {
-                        return const Text('No writable phone calendars found.');
+                        return Text(l10n.t('noWritablePhoneCalendarsFound'));
                       }
 
                       final selected = _selectedCalendar == null
@@ -105,9 +110,9 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                         initialValue: selected,
                         isExpanded: true,
                         menuMaxHeight: 320,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone calendar',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.t('phoneCalendar'),
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                         selectedItemBuilder: (context) => [
@@ -160,7 +165,7 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.sync),
-                    label: const Text('Sync to phone calendar'),
+                    label: Text(l10n.t('syncToPhoneCalendar')),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -178,12 +183,12 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                                 ),
                               )
                             : const Icon(Icons.ios_share),
-                        label: const Text('Share .ics file'),
+                        label: Text(l10n.t('shareIcsFile')),
                       ),
                       OutlinedButton.icon(
                         onPressed: _copyIcs,
                         icon: const Icon(Icons.copy),
-                        label: const Text('Copy .ics'),
+                        label: Text(l10n.t('copyIcs')),
                       ),
                       OutlinedButton.icon(
                         onPressed: _isSaving ? null : _saveIcs,
@@ -196,20 +201,23 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                                 ),
                               )
                             : const Icon(Icons.save_alt),
-                        label: const Text('Save .ics file'),
+                        label: Text(l10n.t('saveIcsFile')),
                       ),
                     ],
                   ),
                   if (_savedPath != null) ...[
                     const SizedBox(height: 12),
-                    SelectableText('Saved to: $_savedPath'),
+                    SelectableText(l10n.fill('savedTo', {'path': _savedPath!})),
                   ],
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-          Text('Preview', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            l10n.t('preview'),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(

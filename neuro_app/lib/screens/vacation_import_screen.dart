@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../services/device_calendar_import_service.dart';
 
 class VacationImportScreen extends StatefulWidget {
@@ -39,8 +40,10 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Import vacation')),
+      appBar: AppBar(title: Text(l10n.t('importVacation'))),
       body: FutureBuilder<List<CalendarVacationCandidate>>(
         future: _future,
         builder: (context, snapshot) {
@@ -58,9 +61,9 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
           final candidates = snapshot.data ?? const [];
 
           if (candidates.isEmpty) {
-            return const _ImportMessage(
+            return _ImportMessage(
               icon: Icons.event_busy,
-              message: 'No vacation-like calendar events found for this month.',
+              message: l10n.t('noVacationCalendarEventsFound'),
             );
           }
 
@@ -89,7 +92,7 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
                         '${_formatDate(candidate.start)} - '
                         '${_formatDate(candidate.end)}\n'
                         '${candidate.calendarName}'
-                        '${candidate.allDay ? ' · all day' : ''}',
+                        '${candidate.allDay ? ' - ${l10n.t('allDay')}' : ''}',
                       ),
                       secondary: const Icon(Icons.beach_access),
                     );
@@ -105,7 +108,7 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text('Cancel'),
+                          child: Text(l10n.t('cancel')),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -115,7 +118,7 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
                               ? null
                               : () => _importSelected(candidates),
                           icon: const Icon(Icons.download),
-                          label: const Text('Import'),
+                          label: Text(l10n.t('import')),
                         ),
                       ),
                     ],
