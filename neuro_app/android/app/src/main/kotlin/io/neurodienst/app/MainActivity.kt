@@ -1,4 +1,4 @@
-package com.example.neuro_app
+package io.neurodienst.app
 
 import android.media.AudioManager
 import android.media.ToneGenerator

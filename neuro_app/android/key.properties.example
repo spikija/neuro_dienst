@@ -1,0 +1,5 @@
+# Copy this file to android/key.properties. Never commit the real file or key.
+storePassword=REPLACE_WITH_A_STRONG_PASSWORD
+keyPassword=REPLACE_WITH_A_STRONG_PASSWORD
+keyAlias=upload
+storeFile=C:/secure/neurodienst/neurodienst-upload.jks

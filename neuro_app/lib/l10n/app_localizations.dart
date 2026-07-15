@@ -101,6 +101,12 @@ const _en = <String, String>{
   'doctorProfile': 'Doctor profile',
   'rank': 'Rank',
   'profile': 'Profile',
+  'accountAndPrivacy': 'Account and privacy',
+  'accountDeletionExplanation':
+      'Request deletion of your account and its associated personal data. '
+      'The administrator will confirm when the request has been completed.',
+  'requestAccountDeletion': 'Request account deletion',
+  'couldNotOpenEmail': 'Could not open your email app. Contact:',
   'importVacation': 'Import vacation',
   'import': 'Import',
   'cancel': 'Cancel',
@@ -276,6 +282,12 @@ const _de = <String, String>{
   'doctorProfile': 'Arztprofil',
   'rank': 'Rang',
   'profile': 'Profil',
+  'accountAndPrivacy': 'Konto und Datenschutz',
+  'accountDeletionExplanation':
+      'Beantragen Sie die Loeschung Ihres Kontos und der damit verbundenen '
+      'personenbezogenen Daten. Der Administrator bestaetigt den Abschluss.',
+  'requestAccountDeletion': 'Kontoloeschung beantragen',
+  'couldNotOpenEmail': 'E-Mail-App konnte nicht geoeffnet werden. Kontakt:',
   'importVacation': 'Urlaub importieren',
   'import': 'Importieren',
   'cancel': 'Abbrechen',
