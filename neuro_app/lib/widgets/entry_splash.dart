@@ -140,7 +140,7 @@ class _EntrySplashState extends State<EntrySplash>
                 right: 20,
                 bottom: bottomPadding + 20,
                 child: Text(
-                  'v 0.1, Designed by Slaven Pikija, Created by Codex',
+                  'v 0.2, Designed by Slaven Pikija, Created by Codex',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: Colors.white.withAlpha(170),

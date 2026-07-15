@@ -1,3 +1,6 @@
+drop policy if exists "doctors delete own absences"
+on public.absences;
+
 create policy "doctors delete own absences"
 on public.absences
 for delete

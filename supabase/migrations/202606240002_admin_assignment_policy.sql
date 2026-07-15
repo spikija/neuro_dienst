@@ -1,6 +1,9 @@
 drop policy if exists "admins manage assignments with mfa"
 on public.assignments;
 
+drop policy if exists "admins manage assignments"
+on public.assignments;
+
 create policy "admins manage assignments"
 on public.assignments
 for all

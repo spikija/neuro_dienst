@@ -235,6 +235,17 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
           );
         }
 
+        if (SupabaseConfig.isConfigured &&
+            data != null &&
+            data.roster == null) {
+          return _NoRosterGeneratedView(
+            month: _visibleMonth,
+            isAdmin: data.isAdmin,
+            onAdminClosed: _reloadHomeData,
+            onRetry: _reloadHomeData,
+          );
+        }
+
         final selectedDoctor = _doctorFromListOrFallback(
           doctors,
           _selectedDoctor,
@@ -435,6 +446,97 @@ class _NoDoctorsConfiguredView extends StatelessWidget {
     }
 
     onAdminClosed();
+  }
+}
+
+class _NoRosterGeneratedView extends StatelessWidget {
+  final DateTime month;
+  final bool isAdmin;
+  final VoidCallback onAdminClosed;
+  final VoidCallback onRetry;
+
+  const _NoRosterGeneratedView({
+    required this.month,
+    required this.isAdmin,
+    required this.onAdminClosed,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.t('app.name')),
+        actions: [
+          IconButton(
+            tooltip: l10n.t('signOut'),
+            icon: const Icon(Icons.logout),
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+          ),
+        ],
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.calendar_month_outlined, size: 52),
+                const SizedBox(height: 16),
+                Text(
+                  'No roster has been generated for '
+                  '${month.month}/${month.year}.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isAdmin
+                      ? 'Open Admin → Rosters to generate this month before '
+                            'adding assignments or absences.'
+                      : 'An administrator must generate this month before '
+                            'assignments or absences can be entered.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                if (isAdmin) ...[
+                  FilledButton.icon(
+                    onPressed: () => _openAdmin(context),
+                    icon: const Icon(Icons.admin_panel_settings),
+                    label: Text(l10n.t('openAdmin')),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.t('retry')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openAdmin(BuildContext context) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            const MfaScreen(verifiedDestinationBuilder: _buildAdminHomeScreen),
+      ),
+    );
+
+    if (context.mounted) {
+      onAdminClosed();
+    }
   }
 }
 

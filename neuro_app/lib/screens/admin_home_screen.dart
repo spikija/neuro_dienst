@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'admin_doctors_screen.dart';
+import 'admin_invite_doctor_screen.dart';
 import 'admin_report_settings_screen.dart';
 import 'admin_role_templates_screen.dart';
 import 'admin_rosters_screen.dart';
@@ -16,6 +17,21 @@ class AdminHomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          _AdminTile(
+            icon: Icons.outgoing_mail,
+            title: 'Invite doctor',
+            subtitle:
+                'Create a doctor account and email a one-time password setup link.',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AdminInviteDoctorScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
           _AdminTile(
             icon: Icons.groups,
             title: 'Doctors',
