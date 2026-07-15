@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
+import 'services/auth_link_protocol.dart';
 import 'services/supabase_bootstrap.dart';
 import 'services/supabase_doctor_service.dart';
 import 'services/supabase_roster_service.dart';
@@ -18,6 +19,7 @@ import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await registerAuthLinkProtocol();
   await initializeSupabaseIfConfigured();
 
   final roster = DemoRoster.createJune2026();

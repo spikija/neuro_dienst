@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/feedback_sound_service.dart';
 import '../widgets/entry_splash.dart';
+import 'password_recovery_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final VoidCallback? onSignedIn;
@@ -15,10 +16,9 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const _internalEmailDomain = 'neurodienst.local';
   static const _supportEmail = 'spikija@gmail.com';
 
-  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -26,7 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -66,12 +66,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 20),
                 TextField(
-                  controller: _usernameController,
-                  keyboardType: TextInputType.text,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    labelText: 'Username / Benutzername',
+                    labelText: 'Email / E-Mail',
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -121,6 +121,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Icon(Icons.login),
                   label: const Text('Sign in / Anmelden'),
                 ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _isLoading ? null : _openForgotPassword,
+                  child: const Text('Forgot password? / Passwort vergessen?'),
+                ),
                 const SizedBox(height: 16),
                 TextButton.icon(
                   onPressed: _openSupportEmail,
@@ -146,7 +151,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: _loginEmailFromUsername(_usernameController.text),
+        email: _emailController.text.trim().toLowerCase(),
         password: _passwordController.text,
       );
       await FeedbackSoundService.playLogin();
@@ -185,14 +190,13 @@ class _LoginScreenState extends State<LoginScreen> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  String _loginEmailFromUsername(String value) {
-    final trimmed = value.trim().toLowerCase();
-
-    if (trimmed.contains('@')) {
-      return trimmed;
-    }
-
-    return '$trimmed@$_internalEmailDomain';
+  Future<void> _openForgotPassword() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            ForgotPasswordScreen(initialEmail: _emailController.text),
+      ),
+    );
   }
 
   Future<void> _showEntrySplash() async {

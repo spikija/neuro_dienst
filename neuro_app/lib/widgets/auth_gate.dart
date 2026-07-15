@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../screens/login_screen.dart';
+import '../screens/password_recovery_screen.dart';
 import '../services/supabase_bootstrap.dart';
 import 'entry_splash.dart';
 
@@ -20,6 +21,7 @@ class _AuthGateState extends State<AuthGate> {
   Session? _session;
   StreamSubscription<AuthState>? _authSubscription;
   bool _showEntrySplash = false;
+  bool _isPasswordRecovery = false;
 
   @override
   void initState() {
@@ -42,8 +44,14 @@ class _AuthGateState extends State<AuthGate> {
 
       setState(() {
         _session = event.session;
+        if (event.event == AuthChangeEvent.passwordRecovery) {
+          _isPasswordRecovery = true;
+          _showEntrySplash = false;
+          return;
+        }
         if (!isSignedIn) {
           _showEntrySplash = false;
+          _isPasswordRecovery = false;
           return;
         }
 
@@ -68,6 +76,10 @@ class _AuthGateState extends State<AuthGate> {
 
     if (_session == null) {
       return LoginScreen(onSignedIn: _handleSignedIn);
+    }
+
+    if (_isPasswordRecovery) {
+      return UpdatePasswordScreen(onCompleted: _finishPasswordRecovery);
     }
 
     if (_showEntrySplash) {
@@ -95,6 +107,19 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _session = Supabase.instance.client.auth.currentSession;
       _showEntrySplash = _session != null;
+    });
+  }
+
+  Future<void> _finishPasswordRecovery() async {
+    await Supabase.instance.client.auth.signOut();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _session = null;
+      _isPasswordRecovery = false;
+      _showEntrySplash = false;
     });
   }
 }
