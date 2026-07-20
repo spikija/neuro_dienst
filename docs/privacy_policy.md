@@ -1,17 +1,18 @@
 # NeuroDienst Privacy Policy
 
-Effective date: 15 July 2026
+Effective date: 17 July 2026
 
 NeuroDienst is a restricted-access duty-roster application for authorized clinical teams. It is not intended to store patient records, diagnoses, treatment information, or other patient data.
 
 ## Who is responsible
 
-Until an institutional operator is formally designated, the developer is the contact for privacy matters:
+The service operator and contact for privacy matters is:
 
-- Contact: Slaven Pikija
+- Service operator: Slaven Pikija
 - Email: spikija@gmail.com
+- Postal address: LKH-Univ. Klinikum Graz, Auenbruggerplatz 1, 8036 Graz, Austria
 
-Before a production rollout, this section must be reviewed and replaced with the legal name, address, privacy contact, and data-protection officer details of the organization that operates NeuroDienst.
+The service operator determines why and how NeuroDienst data is processed and is the data controller where applicable. Supabase processes hosted authentication and application data on the operator's behalf.
 
 ## Data we process
 
@@ -29,25 +30,37 @@ Do not enter patient names, patient identifiers, diagnoses, or clinical records 
 
 We use this information to authenticate authorized users, create and coordinate duty rosters, display personal assignments, administer access permissions, provide calendar import/export, maintain security, troubleshoot failures, and meet legal obligations.
 
+We process this information where necessary to provide the requested service, pursue legitimate interests in secure workforce and duty-roster administration, and comply with applicable legal obligations. Where information concerning health or absence status is treated as special-category data, it is processed only where permitted by applicable employment, social-protection, or healthcare-management law. We do not rely on consent where it would not be freely given or legally appropriate in an employment context.
+
 ## Services and sharing
 
 Account and application data are stored and processed using Supabase as the backend service provider. Data is available to authorized NeuroDienst users and administrators according to their permissions. We do not sell personal data and do not use it for advertising.
 
-Calendar access is optional and is used only for the import or export action requested by the user. NeuroDienst does not continuously collect a user's full device calendar.
+Supabase may use subprocessors to provide its hosted authentication and database services. Where personal data is transferred internationally, the service operator and its processors must use safeguards required by applicable data-protection law.
+
+Calendar access is optional and is used only for an import or export action requested by the user. During import, event titles, calendar names, and dates are examined locally to find possible vacation events. Only the dates that the user selects are sent to the NeuroDienst backend as availability records; source event titles, calendar names, notes, and attendees are not sent. During export, NeuroDienst writes the user's duty assignments to the device calendar selected by the user. The app does not access calendars in the background or continuously collect a user's full device calendar.
 
 ## Retention and deletion
 
-Data is retained while an account is active and while it is needed for roster administration, security, audit, or applicable legal requirements. Retention periods must be finalized by the organization operating the production service.
+Account and application data are retained while an account is active and while needed for roster administration, security, audit, or applicable legal requirements. After an account-deletion request is verified, the account and personal profile data are deleted from active systems without undue delay and no later than one month after receipt of the request, unless a documented legal obligation requires specific data to be retained.
+
+Duty-roster and related audit records may be retained for up to two years for roster administration, dispute resolution, security, and continuity of operations. Where possible, retained records are anonymized or separated from the deleted account. Backup copies may remain for up to two years after deletion from active systems and are then deleted or overwritten according to the backup lifecycle. Backup data is not used for ordinary operations and is restored only when necessary for disaster recovery, security, or legal compliance.
 
 You can request account and associated-data deletion from **Profile > Account and privacy > Request account deletion**, or by emailing spikija@gmail.com from the email address associated with the account. We will verify the requester and confirm what was deleted or what must be retained for a documented legal reason.
+
+Public instructions for requesting deletion are provided on the NeuroDienst **Account Deletion** page published alongside this policy.
 
 ## Security
 
 NeuroDienst uses authenticated access and encrypted HTTPS connections to its backend. Administrators are required to use additional authentication for privileged actions. No system is completely secure; suspected unauthorized access should be reported immediately to the contact above.
 
+Access permissions are enforced through authenticated sessions, role-based database policies, and additional verification for protected administrative actions. Users must keep credentials and authenticator codes confidential.
+
 ## Your choices and rights
 
 You may request access, correction, restriction, export, or deletion of your personal data and may object to processing where applicable. Contact spikija@gmail.com. You may also contact the competent data-protection authority.
+
+NeuroDienst is intended for authorized adult professionals, not children. It does not use personal data for advertising, marketing profiles, or automated decisions with legal or similarly significant effects.
 
 ## Changes
 

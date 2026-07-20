@@ -1,0 +1,7 @@
+# Local environment files may contain Supabase credentials.
+.env
+.env.*
+!.env.example
+supabase/.env
+supabase/.env.*
+

@@ -34,108 +34,124 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'NeuroDienst',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Sign in to continue / Anmelden zum Fortfahren',
-                  style: TextStyle(color: Theme.of(context).hintColor),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Plan neurology duty rosters, absences, and monthly '
-                  'coverage in one shared workspace.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Neurologische Dienstplaene, Abwesenheiten und '
-                  'Monatsabdeckung gemeinsam planen.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Email / E-Mail',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _signIn(),
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: 'Password / Passwort',
-                    suffixIcon: IconButton(
-                      tooltip: _obscurePassword
-                          ? 'Show password / Passwort anzeigen'
-                          : 'Hide password / Passwort verbergen',
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'NeuroDienst',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Sign in to continue / Anmelden zum Fortfahren',
+                          style: TextStyle(color: Theme.of(context).hintColor),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Plan neurology duty rosters, absences, and monthly '
+                          'coverage in one shared workspace.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Neurologische Dienstplaene, Abwesenheiten und '
+                          'Monatsabdeckung gemeinsam planen.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            labelText: 'Email / E-Mail',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _signIn(),
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(),
+                            labelText: 'Password / Passwort',
+                            suffixIcon: IconButton(
+                              tooltip: _obscurePassword
+                                  ? 'Show password / Passwort anzeigen'
+                                  : 'Hide password / Passwort verbergen',
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMessage!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 18),
+                        FilledButton.icon(
+                          onPressed: _isLoading ? null : _signIn,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.login),
+                          label: const Text('Sign in / Anmelden'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _isLoading ? null : _openForgotPassword,
+                          child: const Text(
+                            'Forgot password? / Passwort vergessen?',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          onPressed: _openSupportEmail,
+                          icon: const Icon(Icons.mail_outline),
+                          label: Text(
+                            'Support and feedback / Support und Feedback: '
+                            '$_supportEmail',
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _signIn,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.login),
-                  label: const Text('Sign in / Anmelden'),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _isLoading ? null : _openForgotPassword,
-                  child: const Text('Forgot password? / Passwort vergessen?'),
-                ),
-                const SizedBox(height: 16),
-                TextButton.icon(
-                  onPressed: _openSupportEmail,
-                  icon: const Icon(Icons.mail_outline),
-                  label: Text(
-                    'Support and feedback / Support und Feedback: '
-                    '$_supportEmail',
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),

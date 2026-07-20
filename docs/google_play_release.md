@@ -50,6 +50,7 @@ Increment the build number after every uploaded bundle (`0.2.0+3`, `0.2.0+4`, an
 ## 4. Play Console declarations
 
 - **App access:** explain that login is required and provide working reviewer credentials and navigation instructions.
+  Use `docs/google_play_review_access.md` to provision and verify the dedicated non-admin reviewer account.
 - **Data safety:** declare account identifiers, professional profile data, roster/absence data, and operational/security data sent to Supabase. Declare optional device-calendar access and its import/export purpose. The app currently has no ads or advertising SDK.
 - **Data deletion:** provide a public HTTPS URL for `docs/account_deletion.md`; the app also exposes the request under Profile.
 - **Privacy policy:** publish `docs/privacy_policy.md` at a public, non-editable HTTPS URL and enter it in Play Console and the store listing.
@@ -58,12 +59,14 @@ Increment the build number after every uploaded bundle (`0.2.0+3`, `0.2.0+4`, an
 
 GitHub Pages is a no-cost way to publish the two policy pages without buying a domain. After publishing, test both URLs in a private browser window without signing in.
 
-## 5. Store assets still required
+## 5. Store assets
 
-- Final launcher icon and 512 x 512 Play icon. The current Android launcher icon is Flutter's placeholder; do not submit it to production.
-- 1024 x 500 feature graphic.
+- Final launcher icons and the 512 x 512 Play icon are prepared in `docs/google_play/assets/` and the Android density-specific launcher files.
+- The 1024 x 500 feature graphic is prepared in `docs/google_play/assets/`.
 - At least two representative phone screenshots, with no real staff roster or personal data.
 - Support email and a concise English/German store description.
+
+Use `docs/google_play/PLAY_CONSOLE_SUBMISSION.md` for the complete copy/paste listing, declarations, reviewer instructions, and screenshot plan.
 
 Suggested short description (80-character limit):
 
