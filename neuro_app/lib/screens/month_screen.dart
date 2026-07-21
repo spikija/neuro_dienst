@@ -7,6 +7,7 @@ import 'package:neuro_app/l10n/app_language.dart';
 import 'package:neuro_app/l10n/app_localizations.dart';
 import 'package:neuro_app/services/feedback_sound_service.dart';
 import 'package:neuro_app/services/supabase_bootstrap.dart';
+import 'package:neuro_app/services/supabase_doctor_service.dart';
 import 'package:neuro_app/services/supabase_roster_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../widgets/month_day_card.dart';
@@ -161,6 +162,12 @@ class _MonthScreenState extends State<MonthScreen> {
           ],
         ),
         actions: [
+          if (widget.showAdmin && SupabaseConfig.isConfigured)
+            IconButton(
+              tooltip: l10n.t('refreshCalendar'),
+              icon: const Icon(Icons.refresh),
+              onPressed: _busyMessage == null ? _refreshCurrentMonth : null,
+            ),
           IconButton(
             tooltip: l10n.t('previousMonth'),
             icon: const Icon(Icons.chevron_left),
@@ -1296,56 +1303,112 @@ class _MonthScreenState extends State<MonthScreen> {
     final l10n = AppLocalizations.of(context);
     final target = DateTime(currentRoster.year, currentRoster.month + delta, 1);
 
-    if (SupabaseConfig.isConfigured) {
+    await _runWithBusyMessage(l10n.t('loadingMonth'), () async {
+      if (SupabaseConfig.isConfigured) {
+        try {
+          final roster = await SupabaseRosterService().loadRoster(
+            year: target.year,
+            month: target.month,
+            doctors: _doctors,
+          );
+
+          if (roster == null) {
+            _setStatusMessage(
+              l10n.fill('noGeneratedRoster', {
+                'month': target.month,
+                'year': target.year,
+              }),
+            );
+            return;
+          }
+
+          if (!mounted) {
+            return;
+          }
+
+          setState(() {
+            currentRoster = roster;
+            _selectedDateKeys.clear();
+          });
+          widget.onVisibleMonthChanged?.call(
+            DateTime(target.year, target.month),
+          );
+        } on PostgrestException catch (error) {
+          _setStatusMessage(error.message);
+        } catch (_) {
+          _setStatusMessage(
+            l10n.fill('couldNotLoadMonth', {
+              'month': target.month,
+              'year': target.year,
+            }),
+          );
+        }
+
+        return;
+      }
+
+      setState(() {
+        currentRoster =
+            RosterMonthFactory(
+              holidayProvider: ManualHolidayProvider(),
+              slotFactory: SlotFactory(),
+            ).generateMonth(
+              year: target.year,
+              month: target.month,
+              departmentTemplate: NeurologyDepartmentFactory.create(),
+            );
+        _selectedDateKeys.clear();
+      });
+      widget.onVisibleMonthChanged?.call(DateTime(target.year, target.month));
+    });
+  }
+
+  Future<void> _refreshCurrentMonth() async {
+    if (!widget.showAdmin || !SupabaseConfig.isConfigured) {
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
+
+    await _runWithBusyMessage(l10n.t('refreshingCalendar'), () async {
       try {
+        final doctors = await SupabaseDoctorService().loadActiveDoctors();
         final roster = await SupabaseRosterService().loadRoster(
-          year: target.year,
-          month: target.month,
-          doctors: _doctors,
+          year: currentRoster.year,
+          month: currentRoster.month,
+          doctors: doctors,
         );
 
         if (roster == null) {
           _setStatusMessage(
             l10n.fill('noGeneratedRoster', {
-              'month': target.month,
-              'year': target.year,
+              'month': currentRoster.month,
+              'year': currentRoster.year,
             }),
           );
           return;
         }
 
+        if (!mounted) {
+          return;
+        }
+
         setState(() {
+          _doctors = doctors;
           currentRoster = roster;
+          _editorDoctor = _doctorFromListOrFallback(
+            doctors,
+            _editorDoctor ?? widget.currentDoctor,
+          );
           _selectedDateKeys.clear();
+          _statusMessage = l10n.t('calendarRefreshed');
         });
-        widget.onVisibleMonthChanged?.call(DateTime(target.year, target.month));
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
       } catch (_) {
-        _setStatusMessage(
-          l10n.fill('couldNotLoadMonth', {
-            'month': target.month,
-            'year': target.year,
-          }),
-        );
+        _setStatusMessage(l10n.t('couldNotRefreshCalendar'));
       }
-
-      return;
-    }
-
-    setState(() {
-      currentRoster =
-          RosterMonthFactory(
-            holidayProvider: ManualHolidayProvider(),
-            slotFactory: SlotFactory(),
-          ).generateMonth(
-            year: target.year,
-            month: target.month,
-            departmentTemplate: NeurologyDepartmentFactory.create(),
-          );
-      _selectedDateKeys.clear();
     });
-    widget.onVisibleMonthChanged?.call(DateTime(target.year, target.month));
   }
 
   Future<void> _openAdmin() async {
