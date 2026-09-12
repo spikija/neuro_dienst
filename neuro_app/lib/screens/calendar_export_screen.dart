@@ -78,6 +78,8 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
                     '${l10n.t('assigned')}: $_assignmentCount',
                   ),
                   const SizedBox(height: 16),
+                  Text(l10n.t('calendarChoiceHint')),
+                  const SizedBox(height: 12),
                   FutureBuilder<List<DeviceCalendarTarget>>(
                     future: _calendarTargetsFuture,
                     builder: (context, snapshot) {
@@ -302,8 +304,10 @@ class _CalendarExportScreenState extends State<CalendarExportScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Synced ${result.createdCount} duties to '
-            '${result.calendarName}. Pull-to-refresh Google Calendar.',
+            AppLocalizations.of(context).fill('calendarSyncComplete', {
+              'count': result.createdCount,
+              'calendar': result.calendarName,
+            }),
           ),
         ),
       );

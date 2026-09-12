@@ -123,6 +123,11 @@ const _en = <String, String>{
   'couldNotLoadPhoneCalendars': 'Could not load phone calendars: {error}',
   'noWritablePhoneCalendarsFound': 'No writable phone calendars found.',
   'phoneCalendar': 'Phone calendar',
+  'calendarChoiceHint':
+      'Choose a calendar from the accounts connected to your phone. '
+      'For another calendar app, share or save an ICS file and import it there.',
+  'calendarSyncComplete':
+      'Synced {count} duties to {calendar}. Open your calendar app to view them.',
   'syncToPhoneCalendar': 'Sync to phone calendar',
   'shareIcsFile': 'Share .ics file',
   'copyIcs': 'Copy .ics',
@@ -311,6 +316,13 @@ const _de = <String, String>{
   'noWritablePhoneCalendarsFound':
       'Keine beschreibbaren Telefonkalender gefunden.',
   'phoneCalendar': 'Telefonkalender',
+  'calendarChoiceHint':
+      'Wählen Sie einen Kalender der auf Ihrem Telefon verbundenen Konten. '
+      'Für eine andere Kalender-App können Sie eine ICS-Datei teilen oder '
+      'speichern und dort importieren.',
+  'calendarSyncComplete':
+      '{count} Dienste mit {calendar} synchronisiert. Öffnen Sie Ihre '
+      'Kalender-App, um sie anzuzeigen.',
   'syncToPhoneCalendar': 'Mit Telefonkalender synchronisieren',
   'shareIcsFile': '.ics-Datei teilen',
   'copyIcs': '.ics kopieren',

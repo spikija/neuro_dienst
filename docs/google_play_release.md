@@ -7,7 +7,7 @@ This project is prepared for a first **internal testing** release. Do not start 
 - App name: `NeuroDienst`
 - Application ID: `io.neurodienst.app`
 - Current version: `0.2.0+2`
-- Auth deep link: `io.neurodienst.app://auth`
+- Password recovery deep link: `io.neurodienst.app://auth/reset-password`
 
 The application ID cannot be changed after the first Play Console artifact is uploaded. Confirm it before creating the app.
 
@@ -41,7 +41,8 @@ Increment the build number after every uploaded bundle (`0.2.0+3`, `0.2.0+4`, an
 
 ## 3. Supabase production configuration
 
-- Add `io.neurodienst.app://auth` to the allowed Auth redirect URLs.
+- Add the exact `io.neurodienst.app://auth/reset-password` URL to Authentication > URL Configuration > Redirect URLs. The bare `io.neurodienst.app://auth` entry does not cover the recovery path.
+- Follow the [password recovery release tests](password_recovery_testing.md) on the installed release build.
 - Keep Row Level Security enabled and verify ordinary doctors cannot invoke admin operations.
 - Require MFA for privileged admin actions.
 - Create a dedicated Play reviewer account with non-destructive sample data. Store its credentials in Play Console **App access**, not in this repository.

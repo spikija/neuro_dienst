@@ -62,6 +62,7 @@ class MonthDayCard extends StatelessWidget {
 
     return Tooltip(
       message: _tooltipMessage(roleRows),
+      triggerMode: TooltipTriggerMode.manual,
       waitDuration: const Duration(milliseconds: 450),
       child: InkWell(
         onTap: isDisabled ? null : onTap,

@@ -54,16 +54,13 @@ class MonthReportScreen extends StatelessWidget {
         color: Colors.grey.shade300,
         child: Center(
           child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: _A4PortraitPage(
-                child: _ReportContent(
-                  roster: roster,
-                  doctors: doctors,
-                  reportRoles: reportRoles,
-                  layout: layout,
-                ),
+            padding: const EdgeInsets.all(12),
+            child: _A4PortraitPage(
+              child: _ReportContent(
+                roster: roster,
+                doctors: doctors,
+                reportRoles: reportRoles,
+                layout: layout,
               ),
             ),
           ),
@@ -96,6 +93,62 @@ class _A4PortraitPage extends StatelessWidget {
         ],
       ),
       child: child,
+    );
+  }
+}
+
+/// Both halves share the same row heights and vertical scroll view, so dates
+/// remain aligned while only the assignment columns scroll horizontally.
+class _FrozenReportTable extends StatelessWidget {
+  final Map<int, TableColumnWidth> columnWidths;
+  final List<TableRow> rows;
+
+  const _FrozenReportTable({required this.columnWidths, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    Table table({required bool frozen}) {
+      return Table(
+        columnWidths: {
+          for (final entry in columnWidths.entries)
+            if (frozen ? entry.key < 2 : entry.key >= 2)
+              (frozen ? entry.key : entry.key - 2): entry.value,
+        },
+        border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+        children: [
+          for (final row in rows)
+            TableRow(
+              decoration: row.decoration,
+              children: frozen
+                  ? row.children.take(2).toList()
+                  : row.children.skip(2).toList(),
+            ),
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const frozenWidth = 86.0;
+        final tableWidth = constraints.maxWidth.clamp(1056.0, double.infinity);
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: frozenWidth, child: table(frozen: true)),
+            Expanded(
+              child: SingleChildScrollView(
+                key: const ValueKey('report-assignment-scroll'),
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth - frozenWidth,
+                  child: table(frozen: false),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -253,11 +306,9 @@ class _ReportTable extends StatelessWidget {
           roleColumns.length + 3: const FixedColumnWidth(110),
         };
 
-        return Table(
+        return _FrozenReportTable(
           columnWidths: columnWidths,
-          border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
+          rows: [
             _headerRow(headerHeight, roleColumns, l10n),
             for (final day in roster.days)
               _dayRow(
@@ -539,11 +590,9 @@ class _PhysicianReportTable extends StatelessWidget {
           reportDoctors.length + 2: const FixedColumnWidth(110),
         };
 
-        return Table(
+        return _FrozenReportTable(
           columnWidths: columnWidths,
-          border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
-          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-          children: [
+          rows: [
             _headerRow(headerHeight, reportDoctors, l10n),
             for (final day in roster.days)
               _dayRow(

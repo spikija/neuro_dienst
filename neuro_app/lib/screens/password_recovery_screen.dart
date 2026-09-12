@@ -5,8 +5,9 @@ import '../services/auth_redirects.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   final String initialEmail;
+  final GoTrueClient? auth;
 
-  const ForgotPasswordScreen({super.key, this.initialEmail = ''});
+  const ForgotPasswordScreen({super.key, this.initialEmail = '', this.auth});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -36,14 +37,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       appBar: AppBar(
         title: const Text('Reset password / Passwort zurücksetzen'),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: _sent ? _buildSentContent() : _buildRequestForm(),
-          ),
-        ),
+      body: _PasswordFormBody(
+        child: _sent ? _buildSentContent() : _buildRequestForm(),
       ),
     );
   }
@@ -115,6 +110,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _sendResetLink() async {
+    if (_isLoading || _sent) return;
     final email = _emailController.text.trim().toLowerCase();
     if (email.isEmpty || !email.contains('@')) {
       setState(() {
@@ -130,10 +126,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: AuthRedirects.passwordRecovery,
-      );
+      await (widget.auth ?? Supabase.instance.client.auth)
+          .resetPasswordForEmail(
+            email,
+            redirectTo: AuthRedirects.passwordRecovery,
+          );
       if (mounted) {
         setState(() => _sent = true);
       }
@@ -159,8 +156,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
 class UpdatePasswordScreen extends StatefulWidget {
   final Future<void> Function() onCompleted;
+  final GoTrueClient? auth;
 
-  const UpdatePasswordScreen({super.key, required this.onCompleted});
+  const UpdatePasswordScreen({super.key, required this.onCompleted, this.auth});
 
   @override
   State<UpdatePasswordScreen> createState() => _UpdatePasswordScreenState();
@@ -193,79 +191,70 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Use at least 12 characters. A password manager-generated '
-                  'password is recommended.',
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    border: const OutlineInputBorder(),
-                    labelText: 'New password / Neues Passwort',
-                    suffixIcon: IconButton(
-                      onPressed: () =>
-                          setState(() => _obscurePassword = !_obscurePassword),
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _confirmationController,
-                  obscureText: true,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _updatePassword(),
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    labelText: 'Confirm password / Passwort bestätigen',
-                  ),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _errorMessage!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: _isLoading ? null : _updatePassword,
-                  icon: _isLoading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.password),
-                  label: const Text('Set password / Passwort festlegen'),
-                ),
-              ],
+      body: _PasswordFormBody(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Use at least 12 characters. A password manager-generated '
+              'password is recommended.',
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              obscureText: _obscurePassword,
+              autofocus: true,
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                labelText: 'New password / Neues Passwort',
+                suffixIcon: IconButton(
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmationController,
+              obscureText: true,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _updatePassword(),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Confirm password / Passwort bestätigen',
+              ),
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: 18),
+            FilledButton.icon(
+              onPressed: _isLoading ? null : _updatePassword,
+              icon: _isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.password),
+              label: const Text('Set password / Passwort festlegen'),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Future<void> _updatePassword() async {
+    if (_isLoading) return;
     final password = _passwordController.text;
     if (password.length < 12) {
       setState(() {
@@ -288,7 +277,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
     });
 
     try {
-      await Supabase.instance.client.auth.updateUser(
+      await (widget.auth ?? Supabase.instance.client.auth).updateUser(
         UserAttributes(password: password),
       );
       await widget.onCompleted();
@@ -309,5 +298,30 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+}
+
+class _PasswordFormBody extends StatelessWidget {
+  final Widget child;
+
+  const _PasswordFormBody({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
+                child: Padding(padding: const EdgeInsets.all(24), child: child),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

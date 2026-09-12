@@ -21,8 +21,55 @@ login screen and Admin button are intentionally hidden.
 The older `SUPABASE_ANON_KEY` name is also accepted as a fallback, but new
 commands should use `SUPABASE_PUBLISHABLE_KEY`.
 
+## Android Studio and the Pixel emulator
+
+Supabase settings are compile-time Dart defines. Starting `lib/main.dart`
+without them launches demo mode, even if a previous installation used Supabase.
+Hot reload does not add missing build-time configuration.
+
+For local development, keep the project URL and **publishable** client key in
+`neuro_app/.env.supabase.json` (ignored by Git):
+
+```json
+{
+  "SUPABASE_URL": "https://YOUR_PROJECT_REF.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "YOUR_PUBLISHABLE_KEY"
+}
+```
+
+In Android Studio, open the `neuro_app` Flutter project, select the Pixel emulator,
+and open **Run > Edit Configurations > main.dart**. Set **Additional run args** to:
+
+```text
+--dart-define-from-file=.env.supabase.json
+```
+
+Stop the current run and press Run again so the app is rebuilt with these values.
+The local `main.dart` run configuration points to this file. If no saved session
+exists, the connected app shows the sign-in screen; otherwise it restores that
+session. Its startup log contains `Supabase init completed` instead of the demo
+mode message.
+
+The equivalent command, from `neuro_app`, is:
+
+```powershell
+flutter run -d emulator-5554 --dart-define-from-file=.env.supabase.json
+```
+
+Use the actual device ID from `flutter devices` if it differs. The local config
+file is for the public client key only; do not put a secret/service-role key in it.
+
 Never put the Secret key into Flutter source code or `--dart-define` commands
 for client apps.
+
+## Password recovery
+
+In Authentication > URL Configuration > Redirect URLs, add the exact URL
+`io.neurodienst.app://auth/reset-password`. This already matches the app's
+`AuthRedirects.passwordRecovery`; no code URL change is needed when correcting
+the dashboard to this value. The bare `io.neurodienst.app://auth` entry does not
+cover the recovery path. Follow the [release test plan](password_recovery_testing.md)
+to check email delivery, warm/cold app launch, password updates and invalid links.
 
 ## First Admin User
 

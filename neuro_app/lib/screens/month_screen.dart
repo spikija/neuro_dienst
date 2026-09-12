@@ -27,6 +27,7 @@ class MonthScreen extends StatefulWidget {
   final ValueChanged<Doctor> onDoctorUpdated;
   final VoidCallback? onAdminClosed;
   final ValueChanged<DateTime>? onVisibleMonthChanged;
+  final Future<RosterMonth?> Function(DateTime month)? loadMonth;
   final List<Doctor> doctors;
   final bool showAdmin;
   final String? signedInEmail;
@@ -44,6 +45,7 @@ class MonthScreen extends StatefulWidget {
     required this.onDoctorUpdated,
     this.onAdminClosed,
     this.onVisibleMonthChanged,
+    this.loadMonth,
     this.showAdmin = false,
     this.signedInEmail,
     this.language = AppLanguage.english,
@@ -66,11 +68,14 @@ class _MonthScreenState extends State<MonthScreen> {
 
   late RosterMonth currentRoster;
   final Set<String> _selectedDateKeys = {};
+  final _bulkActionMenuKey = GlobalKey<PopupMenuButtonState<_BulkAction>>();
+  int? _activePointer;
   int? _pointerDownIndex;
+  Offset? _pointerDownPosition;
+  bool _pointerMoved = false;
+  bool _isLongPress = false;
   bool _isRangeSelecting = false;
   Timer? _longPressSelectionTimer;
-  Offset? _latestPointerPosition;
-  Size? _latestGridSize;
   String? _statusMessage;
   String? _busyMessage;
   bool _editorMode = false;
@@ -109,6 +114,8 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     if (oldWidget.roster != widget.roster) {
+      _resetPointerSelection();
+      _selectedDateKeys.clear();
       currentRoster = widget.roster;
     }
 
@@ -468,19 +475,27 @@ class _MonthScreenState extends State<MonthScreen> {
               child: LayoutBuilder(
                 builder: (context, gridConstraints) {
                   return Listener(
+                    behavior: HitTestBehavior.opaque,
                     onPointerDown: (event) {
+                      if (_activePointer != null) {
+                        _resetPointerSelection();
+                        return;
+                      }
+                      _activePointer = event.pointer;
                       _handleGridPointerDown(
                         event.localPosition,
                         gridConstraints.biggest,
                       );
                     },
                     onPointerMove: (event) {
+                      if (event.pointer != _activePointer) return;
                       _handleGridPointerMove(
                         event.localPosition,
                         gridConstraints.biggest,
                       );
                     },
                     onPointerUp: (event) {
+                      if (event.pointer != _activePointer) return;
                       _handleGridPointerUp(
                         event.localPosition,
                         gridConstraints.biggest,
@@ -830,6 +845,7 @@ class _MonthScreenState extends State<MonthScreen> {
                 icon: const Icon(Icons.deselect),
               ),
               PopupMenuButton<_BulkAction>(
+                key: _bulkActionMenuKey,
                 tooltip: l10n.t('actions'),
                 icon: const Icon(Icons.more_vert),
                 onSelected: _handleBulkAction,
@@ -1100,13 +1116,15 @@ class _MonthScreenState extends State<MonthScreen> {
 
   void _handleGridPointerDown(Offset position, Size gridSize) {
     if (_busyMessage != null) {
+      _resetPointerSelection();
       return;
     }
 
     _pointerDownIndex = _indexForGridPosition(position, gridSize);
+    _pointerDownPosition = position;
+    _pointerMoved = false;
+    _isLongPress = false;
     _isRangeSelecting = false;
-    _latestPointerPosition = position;
-    _latestGridSize = gridSize;
     _longPressSelectionTimer?.cancel();
 
     final startIndex = _pointerDownIndex;
@@ -1120,20 +1138,19 @@ class _MonthScreenState extends State<MonthScreen> {
         return;
       }
 
-      final latestPosition = _latestPointerPosition;
-      final latestGridSize = _latestGridSize;
-      final currentIndex = latestPosition == null || latestGridSize == null
-          ? startIndex
-          : _indexForGridPosition(latestPosition, latestGridSize);
-
-      _isRangeSelecting = true;
-      _selectDateRange(startIndex, currentIndex ?? startIndex);
+      // Wait for release to distinguish holding a day from holding and dragging.
+      _isLongPress = true;
     });
   }
 
   void _handleGridPointerMove(Offset position, Size gridSize) {
-    _latestPointerPosition = position;
-    _latestGridSize = gridSize;
+    final origin = _pointerDownPosition;
+    if (origin == null) return;
+
+    if (!_isLongPress && (position - origin).distance > 18) {
+      _pointerMoved = true;
+      _longPressSelectionTimer?.cancel();
+    }
 
     final startIndex = _pointerDownIndex;
     final currentIndex = _indexForGridPosition(position, gridSize);
@@ -1142,36 +1159,63 @@ class _MonthScreenState extends State<MonthScreen> {
       return;
     }
 
-    if (!_isRangeSelecting) {
+    if (!_isLongPress || (!_isRangeSelecting && currentIndex == startIndex)) {
       return;
     }
 
+    _isRangeSelecting = true;
     _selectDateRange(startIndex, currentIndex);
   }
 
   void _handleGridPointerUp(Offset position, Size gridSize) {
     _longPressSelectionTimer?.cancel();
     _longPressSelectionTimer = null;
-    _latestPointerPosition = position;
-    _latestGridSize = gridSize;
-
     final startIndex = _pointerDownIndex;
     final endIndex = _indexForGridPosition(position, gridSize);
-    final openedByTap =
-        !_isRangeSelecting && startIndex != null && startIndex == endIndex;
+    final displacement = position - (_pointerDownPosition ?? position);
+    final isLongPress = _isLongPress;
+    final isRangeSelecting = _isRangeSelecting;
+    final isTap =
+        !_pointerMoved && startIndex != null && startIndex == endIndex;
 
     _resetPointerSelection();
 
-    if (openedByTap) {
+    if (isRangeSelecting) {
+      _showBulkActionMenu();
+    } else if (isLongPress && startIndex != null && startIndex == endIndex) {
       _openDay(currentRoster.days[startIndex]);
+    } else if (!isLongPress &&
+        displacement.dx.abs() >= 56 &&
+        displacement.dx.abs() > displacement.dy.abs() * 1.25) {
+      _openRelativeMonth(displacement.dx < 0 ? 1 : -1);
+    } else if (!isLongPress && isTap) {
+      setState(() {
+        final key = _dateKey(currentRoster.days[startIndex].date);
+        if (!_selectedDateKeys.remove(key)) {
+          _selectedDateKeys.add(key);
+        }
+      });
+      _showBulkActionMenu();
     }
+  }
+
+  void _showBulkActionMenu() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _busyMessage != null || _selectedDateKeys.isEmpty) return;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      _bulkActionMenuKey.currentState?.showButtonMenu();
+    });
+    // Range highlighting may already be painted before the pointer is released.
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _resetPointerSelection() {
     _longPressSelectionTimer?.cancel();
     _longPressSelectionTimer = null;
-    _latestPointerPosition = null;
-    _latestGridSize = null;
+    _activePointer = null;
+    _pointerDownPosition = null;
+    _pointerMoved = false;
+    _isLongPress = false;
     _pointerDownIndex = null;
     _isRangeSelecting = false;
   }
@@ -1179,7 +1223,7 @@ class _MonthScreenState extends State<MonthScreen> {
   int? _indexForGridPosition(Offset position, Size gridSize) {
     final weekRows = _buildWeekRows();
     final contentWidth = gridSize.width - (_gridPadding * 2);
-    final contentHeight = gridSize.height - (_gridPadding * 2);
+    final contentHeight = gridSize.height - _gridPadding;
 
     if (weekRows.isEmpty || contentWidth <= 0 || contentHeight <= 0) {
       return null;
@@ -1197,7 +1241,7 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final x = position.dx - _gridPadding;
-    final y = position.dy - _gridPadding;
+    final y = position.dy;
 
     if (x < 0 || y < 0) {
       return null;
@@ -1262,10 +1306,6 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _openDay(RosterDay day) async {
-    if (day.calendarInfo.isPublicHoliday || day.calendarInfo.isWeekend) {
-      return;
-    }
-
     final updatedDay = await Navigator.push<RosterDay>(
       context,
       MaterialPageRoute(
@@ -1300,17 +1340,20 @@ class _MonthScreenState extends State<MonthScreen> {
   }
 
   Future<void> _openRelativeMonth(int delta) async {
+    _resetPointerSelection();
     final l10n = AppLocalizations.of(context);
     final target = DateTime(currentRoster.year, currentRoster.month + delta, 1);
 
     await _runWithBusyMessage(l10n.t('loadingMonth'), () async {
-      if (SupabaseConfig.isConfigured) {
+      if (SupabaseConfig.isConfigured || widget.loadMonth != null) {
         try {
-          final roster = await SupabaseRosterService().loadRoster(
-            year: target.year,
-            month: target.month,
-            doctors: _doctors,
-          );
+          final roster = widget.loadMonth != null
+              ? await widget.loadMonth!(target)
+              : await SupabaseRosterService().loadRoster(
+                  year: target.year,
+                  month: target.month,
+                  doctors: _doctors,
+                );
 
           if (roster == null) {
             _setStatusMessage(
@@ -1328,6 +1371,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
           setState(() {
             currentRoster = roster;
+            _statusMessage = null;
             _selectedDateKeys.clear();
           });
           widget.onVisibleMonthChanged?.call(
@@ -1348,6 +1392,7 @@ class _MonthScreenState extends State<MonthScreen> {
       }
 
       setState(() {
+        _statusMessage = null;
         currentRoster =
             RosterMonthFactory(
               holidayProvider: ManualHolidayProvider(),
