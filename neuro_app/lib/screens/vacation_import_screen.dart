@@ -6,11 +6,13 @@ import '../services/device_calendar_import_service.dart';
 class VacationImportScreen extends StatefulWidget {
   final int year;
   final int month;
+  final DeviceCalendarImportService? importService;
 
   const VacationImportScreen({
     super.key,
     required this.year,
     required this.month,
+    this.importService,
   });
 
   @override
@@ -18,8 +20,9 @@ class VacationImportScreen extends StatefulWidget {
 }
 
 class _VacationImportScreenState extends State<VacationImportScreen> {
-  late final Future<List<CalendarVacationCandidate>> _future;
+  late final Future<CalendarVacationScan> _future;
   final Set<int> _selectedIndexes = {};
+  String? _selectedCalendarId;
 
   DateTime get _rangeStart => DateTime(widget.year, widget.month);
 
@@ -28,13 +31,13 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
   @override
   void initState() {
     super.initState();
-    _future = DeviceCalendarImportService()
-        .loadVacationCandidates(start: _rangeStart, end: _rangeEnd)
-        .then((candidates) {
+    _future = (widget.importService ?? DeviceCalendarImportService())
+        .loadVacationScan(start: _rangeStart, end: _rangeEnd)
+        .then((scan) {
           _selectedIndexes.addAll(
-            List.generate(candidates.length, (index) => index),
+            List.generate(scan.candidates.length, (index) => index),
           );
-          return candidates;
+          return scan;
         });
   }
 
@@ -44,7 +47,7 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.t('importVacation'))),
-      body: FutureBuilder<List<CalendarVacationCandidate>>(
+      body: FutureBuilder<CalendarVacationScan>(
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
@@ -58,46 +61,100 @@ class _VacationImportScreenState extends State<VacationImportScreen> {
             );
           }
 
-          final candidates = snapshot.data ?? const [];
-
-          if (candidates.isEmpty) {
-            return _ImportMessage(
-              icon: Icons.event_busy,
-              message: l10n.t('noVacationCalendarEventsFound'),
-            );
-          }
+          final scan = snapshot.data!;
+          final candidates = scan.candidates
+              .where(
+                (candidate) =>
+                    _selectedCalendarId == null ||
+                    candidate.calendarId == _selectedCalendarId,
+              )
+              .toList();
 
           return Column(
             children: [
-              Expanded(
-                child: ListView.builder(
-                  itemCount: candidates.length,
-                  itemBuilder: (context, index) {
-                    final candidate = candidates[index];
-                    final selected = _selectedIndexes.contains(index);
-
-                    return CheckboxListTile(
-                      value: selected,
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCalendarId ?? '',
+                      isExpanded: true,
+                      menuMaxHeight: 320,
+                      decoration: InputDecoration(
+                        labelText: l10n.t('vacationSourceCalendar'),
+                        border: const OutlineInputBorder(),
+                      ),
+                      items: [
+                        DropdownMenuItem(
+                          value: '',
+                          child: Text(l10n.t('allPhoneCalendars')),
+                        ),
+                        for (final source in scan.sources)
+                          DropdownMenuItem(
+                            value: source.id,
+                            child: Text(
+                              source.displayName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                       onChanged: (value) {
                         setState(() {
-                          if (value == true) {
-                            _selectedIndexes.add(index);
-                          } else {
-                            _selectedIndexes.remove(index);
-                          }
+                          _selectedCalendarId = value == '' ? null : value;
+                          final count = scan.candidates
+                              .where(
+                                (candidate) =>
+                                    _selectedCalendarId == null ||
+                                    candidate.calendarId == _selectedCalendarId,
+                              )
+                              .length;
+                          _selectedIndexes
+                            ..clear()
+                            ..addAll(List.generate(count, (index) => index));
                         });
                       },
-                      title: Text(candidate.title),
-                      subtitle: Text(
-                        '${_formatDate(candidate.start)} - '
-                        '${_formatDate(candidate.end)}\n'
-                        '${candidate.calendarName}'
-                        '${candidate.allDay ? ' - ${l10n.t('allDay')}' : ''}',
-                      ),
-                      secondary: const Icon(Icons.beach_access),
-                    );
-                  },
+                    ),
+                    const SizedBox(height: 8),
+                    Text(l10n.t('vacationSourceHint')),
+                  ],
                 ),
+              ),
+              Expanded(
+                child: candidates.isEmpty
+                    ? _ImportMessage(
+                        icon: Icons.event_busy,
+                        message: l10n.t('noVacationCalendarEventsFound'),
+                      )
+                    : ListView.builder(
+                        itemCount: candidates.length,
+                        itemBuilder: (context, index) {
+                          final candidate = candidates[index];
+                          final selected = _selectedIndexes.contains(index);
+
+                          return CheckboxListTile(
+                            value: selected,
+                            onChanged: (value) {
+                              setState(() {
+                                if (value == true) {
+                                  _selectedIndexes.add(index);
+                                } else {
+                                  _selectedIndexes.remove(index);
+                                }
+                              });
+                            },
+                            title: Text(candidate.title),
+                            subtitle: Text(
+                              '${_formatDate(candidate.start)} - '
+                              '${_formatDate(candidate.end)}\n'
+                              '${l10n.t('vacationSourceCalendar')}: ${candidate.sourceLabel}'
+                              '${candidate.allDay ? ' - ${l10n.t('allDay')}' : ''}',
+                            ),
+                            secondary: const Icon(Icons.beach_access),
+                          );
+                        },
+                      ),
               ),
               SafeArea(
                 top: false,

@@ -123,6 +123,10 @@ const _en = <String, String>{
   'couldNotLoadPhoneCalendars': 'Could not load phone calendars: {error}',
   'noWritablePhoneCalendarsFound': 'No writable phone calendars found.',
   'phoneCalendar': 'Phone calendar',
+  'vacationSourceCalendar': 'Source calendar',
+  'allPhoneCalendars': 'All phone calendars',
+  'vacationSourceHint':
+      'Choose a calendar and account. Calendar apps may share the same calendars. Only calendars shared with Android are available here.',
   'calendarChoiceHint':
       'Choose a calendar from the accounts connected to your phone. '
       'For another calendar app, share or save an ICS file and import it there.',
@@ -316,6 +320,10 @@ const _de = <String, String>{
   'noWritablePhoneCalendarsFound':
       'Keine beschreibbaren Telefonkalender gefunden.',
   'phoneCalendar': 'Telefonkalender',
+  'vacationSourceCalendar': 'Quellkalender',
+  'allPhoneCalendars': 'Alle Telefonkalender',
+  'vacationSourceHint':
+      'Kalender und Konto auswählen. Kalender-Apps können dieselben Kalender verwenden. Hier erscheinen nur Kalender, die für Android freigegeben sind.',
   'calendarChoiceHint':
       'Wählen Sie einen Kalender der auf Ihrem Telefon verbundenen Konten. '
       'Für eine andere Kalender-App können Sie eine ICS-Datei teilen oder '
