@@ -893,6 +893,20 @@ class _MonthScreenState extends State<MonthScreen> {
                       label: l10n.t('removeEfDay'),
                     ),
                   ),
+                  PopupMenuItem(
+                    value: _BulkAction.setOtherAbsence,
+                    child: _MenuRow(
+                      icon: Icons.event_busy,
+                      label: l10n.t('otherAbsence'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _BulkAction.removeOtherAbsence,
+                    child: _MenuRow(
+                      icon: Icons.event_available,
+                      label: l10n.t('removeOtherAbsence'),
+                    ),
+                  ),
                   const PopupMenuDivider(),
                   if (_editorMode && widget.showAdmin) ...[
                     PopupMenuItem(
@@ -985,6 +999,19 @@ class _MonthScreenState extends State<MonthScreen> {
         await _runWithBusyMessage(
           l10n.t('updatingEfDay'),
           _removeEfDayFromSelectedDates,
+        );
+      case _BulkAction.setOtherAbsence:
+        await _chooseOtherAbsence();
+      case _BulkAction.removeOtherAbsence:
+        await _runWithBusyMessage(
+          l10n.t('updatingOtherAbsence'),
+          () => _removeAvailabilityFromSelectedDates(
+            type: AvailabilityType.otherAbsence,
+            types: otherAbsenceTypes,
+            noEntryKey: 'noOtherAbsenceFound',
+            removedKey: 'otherAbsenceRemoved',
+            failureKey: 'couldNotRemoveOtherAbsence',
+          ),
         );
       case _BulkAction.chooseDoctor:
         if (widget.showAdmin) {
@@ -1600,31 +1627,96 @@ class _MonthScreenState extends State<MonthScreen> {
     );
   }
 
+  Future<void> _chooseOtherAbsence() async {
+    final l10n = AppLocalizations.of(context);
+    final type = await showDialog<AvailabilityType>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(l10n.t('otherAbsence')),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+            child: Text(l10n.t('otherAbsenceHint')),
+          ),
+          for (final type in otherAbsenceTypes)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, type),
+              child: Text(l10n.otherAbsenceLabel(type)),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.t('cancel')),
+          ),
+        ],
+      ),
+    );
+    if (type == null || !mounted) return;
+    await _runWithBusyMessage(
+      l10n.t('updatingOtherAbsence'),
+      () => _setSelectedDatesAsBlockingAvailability(
+        type: type,
+        statusKey: 'otherAbsenceSet',
+        failureKey: 'couldNotSaveOtherAbsence',
+        selectedWorkingDaysOnly: true,
+      ),
+    );
+  }
+
   Future<void> _setSelectedDatesAsBlockingAvailability({
     required AvailabilityType type,
     required String statusKey,
     required String failureKey,
+    bool selectedWorkingDaysOnly = false,
   }) async {
     final l10n = AppLocalizations.of(context);
-    final selectedDays = _selectedDays();
+    final selectedDays = _selectedDays()
+        .where(
+          (day) =>
+              !selectedWorkingDaysOnly ||
+              (!day.calendarInfo.isWeekend &&
+                  !day.calendarInfo.isPublicHoliday),
+        )
+        .toList();
 
     if (selectedDays.isEmpty) {
+      if (selectedWorkingDaysOnly) {
+        _setStatusMessage(l10n.t('noWorkingDaysSelected'));
+      }
       return;
     }
 
     final doctor = _bulkAvailabilityDoctor();
-    final period = AvailabilityPeriod(
-      start: selectedDays.first.date,
-      end: selectedDays.last.date,
-      type: type,
-    );
+    final selectedKeys = selectedDays.map((day) => _dateKey(day.date)).toSet();
+    final periods = selectedWorkingDaysOnly
+        ? [
+            for (final day in selectedDays)
+              AvailabilityPeriod(start: day.date, end: day.date, type: type),
+          ]
+        : [
+            AvailabilityPeriod(
+              start: selectedDays.first.date,
+              end: selectedDays.last.date,
+              type: type,
+            ),
+          ];
 
     if (SupabaseConfig.isConfigured) {
       try {
-        await _insertAbsenceInSupabase(doctor: doctor, period: period);
+        if (selectedWorkingDaysOnly) {
+          for (final previousType in otherAbsenceTypes) {
+            await _removeAvailabilityFromSupabase(
+              doctor: doctor,
+              selectedKeys: selectedKeys,
+              type: previousType,
+            );
+          }
+        }
+        for (final period in periods) {
+          await _insertAbsenceInSupabase(doctor: doctor, period: period);
+        }
         await _deleteDoctorAssignmentsForDates(
           doctor: doctor,
-          dateKeys: _selectedDateKeys.toSet(),
+          dateKeys: selectedKeys,
         );
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
@@ -1636,10 +1728,17 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final updatedDoctor = doctor.copyWith(
-      availabilities: [...doctor.availabilities, period],
+      availabilities: [
+        for (final previous in doctor.availabilities)
+          if (selectedWorkingDaysOnly &&
+              otherAbsenceTypes.contains(previous.type))
+            ..._removeSelectedDatesFromPeriod(previous, selectedKeys)
+          else
+            previous,
+        ...periods,
+      ],
     );
 
-    final selectedKeys = _selectedDateKeys.toSet();
     final updatedDays = _removeDoctorAssignmentsOnDates(
       doctor: doctor,
       dateKeys: selectedKeys,
@@ -1886,6 +1985,7 @@ class _MonthScreenState extends State<MonthScreen> {
 
   Future<void> _removeAvailabilityFromSelectedDates({
     required AvailabilityType type,
+    Set<AvailabilityType>? types,
     required String noEntryKey,
     required String removedKey,
     required String failureKey,
@@ -1898,17 +1998,20 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     final selectedKeys = _selectedDateKeys.toSet();
+    final removedTypes = types ?? {type};
     final updatedAvailabilities = <AvailabilityPeriod>[];
-    var removedDays = 0;
+    final removedDateKeys = <String>{};
     final doctor = _bulkAvailabilityDoctor();
 
     if (SupabaseConfig.isConfigured) {
       try {
-        await _removeAvailabilityFromSupabase(
-          doctor: doctor,
-          selectedKeys: selectedKeys,
-          type: type,
-        );
+        for (final removedType in removedTypes) {
+          await _removeAvailabilityFromSupabase(
+            doctor: doctor,
+            selectedKeys: selectedKeys,
+            type: removedType,
+          );
+        }
       } on PostgrestException catch (error) {
         _setStatusMessage(error.message);
         return;
@@ -1919,7 +2022,7 @@ class _MonthScreenState extends State<MonthScreen> {
     }
 
     for (final availability in doctor.availabilities) {
-      if (availability.type != type) {
+      if (!removedTypes.contains(availability.type)) {
         updatedAvailabilities.add(availability);
         continue;
       }
@@ -1929,10 +2032,13 @@ class _MonthScreenState extends State<MonthScreen> {
         selectedKeys,
       );
 
-      removedDays += _countSelectedDaysInPeriod(availability, selectedKeys);
+      removedDateKeys.addAll(
+        selectedKeys.where((key) => availability.includes(_dateFromKey(key))),
+      );
       updatedAvailabilities.addAll(retainedRanges);
     }
 
+    final removedDays = removedDateKeys.length;
     if (removedDays == 0) {
       _clearDateSelection();
       _setStatusMessage(l10n.t(noEntryKey));
@@ -2681,6 +2787,14 @@ class _MonthScreenState extends State<MonthScreen> {
         return 'post_duty';
       case AvailabilityType.efDay:
         return 'ef_day';
+      case AvailabilityType.zamLateShift:
+        return 'zam_late_shift';
+      case AvailabilityType.zamDaytime:
+        return 'zam_daytime';
+      case AvailabilityType.otherOutpatientClinic:
+        return 'other_outpatient_clinic';
+      case AvailabilityType.otherAbsence:
+        return 'other_absence';
     }
   }
 
@@ -2869,6 +2983,8 @@ enum _BulkAction {
   removeDuty24,
   setEfDay,
   removeEfDay,
+  setOtherAbsence,
+  removeOtherAbsence,
   chooseDoctor,
   chooseRole,
   removeRole,

@@ -136,6 +136,14 @@ AvailabilityType _availabilityTypeFromDatabase(String? value) {
       return AvailabilityType.postDuty;
     case 'ef_day':
       return AvailabilityType.efDay;
+    case 'zam_late_shift':
+      return AvailabilityType.zamLateShift;
+    case 'zam_daytime':
+      return AvailabilityType.zamDaytime;
+    case 'other_outpatient_clinic':
+      return AvailabilityType.otherOutpatientClinic;
+    case 'other_absence':
+      return AvailabilityType.otherAbsence;
   }
 
   return AvailabilityType.vacation;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
+import '../l10n/app_localizations.dart';
 
 class MonthDayCard extends StatelessWidget {
   static const List<SlotKind> _prioritySlotKinds = [
@@ -61,7 +62,11 @@ class MonthDayCard extends StatelessWidget {
     );
 
     return Tooltip(
-      message: _tooltipMessage(roleRows),
+      message: [
+        _tooltipMessage(roleRows),
+        if (absence != null && otherAbsenceTypes.contains(absence.type))
+          AppLocalizations.of(context).otherAbsenceLabel(absence.type),
+      ].join('\n'),
       triggerMode: TooltipTriggerMode.manual,
       waitDuration: const Duration(milliseconds: 450),
       child: InkWell(
@@ -365,6 +370,14 @@ class MonthDayCard extends StatelessWidget {
           return 'SICK';
         case AvailabilityType.conference:
           return 'CONF';
+        case AvailabilityType.zamLateShift:
+          return 'ZAM-S';
+        case AvailabilityType.zamDaytime:
+          return 'ZAM-T';
+        case AvailabilityType.otherOutpatientClinic:
+          return 'AMB-A';
+        case AvailabilityType.otherAbsence:
+          return 'OTHER';
         case AvailabilityType.externalRoatation:
           return 'EXT';
         case AvailabilityType.vacation:

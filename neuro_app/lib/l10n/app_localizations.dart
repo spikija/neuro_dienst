@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:neuro_core/neuro_core.dart';
 
 import 'app_language.dart';
 
@@ -26,6 +27,8 @@ class AppLocalizations extends InheritedWidget {
     };
   }
 
+  String otherAbsenceLabel(AvailabilityType type) => t('absence.${type.name}');
+
   @override
   bool updateShouldNotify(AppLocalizations oldWidget) {
     return language != oldWidget.language;
@@ -34,6 +37,22 @@ class AppLocalizations extends InheritedWidget {
 
 const _en = <String, String>{
   'app.name': 'NeuroDienst',
+  'otherAbsence': 'Other absence…',
+  'removeOtherAbsence': 'Remove other absence',
+  'otherAbsenceHint':
+      'Blocks each selected working day in full and removes its assignments. The following day is unaffected.',
+  'absence.zamLateShift': 'ZAM late shift',
+  'absence.zamDaytime': 'ZAM daytime',
+  'absence.otherOutpatientClinic': 'Other outpatient clinic',
+  'absence.conference': 'Congress',
+  'absence.otherAbsence': 'Other',
+  'updatingOtherAbsence': 'Updating other absence…',
+  'otherAbsenceSet': 'Other absence set for {count} day{plural}',
+  'otherAbsenceRemoved': 'Other absence removed from {count} day{plural}',
+  'noOtherAbsenceFound': 'No other absence found on selected days',
+  'noWorkingDaysSelected': 'Select at least one working day.',
+  'couldNotSaveOtherAbsence': 'Could not save other absence.',
+  'couldNotRemoveOtherAbsence': 'Could not remove other absence.',
   'language': 'Language',
   'language.english': 'English',
   'language.german': 'Deutsch',
@@ -240,6 +259,24 @@ const _en = <String, String>{
 };
 
 const _de = <String, String>{
+  'otherAbsence': 'Andere Abwesenheit…',
+  'removeOtherAbsence': 'Andere Abwesenheit entfernen',
+  'otherAbsenceHint':
+      'Sperrt jeden ausgewählten Arbeitstag vollständig und entfernt dessen Diensteinteilungen. Der Folgetag bleibt unverändert.',
+  'absence.zamLateShift': 'Spätdienst im ZAM',
+  'absence.zamDaytime': 'ZAM tagsüber',
+  'absence.otherOutpatientClinic': 'Andere Ambulanz',
+  'absence.conference': 'Kongress',
+  'absence.otherAbsence': 'Andere',
+  'updatingOtherAbsence': 'Andere Abwesenheit wird aktualisiert…',
+  'otherAbsenceSet': 'Andere Abwesenheit für {count} Tag{plural} eingetragen',
+  'otherAbsenceRemoved': 'Andere Abwesenheit von {count} Tag{plural} entfernt',
+  'noOtherAbsenceFound': 'Keine andere Abwesenheit an den ausgewählten Tagen',
+  'noWorkingDaysSelected': 'Bitte mindestens einen Arbeitstag auswählen.',
+  'couldNotSaveOtherAbsence':
+      'Andere Abwesenheit konnte nicht gespeichert werden.',
+  'couldNotRemoveOtherAbsence':
+      'Andere Abwesenheit konnte nicht entfernt werden.',
   'app.name': 'NeuroDienst',
   'language': 'Sprache',
   'language.english': 'Englisch',

@@ -103,7 +103,11 @@ class _DayScreenState extends State<DayScreen> {
                 margin: const EdgeInsets.all(8),
                 child: ListTile(
                   leading: const Icon(Icons.beach_access),
-                  title: Text(absence.label),
+                  title: Text(
+                    otherAbsenceTypes.contains(absence.type)
+                        ? l10n.otherAbsenceLabel(absence.type)
+                        : absence.label,
+                  ),
                   subtitle: Text(l10n.t('assignmentsBlockedForDay')),
                 ),
               ),

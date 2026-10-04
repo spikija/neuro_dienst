@@ -56,7 +56,19 @@ enum AvailabilityType {
   duty24,
   postDuty,
   efDay,
+  zamLateShift,
+  zamDaytime,
+  otherOutpatientClinic,
+  otherAbsence,
 }
+
+const otherAbsenceTypes = {
+  AvailabilityType.zamLateShift,
+  AvailabilityType.zamDaytime,
+  AvailabilityType.otherOutpatientClinic,
+  AvailabilityType.conference,
+  AvailabilityType.otherAbsence,
+};
 
 extension DailySlotStatusExtension on DailySlot {
   SlotStatus getStatus(List<Assignment> assignments) {
@@ -197,6 +209,14 @@ class AvailabilityPeriod {
         return 'Post-duty';
       case AvailabilityType.efDay:
         return 'EF day';
+      case AvailabilityType.zamLateShift:
+        return 'ZAM late shift';
+      case AvailabilityType.zamDaytime:
+        return 'ZAM daytime';
+      case AvailabilityType.otherOutpatientClinic:
+        return 'Other outpatient clinic';
+      case AvailabilityType.otherAbsence:
+        return 'Other absence';
     }
   }
 }

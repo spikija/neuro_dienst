@@ -657,7 +657,10 @@ class _PhysicianReportTable extends StatelessWidget {
         ),
         _cell(_weekdayAbbreviation(day.date, l10n), height: rowHeight),
         for (final doctor in reportDoctors)
-          _cell(_doctorDayText(day, doctor, l10n), height: rowHeight),
+          Tooltip(
+            message: _doctorDayText(day, doctor, l10n),
+            child: _cell(_doctorDayText(day, doctor, l10n), height: rowHeight),
+          ),
         _cell(_notes(day, l10n), height: rowHeight),
       ],
     );
@@ -717,6 +720,9 @@ class _PhysicianReportTable extends StatelessWidget {
     final absence = doctor.absenceOn(day.date);
 
     if (absence != null) {
+      if (otherAbsenceTypes.contains(absence.type)) {
+        return l10n.otherAbsenceLabel(absence.type);
+      }
       return l10n.t('reportVacationShort');
     }
 
