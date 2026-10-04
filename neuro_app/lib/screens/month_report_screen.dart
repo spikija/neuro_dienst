@@ -3,6 +3,7 @@ import 'package:neuro_core/neuro_core.dart';
 
 import '../l10n/app_localizations.dart';
 import '../services/supabase_roster_service.dart';
+import 'personal_roster_report_screen.dart';
 
 enum MonthReportLayout { roles, physicians }
 
@@ -21,6 +22,7 @@ class MonthReportScreen extends StatelessWidget {
   final List<Doctor> doctors;
   final List<ReportRole>? reportRoles;
   final MonthReportLayout layout;
+  final Doctor? currentDoctor;
 
   const MonthReportScreen({
     super.key,
@@ -28,6 +30,7 @@ class MonthReportScreen extends StatelessWidget {
     required this.doctors,
     this.reportRoles,
     this.layout = MonthReportLayout.roles,
+    this.currentDoctor,
   });
 
   @override
@@ -43,6 +46,20 @@ class MonthReportScreen extends StatelessWidget {
           }),
         ),
         actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.person),
+            label: Text(l10n.t('myDuties')),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PersonalRosterReportScreen(
+                  roster: roster,
+                  doctors: doctors,
+                  demoDoctor: currentDoctor,
+                ),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: l10n.t('printExportComesNext'),
             onPressed: null,

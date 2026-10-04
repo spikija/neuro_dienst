@@ -1333,8 +1333,11 @@ class _MonthScreenState extends State<MonthScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) =>
-            MonthReportScreen(roster: currentRoster, doctors: _doctors),
+        builder: (_) => MonthReportScreen(
+          roster: currentRoster,
+          doctors: _doctors,
+          currentDoctor: _currentDoctorFromList(),
+        ),
       ),
     );
   }

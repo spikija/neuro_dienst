@@ -71,6 +71,13 @@ const _en = <String, String>{
   'admin': 'Admin',
   'signOut': 'Sign out',
   'monthlyReport': 'Monthly report',
+  'myDuties': 'My duties',
+  'personalReportNoDoctor':
+      'No active doctor profile is linked to your account.',
+  'personalReportError':
+      'Your duty report could not be loaded. Please try again.',
+  'personalReportPdfError':
+      'The PDF could not be generated. Please reopen the report to retry.',
   'printPreviewForMonth': 'Print preview {month}/{year}',
   'printExportComesNext': 'Print export comes next',
   'reportTitle': 'Neurology Department Duty Roster',
@@ -266,6 +273,13 @@ const _de = <String, String>{
   'admin': 'Admin',
   'signOut': 'Abmelden',
   'monthlyReport': 'Monatsbericht',
+  'myDuties': 'Meine Dienste',
+  'personalReportNoDoctor':
+      'Ihrem Konto ist kein aktives Arztprofil zugeordnet.',
+  'personalReportError':
+      'Ihr Dienstbericht konnte nicht geladen werden. Bitte erneut versuchen.',
+  'personalReportPdfError':
+      'Das PDF konnte nicht erstellt werden. Bitte den Bericht erneut öffnen.',
   'printPreviewForMonth': 'Druckvorschau {month}/{year}',
   'printExportComesNext': 'Druckexport folgt',
   'reportTitle': 'Dienstplan Neurologie',
