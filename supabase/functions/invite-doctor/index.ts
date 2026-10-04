@@ -56,7 +56,7 @@ Deno.serve(async (request) => {
   const jwtPayload = decodeJwtPayload(accessToken)
   if (jwtPayload?.aal !== 'aal2') {
     return jsonResponse(403, {
-      error: 'Two-factor verification is required before inviting a doctor.',
+      error: 'Two-factor verification is required before inviting a user.',
     })
   }
 
@@ -81,6 +81,11 @@ Deno.serve(async (request) => {
   const firstName = normalizedString(body.firstName)
   const lastName = normalizedString(body.lastName)
   const rank = normalizedString(body.rank)
+  // Never accept admin here; privileged accounts are not provisioned by this endpoint.
+  const accountRole = body.accountRole === undefined ? 'doctor' : normalizedString(body.accountRole)
+  if (!['doctor', 'viewer'].includes(accountRole)) {
+    return jsonResponse(400, { error: 'The selected account role is invalid.' })
+  }
   const preferredLanguage = normalizedString(body.preferredLanguage) || 'en'
   const capabilities = Array.isArray(body.capabilities)
     ? body.capabilities.filter(
@@ -95,7 +100,7 @@ Deno.serve(async (request) => {
   if (!firstName || !lastName) {
     return jsonResponse(400, { error: 'First name and last name are required.' })
   }
-  if (!allowedRanks.has(rank)) {
+  if (accountRole === 'doctor' && !allowedRanks.has(rank)) {
     return jsonResponse(400, { error: 'The selected rank is invalid.' })
   }
   if (!['en', 'de'].includes(preferredLanguage)) {
@@ -131,36 +136,38 @@ Deno.serve(async (request) => {
       .from('profiles')
       .insert({
         id: newUserId,
-        role: 'doctor',
+        role: accountRole,
         display_name: displayName,
         preferred_language: preferredLanguage,
       })
     if (insertProfileError) throw insertProfileError
 
-    const { data: highestPrintOrder, error: printOrderError } =
-      await adminClient
-        .from('doctors')
-        .select('print_order')
-        .order('print_order', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    if (printOrderError) throw printOrderError
+    if (accountRole === 'doctor') {
+      const { data: highestPrintOrder, error: printOrderError } =
+        await adminClient
+          .from('doctors')
+          .select('print_order')
+          .order('print_order', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      if (printOrderError) throw printOrderError
 
-    const { data: doctor, error: insertDoctorError } = await adminClient
-      .from('doctors')
-      .insert({
-        auth_user_id: newUserId,
-        first_name: firstName,
-        last_name: lastName,
-        rank,
-        capabilities,
-        is_active: true,
-        print_order: (highestPrintOrder?.print_order ?? 0) + 1,
-      })
-      .select('id')
-      .single()
-    if (insertDoctorError) throw insertDoctorError
-    doctorId = doctor.id
+      const { data: doctor, error: insertDoctorError } = await adminClient
+        .from('doctors')
+        .insert({
+          auth_user_id: newUserId,
+          first_name: firstName,
+          last_name: lastName,
+          rank,
+          capabilities,
+          is_active: true,
+          print_order: (highestPrintOrder?.print_order ?? 0) + 1,
+        })
+        .select('id')
+        .single()
+      if (insertDoctorError) throw insertDoctorError
+      doctorId = doctor.id
+    }
 
     const mailClient = createClient(supabaseUrl, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -179,12 +186,13 @@ Deno.serve(async (request) => {
     return jsonResponse(500, {
       error: error instanceof Error
         ? error.message
-        : 'Could not finish creating the doctor account.',
+        : 'Could not finish creating the account.',
     })
   }
 
   return jsonResponse(201, {
-    message: 'Doctor created and password-setup email sent.',
+    message: 'Account created and password-setup email sent.',
+    accountRole,
     doctorId,
   })
 })

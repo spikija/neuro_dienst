@@ -18,6 +18,20 @@ class AdminHomeScreen extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         children: [
           _AdminTile(
+            icon: Icons.visibility,
+            title: 'Invite viewer',
+            subtitle:
+                'Read-only roster access for nurses and administrative staff.',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    const AdminInviteDoctorScreen(readOnlyViewer: true),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _AdminTile(
             icon: Icons.outgoing_mail,
             title: 'Invite doctor',
             subtitle:

@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'screens/admin_home_screen.dart';
 import 'screens/mfa_screen.dart';
 import 'screens/month_screen.dart';
+import 'screens/viewer_roster_screen.dart';
 import 'services/auth_link_protocol.dart';
 import 'services/supabase_bootstrap.dart';
 import 'services/supabase_doctor_service.dart';
@@ -128,6 +129,13 @@ class _NeuroDienstAppState extends State<NeuroDienstApp> {
       return;
     }
 
+    final profile = await Supabase.instance.client
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .maybeSingle();
+    if (profile?['role'] == 'viewer') return;
+
     await Supabase.instance.client
         .from('profiles')
         .update({'preferred_language': language.code})
@@ -228,6 +236,10 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         final data = snapshot.data;
         final doctors = data?.doctors ?? _databaseDoctors ?? widget.doctors;
 
+        if (data?.isViewer ?? false) {
+          return const ViewerRosterScreen();
+        }
+
         if (SupabaseConfig.isConfigured && doctors.isEmpty) {
           return _NoDoctorsConfiguredView(
             isAdmin: data?.isAdmin ?? false,
@@ -293,6 +305,23 @@ class _AuthorizedMonthHomeState extends State<_AuthorizedMonthHome> {
         .eq('id', userId)
         .maybeSingle();
     final isAdmin = profile?['role'] == 'admin';
+
+    // Viewers do not need a physician record and must never fall back to one.
+    if (profile?['role'] == 'viewer') {
+      final preferredLanguage = AppLanguage.fromCode(
+        profile?['preferred_language'] as String?,
+      );
+      if (preferredLanguage != widget.language) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) widget.onLanguageChanged(preferredLanguage);
+        });
+      }
+      return const _AuthorizedHomeData(
+        isAdmin: false,
+        isViewer: true,
+        doctors: [],
+      );
+    }
 
     final preferredLanguage = AppLanguage.fromCode(
       profile?['preferred_language'] as String?,
@@ -586,12 +615,14 @@ class _HomeErrorView extends StatelessWidget {
 
 class _AuthorizedHomeData {
   final bool isAdmin;
+  final bool isViewer;
   final List<Doctor> doctors;
   final RosterMonth? roster;
   final String? signedInEmail;
 
   const _AuthorizedHomeData({
     required this.isAdmin,
+    this.isViewer = false,
     required this.doctors,
     this.roster,
     this.signedInEmail,

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AdminInviteDoctorScreen extends StatefulWidget {
-  const AdminInviteDoctorScreen({super.key});
+  final bool readOnlyViewer;
+  const AdminInviteDoctorScreen({super.key, this.readOnlyViewer = false});
 
   @override
   State<AdminInviteDoctorScreen> createState() =>
@@ -32,7 +33,9 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Invite doctor')),
+      appBar: AppBar(
+        title: Text(widget.readOnlyViewer ? 'Invite viewer' : 'Invite doctor'),
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -48,9 +51,12 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'The doctor receives a one-time email link and chooses '
-                    'their own password. Administrators never see it.',
+                  Text(
+                    widget.readOnlyViewer
+                        ? 'For nurses and administrative staff. This account can only view '
+                              'the duty roster. A password setup link is sent by email.'
+                        : 'The doctor receives a one-time email link and chooses '
+                              'their own password. Administrators never see it.',
                   ),
                   const SizedBox(height: 20),
                   TextFormField(
@@ -92,24 +98,25 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _rank,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: 'Rank',
+                  if (!widget.readOnlyViewer)
+                    DropdownButtonFormField<String>(
+                      initialValue: _rank,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Rank',
+                      ),
+                      items: _rankLabels.entries
+                          .map(
+                            (entry) => DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _isSending
+                          ? null
+                          : (value) => setState(() => _rank = value ?? _rank),
                     ),
-                    items: _rankLabels.entries
-                        .map(
-                          (entry) => DropdownMenuItem(
-                            value: entry.key,
-                            child: Text(entry.value),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _isSending
-                        ? null
-                        : (value) => setState(() => _rank = value ?? _rank),
-                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _preferredLanguage,
@@ -129,51 +136,53 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
                           ),
                   ),
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Capabilities',
-                          style: Theme.of(context).textTheme.titleMedium,
+                  if (!widget.readOnlyViewer) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Capabilities',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: _isSending
+                        TextButton(
+                          onPressed: _isSending
+                              ? null
+                              : () => setState(() {
+                                  if (_capabilities.length ==
+                                      _capabilityLabels.length) {
+                                    _capabilities.clear();
+                                  } else {
+                                    _capabilities
+                                      ..clear()
+                                      ..addAll(_capabilityLabels.keys);
+                                  }
+                                }),
+                          child: Text(
+                            _capabilities.length == _capabilityLabels.length
+                                ? 'Clear all'
+                                : 'Select all',
+                          ),
+                        ),
+                      ],
+                    ),
+                    ..._capabilityLabels.entries.map(
+                      (entry) => CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(entry.value),
+                        value: _capabilities.contains(entry.key),
+                        onChanged: _isSending
                             ? null
-                            : () => setState(() {
-                                if (_capabilities.length ==
-                                    _capabilityLabels.length) {
-                                  _capabilities.clear();
+                            : (selected) => setState(() {
+                                if (selected == true) {
+                                  _capabilities.add(entry.key);
                                 } else {
-                                  _capabilities
-                                    ..clear()
-                                    ..addAll(_capabilityLabels.keys);
+                                  _capabilities.remove(entry.key);
                                 }
                               }),
-                        child: Text(
-                          _capabilities.length == _capabilityLabels.length
-                              ? 'Clear all'
-                              : 'Select all',
-                        ),
                       ),
-                    ],
-                  ),
-                  ..._capabilityLabels.entries.map(
-                    (entry) => CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(entry.value),
-                      value: _capabilities.contains(entry.key),
-                      onChanged: _isSending
-                          ? null
-                          : (selected) => setState(() {
-                              if (selected == true) {
-                                _capabilities.add(entry.key);
-                              } else {
-                                _capabilities.remove(entry.key);
-                              }
-                            }),
                     ),
-                  ),
+                  ],
                   if (_errorMessage != null) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -202,7 +211,11 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.outgoing_mail),
-                    label: const Text('Create doctor and send link'),
+                    label: Text(
+                      widget.readOnlyViewer
+                          ? 'Create viewer and send link'
+                          : 'Create doctor and send link',
+                    ),
                   ),
                 ],
               ),
@@ -229,6 +242,7 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
         'invite-doctor',
         body: {
           'email': _emailController.text.trim().toLowerCase(),
+          'accountRole': widget.readOnlyViewer ? 'viewer' : 'doctor',
           'firstName': _firstNameController.text.trim(),
           'lastName': _lastNameController.text.trim(),
           'rank': _rank,
@@ -248,7 +262,7 @@ class _AdminInviteDoctorScreenState extends State<AdminInviteDoctorScreen> {
 
       setState(() {
         _successMessage =
-            'Doctor created. Password setup link sent to '
+            '${widget.readOnlyViewer ? 'Viewer' : 'Doctor'} created. Password setup link sent to '
             '${_emailController.text.trim()}.';
         _emailController.clear();
         _firstNameController.clear();

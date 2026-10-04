@@ -71,6 +71,11 @@ const _en = <String, String>{
   'admin': 'Admin',
   'signOut': 'Sign out',
   'monthlyReport': 'Monthly report',
+  'viewerRoster': 'Duty roster',
+  'viewerReadOnly':
+      'Read-only access — you can view the roster but cannot change it.',
+  'viewerNoDuties': 'No duties scheduled.',
+  'viewerUnassigned': 'Unassigned',
   'myDuties': 'My duties',
   'personalReportNoDoctor':
       'No active doctor profile is linked to your account.',
@@ -273,6 +278,11 @@ const _de = <String, String>{
   'admin': 'Admin',
   'signOut': 'Abmelden',
   'monthlyReport': 'Monatsbericht',
+  'viewerRoster': 'Dienstplan',
+  'viewerReadOnly':
+      'Nur Lesezugriff — Sie können den Dienstplan ansehen, aber nicht ändern.',
+  'viewerNoDuties': 'Keine Dienste geplant.',
+  'viewerUnassigned': 'Nicht besetzt',
   'myDuties': 'Meine Dienste',
   'personalReportNoDoctor':
       'Ihrem Konto ist kein aktives Arztprofil zugeordnet.',
