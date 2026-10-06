@@ -49,12 +49,16 @@ class SupabaseSessionGateway implements SessionGateway {
     if (assurance.currentLevel == AuthenticatorAssuranceLevels.aal2) {
       return const AccessCheck(AccessLevel.ready);
     }
-    final factors = await client.auth.mfa.listFactors();
+    // listFactors() refreshes the session in the installed SDK. Calling it
+    // from a tokenRefreshed listener creates an auth-event/refresh loop.
+    // getUser() above already returns the server-verified enrolled factors.
     return AccessCheck(
       AccessLevel.requiresMfa,
       factors: [
-        for (final factor in factors.totp.where(
-          (factor) => factor.status == FactorStatus.verified,
+        for (final factor in (user.factors ?? []).where(
+          (factor) =>
+              factor.factorType == FactorType.totp &&
+              factor.status == FactorStatus.verified,
         ))
           (factor.id, factor.friendlyName ?? 'Authenticator'),
       ],
@@ -91,6 +95,7 @@ class _SessionGateState extends State<SessionGate> {
   final _password = TextEditingController();
   final _code = TextEditingController();
   bool _busy = false;
+  bool _passwordVisible = false;
   String? _error;
   String? _factorId;
 
@@ -183,10 +188,23 @@ class _SessionGateState extends State<SessionGate> {
         TextField(
           controller: _password,
           enabled: !_busy,
-          obscureText: true,
+          obscureText: !_passwordVisible,
           autocorrect: false,
           enableSuggestions: false,
-          decoration: const InputDecoration(labelText: 'Password'),
+          decoration: InputDecoration(
+            labelText: 'Password',
+            suffixIcon: IconButton(
+              tooltip: _passwordVisible ? 'Hide password' : 'Show password',
+              onPressed: _busy
+                  ? null
+                  : () => setState(() {
+                      _passwordVisible = !_passwordVisible;
+                    }),
+              icon: Icon(
+                _passwordVisible ? Icons.visibility_off : Icons.visibility,
+              ),
+            ),
+          ),
           onSubmitted: (_) => _signIn(),
         ),
         const SizedBox(height: 20),

@@ -18,6 +18,23 @@ void main() {
         'id': 'account',
         'aud': 'authenticated',
         'email': 'test@example.invalid',
+        'factors': [
+          {
+            'id': 'verified-totp',
+            'friendly_name': 'Authenticator',
+            'factor_type': 'totp',
+            'status': 'verified',
+            'created_at': '2026-01-01T00:00:00Z',
+            'updated_at': '2026-01-01T00:00:00Z',
+          },
+          {
+            'id': 'unverified-totp',
+            'factor_type': 'totp',
+            'status': 'unverified',
+            'created_at': '2026-01-01T00:00:00Z',
+            'updated_at': '2026-01-01T00:00:00Z',
+          },
+        ],
       };
       String token() {
         String encode(Object value) => base64Url
@@ -65,11 +82,26 @@ void main() {
         authOptions: const AuthClientOptions(autoRefreshToken: false),
       );
       addTearDown(client.dispose);
-      await client.auth.setSession('test-refresh');
       final gateway = SupabaseSessionGateway(client);
+      await gateway.signIn('test@example.invalid', 'test-password');
+      expect(gateway.isSignedIn, isTrue);
+      final tokenRequests = requests
+          .where((r) => r.endsWith('/auth/v1/token'))
+          .length;
+      final check = await gateway.checkAccess();
       expect(
-        (await gateway.checkAccess()).level,
+        check.level,
         role == 'admin' ? AccessLevel.requiresMfa : AccessLevel.denied,
+      );
+      if (role == 'admin') {
+        expect(check.factors, [('verified-totp', 'Authenticator')]);
+      }
+      // Access checks run on auth events. They must not cause another refresh
+      // event, otherwise the MFA screen enters an endless session-refresh loop.
+      await gateway.checkAccess();
+      expect(
+        requests.where((r) => r.endsWith('/auth/v1/token')).length,
+        tokenRequests,
       );
       assurance = 'aal2';
       await client.auth.setSession('test-refresh');
