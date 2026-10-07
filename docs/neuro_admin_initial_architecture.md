@@ -9,6 +9,39 @@ on the right. Month switching, refresh, error/retry, and empty states are presen
 No assignment editing, publishing, recommendation ranking, automatic allocation,
 or drag/drop assignment is implemented. No production mobile code was moved.
 
+### Intended complete administrator client
+
+The read-only roster dashboard is the current delivery scope, not the permanent
+product boundary. `neuro_admin` is intended to support the administrator functions
+currently available in `neuro_app`, including:
+
+- Inviting/creating doctor and viewer accounts.
+- Physician administration.
+- Role and role-template administration.
+- Roster creation/regeneration.
+- Report configuration.
+- Assignment administration.
+
+These capabilities are future scope; none is implemented by this clarification.
+Managing viewer accounts does not grant viewers access to the desktop client:
+`neuro_admin` remains administrator-only.
+
+Future abstractions must accommodate both queries and authorized administrative
+commands across these workflows. Keep the current `RosterReader` as a read-only
+query interface and calendar selection as local UI state; neither defines the
+entire application's capabilities. Do not put unrelated administration workflows
+or mutation logic into the roster dashboard or its selection model.
+
+When adding a workflow, first locate its existing implementation in `neuro_app`.
+Extract reusable orchestration, validation and business rules from mobile screens
+into shared application services used by both clients, preserving existing
+behavior. Mobile and desktop screens should handle presentation and invoke those
+services; do not copy administrator business logic into `neuro_admin`. Keep
+platform-specific UI/integrations outside the shared service contracts, and keep
+backend authorization, MFA and transactional invariants enforced on the server.
+Choose shared package boundaries during the relevant extraction rather than
+adding speculative service implementations now.
+
 ## Access and backend
 
 The client connects to the same Supabase project as `neuro_app` using
@@ -186,6 +219,9 @@ Before Phase 2, define the hospital timezone and reconcile generation/display
 semantics consistently across clients, including DST.
 
 ## Future phases and extraction candidates
+
+The phases below describe the roster-planning workstream only. They do not limit
+the broader administrator scope above or prescribe the order of those workflows.
 
 1. Phase 1: authenticated read-only calendar, physician details and descriptive workload.
 2. Phase 2: manual administrator assignment (not started).
