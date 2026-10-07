@@ -1,5 +1,10 @@
 # NeuroDienst Admin: Phase 1
 
+Phase 2A now extracts the shared application boundary and fixes the scheduling
+timezone decision. See [the Phase 2A design](neuro_admin_phase_2a.md) for current
+service contracts, intended lifecycle, versioning, authorization and RPC design.
+The verification records below preserve the earlier checkpoints.
+
 ## Scope
 
 `neuro_admin` is the Windows-first desktop administrator client. A macOS runner
@@ -63,7 +68,9 @@ start before the access check succeeds.
 ## Read model and shared code
 
 `neuro_core` supplies Doctor, rank/capability/availability types, CalendarDayInfo,
-RosterPhase, and AssignmentState. Admin-specific immutable database projections
+RosterPhase, and AssignmentState. The Flutter-free `neuro_admin_services` package
+now owns the extracted reader, workload calculations and database projections;
+desktop `lib/data` files are compatibility exports. These projections
 preserve role ID/code/name, assignment ID/state/roster phase, full UTC timestamps,
 and the date in `roster_days.date`. They are not assignment-editing models.
 
@@ -127,7 +134,7 @@ These are descriptive recorded-data counters, not fairness or recommendation sco
 
 These are seeded definitions, not a verified inventory of live database roles.
 Roles are editable and have no explicit station/ambulance/science category.
-The mapping in `neuro_admin/lib/data/workload_category.dart` uses exact seeded
+The mapping in `neuro_admin_services/lib/src/workload_category.dart` uses exact seeded
 codes from `supabase/migrations/202606120001_initial_roster_schema.sql`; it never
 uses SlotKind/DutyRole, names, fuzzy matching or duration. `duty_24` is an absence
 type from `202606260001_absence_duty_ef_types.sql`, not an assignment-role code.
@@ -185,8 +192,9 @@ does not create that separation or change what the mobile app can read.
 
 Before Phase 2/3 writes, agree and implement a backend contract (separate task):
 
-1. Define whether editing is draft-only and how open/locked selection relates to
-   administrator editing. Enforce that decision on every assignment/slot mutation
+1. Implement the Phase 2A decision: administrator edits in draft/open, explicit
+   audited corrections while locked, and new revisions for published changes.
+   Enforce that decision on every assignment/slot mutation
    on the server, including mobile and direct API calls. Published data must be
    immutable; a correction should create a new draft/revision.
 2. Choose revision/working-copy storage and the authoritative published revision.
@@ -209,14 +217,15 @@ Before Phase 2/3 writes, agree and implement a backend contract (separate task):
 
 ## Timezone semantics
 
-Database timestamps remain UTC instants. Duty times display in the workstation's
-local timezone with both start/end dates, including overnight duties. Workload
+Database timestamps remain UTC instants. Duty times now display explicitly in
+Europe/Vienna with both start/end dates, including overnight duties. Workload
 and calendar grouping use the stored roster-day DATE, represented as UTC midnight
 solely for date arithmetic; they are not shifted into the workstation timezone.
 The mobile generator currently writes template clock times with a Z suffix. This
 existing hospital-timezone ambiguity is not repaired in the desktop reader.
-Before Phase 2, define the hospital timezone and reconcile generation/display
-semantics consistently across clients, including DST.
+The hospital timezone decision is Europe/Vienna; Phase 2A adds strict date/time
+helpers and changes desktop display only. Reconcile existing data and mobile
+generation/display semantics, including DST, before enabling assignment writes.
 
 ## Future phases and extraction candidates
 

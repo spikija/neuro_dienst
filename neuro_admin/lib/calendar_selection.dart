@@ -1,6 +1,9 @@
+import 'package:neuro_admin_services/neuro_admin_services.dart'
+    show HospitalDate;
+
 /// Date-only identity: preserve calendar components, never convert timezones.
 DateTime calendarDate(DateTime value) =>
-    DateTime.utc(value.year, value.month, value.day);
+    HospitalDate.fromCalendarComponents(value).asDateOnlyUtc;
 
 /// Local, role-independent state for a future bulk-assignment workflow.
 /// Pointer geometry belongs to the calendar widget, not this model.

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
+import 'package:neuro_admin_services/neuro_admin_services.dart'
+    show ViennaSchedulingTime;
 
 import 'calendar_day_grid.dart';
 import 'calendar_selection.dart';
@@ -26,6 +28,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   RosterChoice? _selected;
   RosterSnapshot? _snapshot;
   final _selection = CalendarSelection();
+  final WorkloadReadService _workloads = const RecordedWorkloadService();
   DateTime? _detailDate;
   String? _doctorId;
   bool _loading = true;
@@ -197,7 +200,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Read-only totals include all roster phases. Times are local; calendar dates follow the stored roster day.',
+              'Read-only totals include all roster phases. Times use Europe/Vienna; calendar dates follow the stored roster day.',
               style: TextStyle(fontSize: 12),
             ),
           ],
@@ -335,8 +338,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
     final assignments = day.assignments
         .where((a) => a.duty.id == slot.id)
         .toList();
-    final start = slot.startsAt.toLocal();
-    final end = slot.endsAt.toLocal();
+    final start = ViennaSchedulingTime.localTime(slot.startsAt);
+    final end = ViennaSchedulingTime.localTime(slot.endsAt);
     final names = assignments
         .map((a) => '${a.doctor.fullName} (${a.state.name})')
         .join(', ');
@@ -387,7 +390,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
 
   Widget _doctorTile(RosterSnapshot snapshot, Doctor doctor) {
     final month = snapshot.month;
-    final current = workloadFor(
+    final current = _workloads.forPhysician(
       snapshot,
       doctor,
       WorkloadWindow(
@@ -396,7 +399,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
       ),
     );
     final selected = _doctorId == doctor.id;
-    final history = workloadFor(
+    final history = _workloads.forPhysician(
       snapshot,
       doctor,
       WorkloadWindow(snapshot.historyStart, snapshot.historyEnd),

@@ -330,6 +330,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('CUSTOM: Custom duty'), findsOneWidget);
+      expect(find.textContaining('1.10. 22:00 - 2.10. 10:00'), findsOneWidget);
+      expect(find.textContaining('Times use Europe/Vienna'), findsOneWidget);
       await tester.tap(find.text('Ada Test (inactive)'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Previous 90 days:'), findsOneWidget);

@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   neuro_core:
     path: ../neuro_core
+  neuro_admin_services:
+    path: ../neuro_admin_services
   supabase_flutter: ^2.14.2
 
 dev_dependencies:
