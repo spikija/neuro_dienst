@@ -1,6 +1,7 @@
 import 'package:neuro_core/neuro_core.dart';
 
 import 'roster_reader.dart';
+import 'workload_category.dart';
 
 /// Half-open date window. Ninety days is deliberately not three calendar months.
 class WorkloadWindow {
@@ -24,6 +25,7 @@ class PhysicianWorkload {
   final int recordedDuty24Days;
   final int recordedWeekendDuty24Days;
   final List<RoleWorkload> roles;
+  final Map<WorkloadCategory, int> categoryDays;
   const PhysicianWorkload(
     this.assignments,
     this.assignedDays,
@@ -31,8 +33,10 @@ class PhysicianWorkload {
     this.recordedDuty24Days,
     this.recordedWeekendDuty24Days,
     this.roles,
+    this.categoryDays,
   );
   int get confirmed => assignments - provisional;
+  int daysFor(WorkloadCategory category) => categoryDays[category] ?? 0;
 }
 
 PhysicianWorkload workloadFor(
@@ -47,8 +51,12 @@ PhysicianWorkload workloadFor(
       )
       .toList();
   final byRole = <String, List<AssignmentFact>>{};
+  final byCategory = <WorkloadCategory, Set<DateTime>>{};
   for (final fact in facts) {
     (byRole[fact.duty.role.id] ??= []).add(fact);
+    (byCategory[classifyRoleCode(fact.duty.role.code)] ??= {}).add(
+      fact.duty.date,
+    );
   }
   final dutyDays = <DateTime>{};
   for (final period in doctor.availabilities.where(
@@ -83,5 +91,11 @@ PhysicianWorkload workloadFor(
     dutyDays.length,
     dutyDays.where((date) => date.weekday >= DateTime.saturday).length,
     roles,
+    Map.unmodifiable({
+      for (final category in WorkloadCategory.values)
+        category: category == WorkloadCategory.duty24h
+            ? dutyDays.length
+            : byCategory[category]?.length ?? 0,
+    }),
   );
 }

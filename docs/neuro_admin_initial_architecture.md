@@ -65,6 +65,10 @@ For each physician the client currently displays:
 - Previous-90-day recorded 24-hour-duty days from `absences.type = duty_24`, with
   overlapping/duplicate date ranges deduplicated and clipped to the date window.
 - Saturday/Sunday 24-hour-duty days separately (not public-holiday classification).
+- Previous-90-day station, ambulance, science and other-role days using the explicit
+  `WorkloadCategory` policy. Each category counts distinct assignment dates across
+  all its roles: SUL + SU1 on one date is one station day, not two. A date with
+  different categories contributes once to each; category totals are not additive.
 - Historical roster-date coverage out of 90; missing dates may indicate incomplete
   history. Even 90/90 dates does not prove all duties or markers were entered.
 
@@ -74,25 +78,101 @@ These are descriptive recorded-data counters, not fairness or recommendation sco
 
 ### Known role definitions from checked-in migrations
 
-| Code | Seeded definition | Classification evidence |
+| Code | Seeded definition | Desktop category |
 | --- | --- | --- |
-| SUL | Stroke Unit Leader | Stroke-unit station role |
-| SU1 | Stroke Unit Team 1 | Stroke-unit station role |
-| SU2 | Stroke Unit Team 2 | Stroke-unit station role |
-| AMB | Ambulance (Outpatient Clinic) | Ambulance role |
-| SCI | Science Slot | Science role |
-| SON | Neurosonology | Separate role; not inferred as station/ambulance/science |
-| NVB | Neurovascular Interdisciplinary Board | Separate board role |
-| OFO | OFO Board | Separate board role |
-| ICB | Not seeded in repository | Mobile code maps it to ambulance, but no authoritative DB definition is checked in |
-| 24-hour duty | No seeded role code | Stored as absence/day marker `duty_24` |
+| SUL | Stroke Unit Leader | `station` |
+| SU1 | Stroke Unit Team 1 | `station` |
+| SU2 | Stroke Unit Team 2 | `station` |
+| AMB | Ambulance (Outpatient Clinic) | `ambulance` |
+| SCI | Science Slot | `science` |
+| SON | Neurosonology | `other`: separate specialty, not inferred as outpatient/station |
+| NVB | Neurovascular Interdisciplinary Board | `other`: board |
+| OFO | OFO Board | `other`: board |
+| ICB | Not seeded in repository | `other`: mobile maps to ambulance without a checked-in database definition |
+| All other role codes | Configurable/custom | `other`, including renamed or differently cased codes |
+| 24-hour duty | No seeded role code | `duty24h`, sourced only from absence/day marker `duty_24` |
 
 These are seeded definitions, not a verified inventory of live database roles.
 Roles are editable and have no explicit station/ambulance/science category.
+The mapping in `neuro_admin/lib/data/workload_category.dart` uses exact seeded
+codes from `supabase/migrations/202606120001_initial_roster_schema.sql`; it never
+uses SlotKind/DutyRole, names, fuzzy matching or duration. `duty_24` is an absence
+type from `202606260001_absence_duty_ef_types.sql`, not an assignment-role code.
 Custom roles, renamed codes, and ICB require confirmation against actual role
-records and clinical intent. Grouped category metrics are therefore deferred;
-exact-role totals are displayed without invented classification. A future policy
-must also decide how draft/provisional duties contribute to fairness.
+records and clinical intent and remain `other`. Original role IDs/codes/names and
+per-role counts remain visible. Roles whose meaning changes while retaining a
+seeded code cannot be detected from the current schema; versioned backend category
+metadata is needed before these counters become inputs to fairness decisions.
+Both provisional and confirmed assignments and all phases currently contribute
+to category-day counts, with assignment-state totals shown separately. This is
+descriptive planned/recorded workload, not completed work or a fairness score.
+
+## Desktop multi-day selection
+
+`CalendarSelection` owns an explicit, externally immutable `Set<DateTime>` in the
+dashboard state. Values use year/month/day at UTC midnight without timezone
+conversion, matching the stored roster-day DATE. It has no physician/role/backend
+dependency. Future bulk workflows can take a copy of these dates, choose one
+role and physician, and preview validation results for each date before submitting
+an approved write operation. Selection itself provides no eligibility guarantees.
+
+- A left click replaces the selection; left-button dragging adds every crossed
+  day cell, forwards/backwards and across weeks. Crossing the same cell twice
+  does not duplicate it. Fast movements use line/cell intersections between
+  pointer events. A diagonal path selects spatially crossed cells, not every
+  chronological date between the endpoints.
+- Highlighting and the selected-day count update live. Details follow the last
+  crossed day. Mouse-up or cancellation ends dragging, including release outside
+  the grid. Right/middle clicks do not select. No Ctrl/Shift additive mode exists.
+- Mouse pans are claimed by the grid, scrolling is disabled during a dashboard
+  drag, and text selection is disabled within the day cards. There is no edge
+  autoscroll or drag-to-another-month behavior. Keyboard Tab plus Enter/Space and
+  accessibility activation select a single date; touch dragging is not implemented.
+- Physician selection/filter changes preserve dates. Changing month clears them;
+  refreshing the same roster preserves them. Leading/trailing blank cells do not
+  represent dates. Clicking blank padding leaves the selection intact.
+- Dates without generated roster rows may be selected and are clearly labeled
+  `No roster day`; details explain that no generated day exists. Future writes
+  must reject these dates or explicitly generate the missing roster data first.
+- Selection is local only: no repository or Supabase call occurs. Losing the
+  dashboard (for example sign-out) discards its state.
+
+## Roster phases and the future write boundary
+
+The phase chip next to the month selector distinguishes all persisted phases.
+`published` is labeled as the authoritative end-user roster; `draft` is an
+administrator working plan; `openForSelection` and `locked` identify the selection
+period and its closure respectively, neither equivalent to publication. All four
+remain inspectable and strictly read-only in this desktop client.
+
+The current backend is not a versioned draft/published workflow. The initial
+schema has `unique (year, month)` on `rosters`, so an independent draft working
+copy cannot coexist with a published roster for the same month. The phase label
+does not create that separation or change what the mobile app can read.
+
+Before Phase 2/3 writes, agree and implement a backend contract (separate task):
+
+1. Define whether editing is draft-only and how open/locked selection relates to
+   administrator editing. Enforce that decision on every assignment/slot mutation
+   on the server, including mobile and direct API calls. Published data must be
+   immutable; a correction should create a new draft/revision.
+2. Choose revision/working-copy storage and the authoritative published revision.
+   Update uniqueness and reader/mobile visibility deliberately. Avoid counting
+   both working and published versions as workload for the same dates.
+3. Provide transactional bulk validation/writes with capacity, eligibility, full-day
+   absence/rest rules, time overlap and date/role checks. Return per-day preview
+   errors, revalidate at commit and detect stale revisions/concurrent editors.
+4. Publish through one atomic server operation: validate administrator/MFA, lock
+   or check the expected revision, validate the entire draft, atomically select
+   the authoritative revision/change phase, and record an audit event. Roll back
+   everything on failure; no client-side chain of independent updates.
+5. Audit existing permissive policies before relying on this boundary. In particular,
+   `202606240002_admin_assignment_policy.sql` permits admin assignment writes
+   without an aal2 condition, and `202606240001_doctors_manage_own_assignments.sql`
+   permits own insert/delete without a phase condition. The later viewer policy
+   blocks viewer writes but does not add phase/MFA enforcement for admins/doctors.
+   Keep desktop admin/aal2 checks; backend changes need explicit review across both
+   clients. No policies, functions, migrations or mobile files were changed here.
 
 ## Timezone semantics
 
@@ -179,3 +259,29 @@ read-only roster/workload loading. This supersedes the earlier pending live-logi
 status above; it is user-reported verification, not a new automated live sign-in.
 Real doctor/viewer rejection has not been independently verified against the live
 backend; both roles are rejected by the automated access-contract tests.
+
+## Selection and workload verification (2026-10-07)
+
+Phase 1 remains read-only and now includes explicit category-day totals, phase
+descriptions and local multi-day selection. Final checks passed:
+
+- `dart format lib test`: 14 files, no remaining formatting changes.
+- `flutter analyze`: no issues.
+- `flutter test`: 19 tests passed. Coverage includes admin/MFA access and refresh
+  behavior, denied doctor/viewer access, GET-only paginated reads, inactive history,
+  missing mappings, 90-day boundaries, weekend markers, category-day deduplication,
+  assignment states, pointer selection in both directions/across weeks, release
+  outside the grid, cancellation, no selection-triggered reads, physician/month
+  behavior, and restored scrolling in an 800x500 window.
+- `flutter build windows`: release executable built successfully. This plain
+  build is unconfigured; run/build with the documented local public definitions
+  to connect to Supabase.
+- `dart test` in `neuro_core`: 10 tests passed.
+
+The new interaction was verified with Flutter widget tests, not a new manual live
+desktop session. Live authentication/loading remains the user-reported result
+above. No production backend data, mobile code or shared-core code was changed.
+No new packages or platform-specific APIs were introduced; macOS qualification
+remains pending. Phase 2 can proceed to design and per-day validation previews,
+but assignment writes should wait for the server-side lifecycle, authorization,
+validation/concurrency and timezone decisions documented above.

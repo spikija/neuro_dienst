@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 
+import 'calendar_day_grid.dart';
+import 'calendar_selection.dart';
 import 'data/roster_reader.dart';
 import 'data/workload.dart';
+import 'data/workload_category.dart';
 
 class RosterDashboard extends StatefulWidget {
   final RosterReader reader;
@@ -22,7 +25,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
   List<RosterChoice> _months = [];
   RosterChoice? _selected;
   RosterSnapshot? _snapshot;
-  int? _day;
+  final _selection = CalendarSelection();
+  DateTime? _detailDate;
   String? _doctorId;
   bool _loading = true;
   String? _error;
@@ -52,9 +56,10 @@ class _RosterDashboardState extends State<RosterDashboard> {
       if (!mounted || request != _request) return;
       setState(() {
         _months = months;
+        if (_selected?.id != data?.month.id) _selection.clear();
         _selected = data?.month ?? selected;
         _snapshot = data;
-        _day = data?.days.firstOrNull?.date.day;
+        _detailDate = _selection.lastVisited ?? data?.days.firstOrNull?.date;
         _doctorId = null;
         _loading = false;
       });
@@ -71,6 +76,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
 
   Future<void> _chooseMonth(RosterChoice month) async {
     setState(() {
+      _selection.clear();
+      _detailDate = null;
       _selected = month;
     });
     await _refresh();
@@ -135,6 +142,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                   ),
                 if (_selected != null)
                   Chip(label: Text(_phaseLabel(_selected!.phase))),
+                if (_selected != null) Text(_phaseMeaning(_selected!.phase)),
                 const Text('Read-only: no roster changes can be made here.'),
               ],
             ),
@@ -167,6 +175,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
                             ? 760.0
                             : constraints.maxWidth;
                         return SingleChildScrollView(
+                          physics: _selection.isDragging
+                              ? const NeverScrollableScrollPhysics()
+                              : null,
                           scrollDirection: Axis.horizontal,
                           child: SizedBox(
                             width: width,
@@ -197,18 +208,25 @@ class _RosterDashboardState extends State<RosterDashboard> {
 
   Widget _calendar(RosterSnapshot snapshot) {
     final roster = snapshot.month;
-    final days = {for (final day in snapshot.days) day.date.day: day};
-    final offset = DateTime(roster.year, roster.month).weekday - 1;
-    final dayCount = DateTime(roster.year, roster.month + 1, 0).day;
-    final selectedDay = days[_day];
+    final days = {for (final day in snapshot.days) calendarDate(day.date): day};
+    final selectedDay = days[_detailDate];
     return Card.outlined(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: ListView(
+          physics: _selection.isDragging
+              ? const NeverScrollableScrollPhysics()
+              : null,
           children: [
             Text(
               'Roster calendar',
               style: Theme.of(context).textTheme.titleLarge,
+            ),
+            Text(
+              '${_selection.dates.length} ${_selection.dates.length == 1 ? 'day' : 'days'} selected',
+            ),
+            const Text(
+              'Click or drag with the left mouse button to select days.',
             ),
             const SizedBox(height: 12),
             Row(
@@ -226,22 +244,24 @@ class _RosterDashboardState extends State<RosterDashboard> {
               ],
             ),
             const SizedBox(height: 6),
-            for (var week = 0; week < (offset + dayCount + 6) ~/ 7; week++)
-              Row(
-                children: [
-                  for (var weekday = 0; weekday < 7; weekday++)
-                    Expanded(
-                      child: _dateCell(
-                        week * 7 + weekday - offset + 1,
-                        dayCount,
-                        days,
-                      ),
-                    ),
-                ],
-              ),
+            CalendarDayGrid(
+              key: ValueKey(roster.id),
+              year: roster.year,
+              month: roster.month,
+              selection: _selection,
+              onChanged: () => setState(() {
+                _detailDate = _selection.lastVisited;
+              }),
+              cellBuilder: (date, selected) =>
+                  _dateCell(date, days[date], selected),
+            ),
             const Divider(height: 24),
             if (selectedDay == null)
-              const Text('Select a generated day to inspect its duties.')
+              Text(
+                _detailDate == null
+                    ? 'Select a generated day to inspect its duties.'
+                    : 'No generated roster day for ${_dateLabel(_detailDate!)}.',
+              )
             else ...[
               Text(
                 '${selectedDay.date.day}.${roster.month}.${roster.year}',
@@ -270,48 +290,41 @@ class _RosterDashboardState extends State<RosterDashboard> {
     );
   }
 
-  Widget _dateCell(int number, int count, Map<int, StoredDay> days) {
-    if (number < 1 || number > count) return const SizedBox(height: 64);
-    final day = days[number];
+  Widget _dateCell(DateTime date, StoredDay? day, bool selected) {
     final assignments =
         day?.assignments
             .where((a) => _doctorId == null || a.doctor.id == _doctorId)
             .length ??
         0;
-    return Padding(
+    return Container(
       padding: const EdgeInsets.all(2),
-      child: SizedBox(
-        height: 64,
-        child: OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.all(2),
-            backgroundColor: _day == number
-                ? Theme.of(context).colorScheme.secondaryContainer
-                : day?.calendarInfo.isWeekend == true ||
-                      day?.calendarInfo.isPublicHoliday == true
-                ? Theme.of(context).colorScheme.surfaceContainerHighest
-                : null,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-            ),
-          ),
-          onPressed: day == null
-              ? null
-              : () => setState(() {
-                  _day = number;
-                }),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('$number'),
-                Text(
-                  '$assignments duties',
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ],
-            ),
+      decoration: BoxDecoration(
+        color: selected
+            ? Theme.of(context).colorScheme.secondaryContainer
+            : day?.calendarInfo.isWeekend == true ||
+                  day?.calendarInfo.isPublicHoliday == true
+            ? Theme.of(context).colorScheme.surfaceContainerHighest
+            : null,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.outlineVariant,
+          width: selected ? 2 : 1,
+        ),
+      ),
+      child: Center(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${date.day}'),
+              Text(
+                day == null ? 'No roster day' : '$assignments duties',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ],
           ),
         ),
       ),
@@ -419,6 +432,16 @@ class _RosterDashboardState extends State<RosterDashboard> {
           ),
           Text('${history.recordedDuty24Days} recorded 24-hour duty days'),
           Text('${history.recordedWeekendDuty24Days} on Saturdays/Sundays'),
+          Text(
+            '${history.daysFor(WorkloadCategory.station)} station-role days',
+          ),
+          Text(
+            '${history.daysFor(WorkloadCategory.ambulance)} ambulance-role days',
+          ),
+          Text(
+            '${history.daysFor(WorkloadCategory.science)} science-role days',
+          ),
+          Text('${history.daysFor(WorkloadCategory.other)} other-role days'),
           const Text(
             '24-hour counts use recorded day markers, not duty-role assignments.',
           ),
@@ -427,7 +450,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
           ),
           ..._roleTotals(history),
           const Text(
-            'Grouped station/ambulance/science metrics await verified role classification.',
+            'Categories use SUL/SU1/SU2, AMB and SCI. Other codes remain separate. All phases and assignment states are included.',
           ),
           const Divider(),
         ],
@@ -456,4 +479,11 @@ String _phaseLabel(RosterPhase phase) => switch (phase) {
   RosterPhase.openForSelection => 'Open for selection',
   RosterPhase.locked => 'Locked',
   RosterPhase.published => 'Published',
+};
+
+String _phaseMeaning(RosterPhase phase) => switch (phase) {
+  RosterPhase.draft => 'Administrator working plan',
+  RosterPhase.openForSelection => 'Selection period — not published',
+  RosterPhase.locked => 'Selection closed — not published',
+  RosterPhase.published => 'Authoritative roster for end users',
 };
