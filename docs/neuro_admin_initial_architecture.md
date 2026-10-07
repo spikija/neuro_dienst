@@ -165,3 +165,17 @@ Before Phase 2, also resolve server-side capacity/eligibility/overlap enforcemen
 atomic writes and concurrent edits, roster-phase policy, authoritative role
 classification, and historical role-definition versioning. Displayed role names
 currently come from present-day role records, even for historical assignments.
+
+## Baseline verification (2026-10-07)
+
+The starting tree on `feature/neuro-admin-desktop` was clean at `c2f8d00`
+(`19.2`); the Phase 1 implementation, MFA refresh-loop fix and password visibility
+button were already committed. Reverification passed: formatting (no changes),
+analysis (no issues), all 13 desktop tests, Windows release build, and all 10
+`neuro_core` tests. This documentation checkpoint records the verified baseline.
+
+The administrator reports successful live desktop login/MFA and authenticated
+read-only roster/workload loading. This supersedes the earlier pending live-login
+status above; it is user-reported verification, not a new automated live sign-in.
+Real doctor/viewer rejection has not been independently verified against the live
+backend; both roles are rejected by the automated access-contract tests.
