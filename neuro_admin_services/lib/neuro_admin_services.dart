@@ -7,5 +7,6 @@ export 'src/assignment_validation.dart';
 export 'src/lifecycle.dart';
 export 'src/read_models.dart';
 export 'src/scheduling_time.dart';
+export 'src/snapshot_assignment_validation.dart';
 export 'src/workload.dart';
 export 'src/workload_category.dart';

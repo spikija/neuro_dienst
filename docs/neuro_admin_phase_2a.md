@@ -30,7 +30,7 @@ neuro_app UI ------> existing implementation (future incremental adoption)
 | `RosterReader` | `listMonths`, `loadMonth` | Moved `SupabaseRosterReader`, paginated GET-only queries; all physicians and exact stored role identities retained |
 | `PhysicianReadService` | `loadPhysicians(includeInactive: true)` | Same adapter; directory identity/rank/capabilities/activity, not a dated absence query |
 | `WorkloadReadService` | `forPhysician(snapshot, physician, window)` | `RecordedWorkloadService`; existing calculations moved without duplication |
-| `AssignmentValidationService` | `preview(AssignmentValidationRequest)` | Interface only; no fabricated successful validator |
+| `AssignmentValidationService` | `preview(AssignmentValidationRequest)` | Phase 2B adds advisory `SnapshotAssignmentValidationService`; no authoritative backend validator |
 | `AssignmentMutationService` | `assign`, `bulkAssign`, `remove`, `replace` | Interface only; no client-side table writes or mutation adapter |
 | `RosterLifecycleService` | `openSelection`, `lockSelection`, `publish`, `createDraftRevision` | Interface only |
 | `RosterGenerationService` | `create`, `regenerate` | Interface only; mobile generator not copied |
@@ -328,7 +328,7 @@ old screen persistence only after parity/security tests pass. Phase 2A switches 
 desktop reads and workload, not mobile operations. Recommendations and automatic
 allocation remain separate future consumers of the same validated command path.
 
-## 9. Remaining gates before Phase 2B writes
+## 9. Remaining gates before Phase 2C writes
 
 1. Approve and migrate versioning, publication/read visibility, metadata snapshots
    and optimistic concurrency; coordinate mobile compatibility and preservation.
@@ -343,9 +343,9 @@ allocation remain separate future consumers of the same validated command path.
    rollback, retry after lost response, viewer/doctor/admin authorization and
    publication readers against an isolated backend; then review live read behavior.
 
-The repository is ready for Phase 2B preview/UI integration work against these
-contracts. It is **not ready for confirmed production assignment writes** until
-these server/data gates are resolved. No placeholder write buttons were added.
+[Phase 2B](neuro_admin_phase_2b.md) implements preview/UI integration against these
+contracts and shows a disabled Apply button. It is **not ready for confirmed
+production assignment writes** until these server/data gates are resolved.
 
 ## 10. Verification record (2026-10-07)
 

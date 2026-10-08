@@ -123,6 +123,25 @@ void main() {
 
   test('advisory, expired or invalid previews cannot form write requests', () {
     final intent = AdminWriteIntent('request');
+    expect(
+      () => RosterWriteIntent(intent, RosterVersion.unversioned('roster')),
+      throwsArgumentError,
+    );
+    expect(
+      () => AssignmentPreview(
+        request: AssignmentValidationRequest(
+          roster: RosterVersion.unversioned('roster'),
+          roleId: 'role',
+          physicianId: 'doctor',
+          targets: [AssignmentTarget(date)],
+        ),
+        results: [result()],
+        authority: ValidationAuthority.backend,
+        confirmationToken: 'token',
+        expiresAt: now.add(const Duration(minutes: 2)),
+      ),
+      throwsArgumentError,
+    );
     final advisory = AssignmentPreview(request: request(), results: [result()]);
     expect(advisory.allValid, isTrue);
     expect(advisory.canConfirmAt(now), isFalse);

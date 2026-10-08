@@ -1,7 +1,13 @@
 import 'lifecycle.dart';
 import 'scheduling_time.dart';
+import 'read_models.dart';
 
 enum AssignmentErrorCode {
+  physicianNotFound,
+  missingCapability,
+  invalidDate,
+  roleInactive,
+  invalidSlot,
   physicianNotEligible,
   blockingAbsence,
   overlappingAssignment,
@@ -17,6 +23,9 @@ enum AssignmentErrorCode {
 }
 
 enum AssignmentWarningCode {
+  correctionReasonRequired,
+  allowedOverlap,
+  incompleteWorkloadHistory,
   heavyRecentDutyBurden,
   weekendImbalance,
   targetRoleOverAllocation,
@@ -88,6 +97,9 @@ final class AssignmentValidationResult {
   final String roleId;
   final List<AssignmentValidationError> errors;
   final List<AssignmentValidationWarning> warnings;
+  final List<AssignmentFact> currentAssignments;
+  final List<AssignmentFact> conflictingAssignments;
+  final List<StoredDuty> matchingSlots;
 
   AssignmentValidationResult({
     required this.date,
@@ -96,15 +108,21 @@ final class AssignmentValidationResult {
     required this.roleId,
     Iterable<AssignmentValidationError> errors = const [],
     Iterable<AssignmentValidationWarning> warnings = const [],
+    Iterable<AssignmentFact> currentAssignments = const [],
+    Iterable<AssignmentFact> conflictingAssignments = const [],
+    Iterable<StoredDuty> matchingSlots = const [],
   }) : errors = List.unmodifiable([
          ...errors,
-         if (slotId == null || slotId.trim().isEmpty)
+         if ((slotId == null || slotId.trim().isEmpty) && errors.isEmpty)
            const AssignmentValidationError(
              AssignmentErrorCode.missingSlot,
              'No target slot resolved.',
            ),
        ]),
-       warnings = List.unmodifiable(warnings) {
+       warnings = List.unmodifiable(warnings),
+       currentAssignments = List.unmodifiable(currentAssignments),
+       conflictingAssignments = List.unmodifiable(conflictingAssignments),
+       matchingSlots = List.unmodifiable(matchingSlots) {
     if (physicianId.trim().isEmpty || roleId.trim().isEmpty) {
       throw ArgumentError('Physician and role identity required');
     }
@@ -152,22 +170,28 @@ final class AssignmentPreview {
     if (authority == ValidationAuthority.backend &&
         (confirmationToken == null ||
             confirmationToken!.trim().isEmpty ||
-            expiresAt == null)) {
+            expiresAt == null ||
+            request.roster.contentVersion == null)) {
       throw ArgumentError(
-        'Backend preview needs a confirmation token and expiry',
+        'Backend preview needs a content version, confirmation token and expiry',
       );
     }
   }
 
   bool get allValid => results.every((result) => result.isValid);
+  int get validCount =>
+      results.where((r) => r.isValid && r.warnings.isEmpty).length;
+  int get warningCount =>
+      results.where((r) => r.isValid && r.warnings.isNotEmpty).length;
+  int get blockedCount => results.where((r) => !r.isValid).length;
+  int get proposedAdditions => validCount + warningCount;
   bool canConfirmAt(DateTime now) =>
       authority == ValidationAuthority.backend &&
       allValid &&
       now.toUtc().isBefore(expiresAt!);
 }
 
-/// No implementation until authoritative data/rules and the backend preview
-/// operation exist. Do not adapt fixed SlotKind enums to arbitrary stored roles.
+/// Implementations must declare their authority. Snapshot preview cannot commit.
 abstract interface class AssignmentValidationService {
   Future<AssignmentPreview> preview(AssignmentValidationRequest request);
 }

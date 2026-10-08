@@ -1,7 +1,8 @@
 # NeuroDienst Admin
 
 Administrator-only, read-only desktop roster and workload client. Windows first;
-macOS runner included, not yet qualified. No roster writes or assignment editing.
+macOS runner included, not yet qualified. Manual assignment preview is available;
+Apply remains disabled and there are no backend assignment mutations.
 
 ```powershell
 flutter pub get
@@ -15,3 +16,4 @@ enrollment and password recovery remain in the mobile app. Doctor/viewer account
 are denied. Missing configuration is shown explicitly, with no demo fallback.
 
 See [architecture and workload definitions](../docs/neuro_admin_initial_architecture.md).
+See [Phase 2B preview behavior and limitations](../docs/neuro_admin_phase_2b.md).

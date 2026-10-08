@@ -35,12 +35,20 @@ abstract final class RosterLifecyclePolicy {
 /// Optimistic concurrency stamp, distinct from the monthly revision number.
 final class RosterVersion {
   final String rosterId;
-  final int contentVersion;
-  RosterVersion(this.rosterId, this.contentVersion) {
+  final int? contentVersion;
+  RosterVersion(this.rosterId, int contentVersion)
+    : contentVersion = contentVersion {
     if (rosterId.trim().isEmpty || contentVersion < 0) {
       throw ArgumentError(
         'Roster identity and non-negative content version required',
       );
+    }
+  }
+
+  /// Legacy snapshots have no concurrency stamp. Never invent version zero.
+  RosterVersion.unversioned(this.rosterId) : contentVersion = null {
+    if (rosterId.trim().isEmpty) {
+      throw ArgumentError('Roster identity required');
     }
   }
 }

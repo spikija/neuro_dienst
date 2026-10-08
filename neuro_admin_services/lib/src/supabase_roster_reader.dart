@@ -88,7 +88,9 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
     final roles = await _pages(
       (start, end) => client
           .from('roles')
-          .select('id, code, name, area, allowed_ranks, required_capabilities')
+          .select(
+            'id, code, name, area, allowed_ranks, required_capabilities, is_active',
+          )
           .order('id')
           .range(start, end),
     );
@@ -98,16 +100,89 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
       'roster_day_id',
       days.map((row) => row['id'] as String).toList(),
     );
+    // Workload uses stored DATEs; conflict validation needs actual intervals.
+    // Fetch every intersecting slot, even one linked to an adjacent month's day.
+    final selectedDayIds = days
+        .where((row) => row['roster_id'] == month.id)
+        .map((row) => row['id'])
+        .toSet();
+    final targetSlots = slots
+        .where((row) => selectedDayIds.contains(row['roster_day_id']))
+        .toList();
+    DateTime? firstInstant;
+    DateTime? lastInstant;
+    if (targetSlots.isNotEmpty) {
+      final starts =
+          targetSlots
+              .map(
+                (row) => ViennaSchedulingTime.parseInstant(
+                  row['starts_at'] as String,
+                ),
+              )
+              .toList()
+            ..sort();
+      final ends =
+          targetSlots
+              .map(
+                (row) =>
+                    ViennaSchedulingTime.parseInstant(row['ends_at'] as String),
+              )
+              .toList()
+            ..sort();
+      firstInstant = starts.first;
+      lastInstant = ends.last;
+      final overlapping = await _pages(
+        (start, end) => client
+            .from('roster_slots')
+            .select(
+              'id, roster_day_id, role_id, starts_at, ends_at, max_doctors',
+            )
+            .lt('starts_at', lastInstant!.toIso8601String())
+            .gt('ends_at', firstInstant!.toIso8601String())
+            .order('id')
+            .range(start, end),
+      );
+      final byId = {
+        for (final row in slots) row['id']: row,
+        for (final row in overlapping) row['id']: row,
+      };
+      slots
+        ..clear()
+        ..addAll(byId.values);
+      final dayIds = days.map((row) => row['id']).toSet();
+      final missingDayIds = slots
+          .map((row) => row['roster_day_id'] as String)
+          .where((id) => !dayIds.contains(id))
+          .toSet();
+      days.addAll(
+        await _byIds(
+          'roster_days',
+          'id, roster_id, date, is_weekend, is_public_holiday, public_holiday_name',
+          'id',
+          missingDayIds.toList(),
+        ),
+      );
+    }
     final assignments = await _byIds(
       'assignments',
       'id, roster_slot_id, doctor_id, state',
       'roster_slot_id',
       slots.map((row) => row['id'] as String).toList(),
     );
-    final first = _date(
+    var first = _date(
       DateTime.utc(month.year, month.month).subtract(const Duration(days: 90)),
     );
-    final last = _date(DateTime(month.year, month.month + 1, 0));
+    var last = _date(DateTime.utc(month.year, month.month + 1, 0));
+    if (firstInstant != null && lastInstant != null) {
+      final occupiedStart = ViennaSchedulingTime.dateOfInstant(
+        firstInstant,
+      ).toString();
+      final occupiedEnd = ViennaSchedulingTime.dateOfInstant(
+        lastInstant.subtract(const Duration(microseconds: 1)),
+      ).toString();
+      if (occupiedStart.compareTo(first) < 0) first = occupiedStart;
+      if (occupiedEnd.compareTo(last) > 0) last = occupiedEnd;
+    }
     final absences = await _pages(
       (start, end) => client
           .from('absences')
@@ -126,6 +201,7 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
       slots: slots,
       assignments: assignments,
       absences: absences,
+      hasOverlapCoverage: true,
     );
   }
 
@@ -174,6 +250,7 @@ RosterSnapshot decodeRoster(
   required List<JsonRow> assignments,
   required List<JsonRow> absences,
   required List<JsonRow> rosterRows,
+  bool hasOverlapCoverage = false,
 }) {
   final periods = <String, List<AvailabilityPeriod>>{};
   for (final row in absences) {
@@ -210,6 +287,19 @@ RosterSnapshot decodeRoster(
         _id(row, 'id'),
         row['code'] as String,
         row['name'] as String,
+        allowedRanks: row['allowed_ranks'] == null
+            ? null
+            : Set.unmodifiable([
+                for (final value in row['allowed_ranks'] as List)
+                  _enumValue(DoctorRank.values, value),
+              ]),
+        requiredCapabilities: row['required_capabilities'] == null
+            ? null
+            : Set.unmodifiable([
+                for (final value in row['required_capabilities'] as List)
+                  _enumValue(Capability.values, value),
+              ]),
+        isActive: row['is_active'] as bool?,
       ),
   };
   final slotsByDay = <String, List<StoredDuty>>{};
@@ -305,6 +395,12 @@ RosterSnapshot decodeRoster(
             _calendarDate(row['date']).isBefore(historyEnd))
           _calendarDate(row['date']),
     },
+    roles: List.unmodifiable(roleById.values),
+    unknownActivityDoctorIds: {
+      for (final row in doctors)
+        if (row['is_active'] is! bool) _id(row, 'id'),
+    },
+    hasOverlapCoverage: hasOverlapCoverage,
   );
 }
 

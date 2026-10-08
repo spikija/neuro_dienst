@@ -15,7 +15,11 @@ final class AdminWriteIntent {
 final class RosterWriteIntent {
   final AdminWriteIntent operation;
   final RosterVersion expected;
-  const RosterWriteIntent(this.operation, this.expected);
+  RosterWriteIntent(this.operation, this.expected) {
+    if (expected.contentVersion == null) {
+      throw ArgumentError('Writes require an authoritative content version');
+    }
+  }
 }
 
 final class AssignmentCommitRequest {

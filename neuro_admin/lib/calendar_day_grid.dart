@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,8 +5,7 @@ import 'package:flutter/services.dart';
 import 'calendar_selection.dart';
 
 /// Mouse selection is captured by the whole grid, including moves outside it.
-/// Sampling each segment against cell rectangles avoids skipping days when the
-/// OS coalesces rapid pointer movement into a single event.
+/// Selection is the rectangle between anchor and current cell, not pointer path.
 class CalendarDayGrid extends StatefulWidget {
   final int year;
   final int month;
@@ -33,7 +30,6 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   static const _rowHeight = 68.0;
   final _gridKey = GlobalKey();
   int? _pointer;
-  Offset? _previous;
 
   int get _offset => DateTime.utc(widget.year, widget.month).weekday - 1;
   int get _count => DateTime.utc(widget.year, widget.month + 1, 0).day;
@@ -46,7 +42,6 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
         oldWidget.selection != widget.selection) {
       oldWidget.selection.endDrag();
       _pointer = null;
-      _previous = null;
     }
   }
 
@@ -82,7 +77,6 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
     for (var day = 1; day <= _count; day++) {
       if (_rect(day).contains(position)) {
         _pointer = event.pointer;
-        _previous = position;
         widget.selection.beginDrag(_date(day));
         widget.onChanged();
         return;
@@ -101,17 +95,14 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
 
   void _extend(Offset globalPosition) {
     final position = _box.globalToLocal(globalPosition);
-    final crossed = <(double, DateTime)>[];
-    for (var day = 1; day <= _count; day++) {
-      final entry = _segmentEntry(_previous!, position, _rect(day));
-      if (entry != null) crossed.add((entry, _date(day)));
-    }
-    crossed.sort((a, b) => a.$1.compareTo(b.$1));
-    for (final (_, date) in crossed) {
-      widget.selection.enter(date);
-    }
-    _previous = position;
-    if (crossed.isNotEmpty) widget.onChanged();
+    // Outside the grid, retain the last rectangle. Padding is a valid endpoint
+    // inside the grid but never contributes an out-of-month date.
+    if (!(Offset.zero & _box.size).contains(position)) return;
+    widget.selection.enterCell(
+      (position.dy / _rowHeight).floor(),
+      (position.dx / (_box.size.width / 7)).floor(),
+    );
+    widget.onChanged();
   }
 
   void _end(PointerEvent event) {
@@ -120,7 +111,6 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
       _extend(event.position);
     }
     _pointer = null;
-    _previous = null;
     widget.selection.endDrag();
     widget.onChanged();
   }
@@ -222,25 +212,4 @@ class _KeyboardDayState extends State<_KeyboardDay> {
       child: widget.child,
     ),
   );
-}
-
-/// Parametric line clipping; returns the first intersection along the segment.
-double? _segmentEntry(Offset start, Offset end, Rect rect) {
-  var entry = 0.0;
-  var exit = 1.0;
-  for (final (origin, delta, low, high) in [
-    (start.dx, end.dx - start.dx, rect.left, rect.right),
-    (start.dy, end.dy - start.dy, rect.top, rect.bottom),
-  ]) {
-    if (delta == 0) {
-      if (origin < low || origin > high) return null;
-    } else {
-      final a = (low - origin) / delta;
-      final b = (high - origin) / delta;
-      entry = math.max(entry, math.min(a, b));
-      exit = math.min(exit, math.max(a, b));
-      if (entry > exit) return null;
-    }
-  }
-  return entry;
 }

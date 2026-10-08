@@ -19,7 +19,7 @@ void main() {
       selection.enter(DateTime.utc(2026, 10, 2, 8));
       selection.enter(date(3));
       selection.enter(date(1));
-      expect(selection.dates, {date(1), date(2), date(3)});
+      expect(selection.dates, {date(1), date(2)});
       expect(
         selection.dates.every((value) => value.isUtc && value.hour == 0),
         isTrue,
@@ -28,7 +28,7 @@ void main() {
       selection.endDrag();
       selection.enter(date(4));
       expect(selection.isDragging, isFalse);
-      expect(selection.dates, hasLength(3));
+      expect(selection.dates, hasLength(2));
       selection.select(date(5));
       expect(selection.dates, {date(5)});
       selection.clear();
@@ -39,7 +39,7 @@ void main() {
   );
 
   testWidgets(
-    'mouse drag captures fast, backward and cross-week paths; release and cancel stop it',
+    'mouse rectangle follows endpoints, shrinks on reversal; release and cancel stop it',
     (tester) async {
       final selection = CalendarSelection();
       await tester.pumpWidget(
@@ -78,15 +78,7 @@ void main() {
       await tester.pump();
       await mouse.moveTo(tester.getCenter(cell(8)));
       await tester.pump();
-      expect(selection.dates, {
-        date(2),
-        date(3),
-        date(4),
-        date(8),
-        date(9),
-        date(10),
-        date(11),
-      });
+      expect(selection.dates, {date(1), date(2), date(8), date(9)});
       expect(
         tester.getTopLeft(cell(2)),
         origin,
@@ -95,11 +87,11 @@ void main() {
       await mouse.moveTo(tester.getCenter(cell(11)));
       await mouse.moveTo(tester.getCenter(cell(8)));
       await tester.pump();
-      expect(selection.dates, hasLength(7));
+      expect(selection.dates, hasLength(4));
       await mouse.up();
       expect(selection.isDragging, isFalse);
       await mouse.moveTo(tester.getCenter(cell(20)));
-      expect(selection.dates, hasLength(7));
+      expect(selection.dates, hasLength(4));
       await mouse.down(tester.getCenter(cell(1)));
       await tester.pump();
       expect(selection.dates, {date(1)});
@@ -175,7 +167,7 @@ void main() {
         reason: 'Selection performs no backend calls',
       );
       await mouse.removePointer();
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(find.byKey(const ValueKey('month-selector')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('2026-09').last);
       await tester.pumpAndSettle();
@@ -199,6 +191,17 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        cell(4),
+        80,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('roster-calendar-scroll')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: tester.getCenter(cell(1)));
       await mouse.down(tester.getCenter(cell(1)));
@@ -214,7 +217,13 @@ void main() {
       await mouse.up();
       await mouse.removePointer();
       await tester.pump();
-      expect(find.text('4 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        {date(1), date(2), date(3), date(4)},
+      );
       final beforeScroll = tester.getTopLeft(cell(1)).dy;
       await tester.dragFrom(tester.getCenter(cell(1)), const Offset(0, -80));
       await tester.pumpAndSettle();

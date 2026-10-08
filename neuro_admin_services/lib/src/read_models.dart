@@ -20,7 +20,17 @@ class StoredRole {
   final String id;
   final String code;
   final String name;
-  const StoredRole(this.id, this.code, this.name);
+  final Set<DoctorRank>? allowedRanks;
+  final Set<Capability>? requiredCapabilities;
+  final bool? isActive;
+  const StoredRole(
+    this.id,
+    this.code,
+    this.name, {
+    this.allowedRanks,
+    this.requiredCapabilities,
+    this.isActive,
+  });
 }
 
 class StoredDuty {
@@ -64,14 +74,22 @@ class RosterSnapshot {
   final Set<String> inactiveDoctorIds;
   final List<AssignmentFact> facts;
   final Set<DateTime> loadedHistoryDates;
+  final List<StoredRole> roles;
+  final Set<String> unknownActivityDoctorIds;
+
+  /// True only when the reader also loaded all slots intersecting target times.
+  final bool hasOverlapCoverage;
   const RosterSnapshot(
     this.month,
     this.days,
     this.doctors,
     this.inactiveDoctorIds,
     this.facts,
-    this.loadedHistoryDates,
-  );
+    this.loadedHistoryDates, {
+    this.roles = const [],
+    this.unknownActivityDoctorIds = const {},
+    this.hasOverlapCoverage = false,
+  });
 
   DateTime get historyEnd => DateTime.utc(month.year, month.month);
   DateTime get historyStart => historyEnd.subtract(const Duration(days: 90));

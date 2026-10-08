@@ -8,7 +8,7 @@ read models, workload calculations, lifecycle/authorization policies and hospita
 date/time helpers. Import `supabase_admin_reader.dart` separately for the optional
 GET-only adapter and inject an ordinary authenticated Supabase client.
 
-Implemented: roster/physician reads, recorded workload, typed validation results,
+Implemented: roster/physician reads, recorded workload, advisory snapshot assignment validation,
 intended lifecycle/authorization predicates and Europe/Vienna time conversion.
 Not implemented: authoritative assignment validation, any mutation adapter,
 invitation orchestration, roster generation, version selection or backend RPCs.
@@ -24,3 +24,6 @@ in-memory models and a loopback server; they perform no live Supabase writes.
 Read [the Phase 2A design](../docs/neuro_admin_phase_2a.md) before implementing
 adapters: it specifies transactions, concurrency, lifecycle, authorization and
 timezone migration requirements.
+The [Phase 2B implementation](../docs/neuro_admin_phase_2b.md) preserves exact database
+role/slot IDs and provides per-date errors, factual warnings and current occupants.
+Legacy snapshots are explicitly unversioned and cannot authorize writes.

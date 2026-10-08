@@ -335,7 +335,7 @@ void main() {
       await tester.tap(find.text('Ada Test (inactive)'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Previous 90 days:'), findsOneWidget);
-      await tester.tap(find.byType(DropdownButton<String>));
+      await tester.tap(find.byKey(const ValueKey('month-selector')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('2026-09').last);
       await tester.pumpAndSettle();
