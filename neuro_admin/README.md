@@ -1,8 +1,9 @@
 # NeuroDienst Admin
 
-Administrator-only, read-only desktop roster and workload client. Windows first;
-macOS runner included, not yet qualified. Manual assignment preview is available;
-Apply remains disabled and there are no backend assignment mutations.
+Administrator-only desktop roster and workload client. Windows first; macOS runner
+included, not yet qualified. Phase 2C supports confirmed manual additions through
+an atomic admin+MFA RPC after the backend migration is deployed. Unmigrated backends
+remain preview-only. No direct assignment table writes, removal or replacement.
 
 ```powershell
 flutter pub get
@@ -17,3 +18,4 @@ are denied. Missing configuration is shown explicitly, with no demo fallback.
 
 See [architecture and workload definitions](../docs/neuro_admin_initial_architecture.md).
 See [Phase 2B preview behavior and limitations](../docs/neuro_admin_phase_2b.md).
+See [Phase 2C RPC, deployment and verification](../docs/neuro_admin_phase_2c.md).

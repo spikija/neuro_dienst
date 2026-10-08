@@ -8,6 +8,50 @@ import 'package:supabase/supabase.dart';
 import 'package:test/test.dart';
 
 void main() {
+  for (final mode in ['stable', 'changed', 'unmigrated']) {
+    test('snapshot version loading is safe when $mode', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      var reads = 0;
+      server.listen((request) async {
+        request.response.headers.contentType = ContentType.json;
+        Object rows = [];
+        if (request.uri.path.endsWith('/rosters')) {
+          if (request.uri.queryParameters['select'] == 'content_version') {
+            reads++;
+            if (mode == 'unmigrated') {
+              request.response.statusCode = 400;
+              rows = {'code': '42703', 'message': 'Column unavailable'};
+            } else {
+              rows = [
+                {'content_version': mode == 'changed' && reads > 1 ? 8 : 7},
+              ];
+            }
+          } else {
+            rows = [
+              {'id': 'oct', 'phase': 'draft'},
+            ];
+          }
+        }
+        request.response.write(jsonEncode(rows));
+        await request.response.close();
+      });
+      final client = SupabaseClient(
+        'http://127.0.0.1:${server.port}',
+        'test-public',
+      );
+      addTearDown(client.dispose);
+      final load = SupabaseRosterReader(
+        client,
+      ).loadMonth(const RosterChoice('oct', 2026, 10, RosterPhase.draft));
+      if (mode == 'changed') {
+        await expectLater(load, throwsA(isA<FormatException>()));
+      } else {
+        expect((await load).contentVersion, mode == 'stable' ? 7 : null);
+      }
+      expect(reads, 2);
+    });
+  }
   test(
     'GET-only reads cover adjacent-month conflicts, absences and role metadata',
     () async {

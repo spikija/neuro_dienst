@@ -3,6 +3,10 @@ import 'scheduling_time.dart';
 import 'read_models.dart';
 
 enum AssignmentErrorCode {
+  unauthorized,
+  mfaRequired,
+  internalError,
+  idempotencyConflict,
   physicianNotFound,
   missingCapability,
   invalidDate,
@@ -134,8 +138,9 @@ final class AssignmentValidationResult {
 
 enum ValidationAuthority { advisory, backend }
 
-/// Immutable preview bound to the exact request. A local preview cannot be used
-/// for a write. Even a backend preview is not a reservation: commit revalidates.
+/// Immutable preview bound to the exact request. A local preview never authorizes
+/// a write. Atomic validate-and-apply revalidates its inputs on the server;
+/// a separate backend preview is not a reservation either.
 final class AssignmentPreview {
   final AssignmentValidationRequest request;
   final List<AssignmentValidationResult> results;

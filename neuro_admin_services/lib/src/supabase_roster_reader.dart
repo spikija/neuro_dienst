@@ -57,6 +57,7 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
 
   @override
   Future<RosterSnapshot> loadMonth(RosterChoice month) async {
+    final version = await _version(month.id);
     // Load inactive doctors too: old assignments must not disappear.
     final doctors = await _doctorRows();
     final days = await _pages(
@@ -192,6 +193,11 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
           .order('id')
           .range(start, end),
     );
+    if (await _version(month.id) != version) {
+      throw const FormatException(
+        'Roster data changed while loading. Reload the roster.',
+      );
+    }
     return decodeRoster(
       month,
       doctors: doctors,
@@ -202,7 +208,23 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
       assignments: assignments,
       absences: absences,
       hasOverlapCoverage: true,
+      contentVersion: version,
     );
+  }
+
+  Future<int?> _version(String id) async {
+    try {
+      final rows = await client
+          .from('rosters')
+          .select('content_version')
+          .eq('id', id)
+          .limit(1);
+      return rows.isEmpty ? null : rows.first['content_version'] as int?;
+    } on PostgrestException catch (error) {
+      // Old backend remains readable, but cannot enable Apply.
+      if (error.code == '42703') return null;
+      rethrow;
+    }
   }
 
   Future<List<JsonRow>> _byIds(
@@ -251,6 +273,7 @@ RosterSnapshot decodeRoster(
   required List<JsonRow> absences,
   required List<JsonRow> rosterRows,
   bool hasOverlapCoverage = false,
+  int? contentVersion,
 }) {
   final periods = <String, List<AvailabilityPeriod>>{};
   for (final row in absences) {
@@ -401,6 +424,7 @@ RosterSnapshot decodeRoster(
         if (row['is_active'] is! bool) _id(row, 'id'),
     },
     hasOverlapCoverage: hasOverlapCoverage,
+    contentVersion: contentVersion,
   );
 }
 

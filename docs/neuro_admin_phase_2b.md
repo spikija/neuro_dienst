@@ -1,5 +1,8 @@
 # Phase 2B: manual assignment preview
 
+This describes the completed preview phase. [Phase 2C](neuro_admin_phase_2c.md)
+now adds a separate atomic validate-and-apply path; advisory preview remains local.
+
 Phase 2B performs no backend assignment mutations.
 
 The Windows desktop remains administrator-only with its existing Supabase session

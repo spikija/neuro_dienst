@@ -66,6 +66,7 @@ RosterSnapshot previewFixture({
   Set<String> inactive = const {},
   bool coverage = true,
   bool history = true,
+  int? contentVersion,
 }) {
   final duties =
       slots ??
@@ -98,6 +99,7 @@ RosterSnapshot previewFixture({
     },
     roles: roles ?? [leader, ambulance, icb],
     hasOverlapCoverage: coverage,
+    contentVersion: contentVersion,
   );
 }
 

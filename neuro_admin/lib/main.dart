@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:neuro_admin_services/supabase_admin_mutations.dart';
 
 import 'auth/session_gate.dart';
 import 'data/roster_reader.dart';
@@ -52,6 +53,7 @@ class NeuroAdminApp extends StatelessWidget {
           ? SessionGate(
               gateway: SupabaseSessionGateway(client!),
               reader: SupabaseRosterReader(client!),
+              mutations: SupabaseAssignmentMutationService(client!),
             )
           : Scaffold(
               appBar: AppBar(title: const Text('NeuroDienst Admin')),

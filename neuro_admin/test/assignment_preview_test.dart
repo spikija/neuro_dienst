@@ -325,7 +325,7 @@ void main() {
           );
           expect(
             find.text(
-              'Published rosters require a new revision before editing.',
+              'Published roster requires a new revision before editing.',
             ),
             findsWidgets,
           );

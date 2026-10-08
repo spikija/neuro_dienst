@@ -68,6 +68,7 @@ class StoredDay {
 }
 
 class RosterSnapshot {
+  final int? contentVersion;
   final RosterChoice month;
   final List<StoredDay> days;
   final List<Doctor> doctors;
@@ -89,6 +90,7 @@ class RosterSnapshot {
     this.roles = const [],
     this.unknownActivityDoctorIds = const {},
     this.hasOverlapCoverage = false,
+    this.contentVersion,
   });
 
   DateTime get historyEnd => DateTime.utc(month.year, month.month);

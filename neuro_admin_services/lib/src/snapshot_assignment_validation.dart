@@ -120,7 +120,7 @@ class SnapshotAssignmentValidationService
     )) {
       error(
         AssignmentErrorCode.rosterNotEditable,
-        'Published rosters require a new revision before editing.',
+        'Published roster requires a new revision before editing.',
       );
     }
     if (!snapshot.hasOverlapCoverage) {

@@ -17,6 +17,9 @@ class AssignmentCandidatePanel extends StatefulWidget {
   final ValueChanged<String> onPhysician;
   final VoidCallback onCancel;
   final PreviewServiceFactory? serviceFactory;
+  final AssignmentMutationService? mutations;
+  final ValueChanged<bool>? onBusyChanged;
+  final Future<void> Function(bool stale)? onReload;
   const AssignmentCandidatePanel({
     super.key,
     required this.snapshot,
@@ -26,6 +29,9 @@ class AssignmentCandidatePanel extends StatefulWidget {
     required this.onPhysician,
     required this.onCancel,
     this.serviceFactory,
+    this.mutations,
+    this.onBusyChanged,
+    this.onReload,
   });
 
   @override
@@ -43,6 +49,9 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
   int _generation = 0;
   bool _loading = true;
   String? _error;
+  bool _authorized = false;
+  bool _applying = false;
+  AssignmentCommitRequest? _pending;
 
   @override
   void initState() {
@@ -62,6 +71,8 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
   }
 
   void _invalidate() {
+    _pending = null;
+    _authorized = false;
     final generation = ++_generation;
     _timer?.cancel();
     _previews = {};
@@ -83,19 +94,26 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         for (final doctor in doctors)
           service.preview(
             AssignmentValidationRequest(
-              roster: RosterVersion.unversioned(widget.snapshot.month.id),
+              roster: widget.snapshot.contentVersion == null
+                  ? RosterVersion.unversioned(widget.snapshot.month.id)
+                  : RosterVersion(
+                      widget.snapshot.month.id,
+                      widget.snapshot.contentVersion!,
+                    ),
               roleId: widget.role.id,
               physicianId: doctor.id,
               targets: dates.map(AssignmentTarget.new),
             ),
           ),
       ]);
+      final authorized = await widget.mutations?.canApply() ?? false;
       if (!mounted || generation != _generation) return;
       setState(() {
         _previews = {
           for (var i = 0; i < doctors.length; i++) doctors[i].id: previews[i],
         };
         _loading = false;
+        _authorized = authorized;
       });
     } catch (_) {
       if (!mounted || generation != _generation) return;
@@ -104,6 +122,111 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         _error =
             'Preview could not be calculated. Reload the roster and retry.';
       });
+    }
+  }
+
+  Future<void> _apply(AssignmentPreview preview) async {
+    if (_applying ||
+        !_authorized ||
+        !preview.allValid ||
+        widget.mutations == null ||
+        widget.snapshot.contentVersion == null) {
+      return;
+    }
+    final generation = _generation;
+    final physicianId = widget.physicianId;
+    final mutations = widget.mutations!;
+    final onBusyChanged = widget.onBusyChanged;
+    setState(() {
+      _applying = true;
+      _error = null;
+    });
+    onBusyChanged?.call(true);
+    try {
+      if (_pending == null) {
+        final reason = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => _AssignmentConfirmation(
+            preview: preview,
+            physicianName: widget.snapshot.doctors
+                .firstWhere((d) => d.id == physicianId)
+                .fullName,
+            roleName: '${widget.role.code}: ${widget.role.name}',
+            requiresReason: widget.snapshot.month.phase == RosterPhase.locked,
+          ),
+        );
+        if (!mounted ||
+            reason == null ||
+            generation != _generation ||
+            physicianId != widget.physicianId) {
+          return;
+        }
+        final old = preview.request;
+        final intent = AssignmentValidationRequest(
+          roster: old.roster,
+          roleId: old.roleId,
+          physicianId: old.physicianId,
+          targets: old.targets,
+          correctionReason: reason.trim().isEmpty ? null : reason.trim(),
+        );
+        _pending = AssignmentCommitRequest.atomicApply(
+          AdminWriteIntent.create(reason: intent.correctionReason),
+          AssignmentPreview(request: intent, results: preview.results),
+        );
+      }
+      // Access may have changed while the confirmation dialog was open.
+      final operation = _pending!;
+      if (!await mutations.canApply()) {
+        if (mounted) {
+          setState(() {
+            _authorized = false;
+            _error =
+                'Administrator MFA access could not be verified. Sign in again.';
+          });
+        }
+        return;
+      }
+      if (!mounted ||
+          generation != _generation ||
+          physicianId != widget.physicianId ||
+          !identical(operation, _pending)) {
+        return;
+      }
+      await mutations.bulkAssign(operation);
+      _pending = null;
+      if (mounted) await widget.onReload?.call(false);
+    } on AssignmentMutationFailure catch (error) {
+      if (!mounted) return;
+      if (!error.outcomeUnknown) _pending = null;
+      if (error.code == 'staleVersion') {
+        await widget.onReload?.call(true);
+      } else {
+        setState(() {
+          _error = error.outcomeUnknown
+              ? 'The response was not received. The operation may have succeeded. Retry the same request to check safely.'
+              : 'Server rejected the operation (${error.code}). No assignments were added.';
+          if (error.results.isNotEmpty) {
+            _previews[physicianId!] = AssignmentPreview(
+              request: preview.request,
+              results: error.results,
+            );
+          }
+          if (error.code == 'unauthorized' || error.code == 'mfaRequired') {
+            _authorized = false;
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error =
+              'Operation outcome is unknown. Retry the same request to check safely.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _applying = false);
+      onBusyChanged?.call(false);
     }
   }
 
@@ -154,7 +277,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                 ),
                 IconButton(
                   tooltip: 'Cancel preview',
-                  onPressed: widget.onCancel,
+                  onPressed: _applying ? null : widget.onCancel,
                   icon: const Icon(Icons.close),
                 ),
               ],
@@ -209,15 +332,35 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
             ] else
               const Text('Select a physician to inspect every selected date.'),
             const SizedBox(height: 6),
-            const Text(
-              'Preview only - assignment writes are not enabled yet.',
+            Text(
+              widget.mutations == null
+                  ? 'Preview only - assignment writes are not enabled yet.'
+                  : widget.snapshot.contentVersion == null
+                  ? 'Preview only: backend versioning migration is required.'
+                  : 'All dates must pass server validation; no partial assignments.',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            const Tooltip(
-              message: 'Backend writes are not enabled',
+            Tooltip(
+              message: !_authorized
+                  ? 'Verified administrator MFA session required'
+                  : 'Confirm all selected dates',
               child: FilledButton(
-                onPressed: null,
-                child: Text('Apply assignments'),
+                onPressed:
+                    !_loading &&
+                        !_applying &&
+                        _authorized &&
+                        selected?.allValid == true &&
+                        widget.snapshot.contentVersion != null &&
+                        widget.snapshot.month.phase != RosterPhase.published
+                    ? () => _apply(selected!)
+                    : null,
+                child: Text(
+                  _applying
+                      ? 'Applying...'
+                      : _pending != null
+                      ? 'Retry same request'
+                      : 'Apply assignments',
+                ),
               ),
             ),
           ],
@@ -266,7 +409,12 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
       title: Text(
         '${doctor.fullName}${snapshot.inactiveDoctorIds.contains(doctor.id) ? ' (inactive)' : ''}',
       ),
-      onTap: () => widget.onPhysician(doctor.id),
+      onTap: _applying
+          ? null
+          : () {
+              _pending = null;
+              widget.onPhysician(doctor.id);
+            },
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -357,4 +505,71 @@ class AssignmentPreviewDetails extends StatelessWidget {
 String _time(DateTime instant) {
   final time = ViennaSchedulingTime.localTime(instant);
   return '${HospitalDate.fromCalendarComponents(time)} ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+}
+
+class _AssignmentConfirmation extends StatefulWidget {
+  final AssignmentPreview preview;
+  final String physicianName;
+  final String roleName;
+  final bool requiresReason;
+  const _AssignmentConfirmation({
+    required this.preview,
+    required this.physicianName,
+    required this.roleName,
+    required this.requiresReason,
+  });
+  @override
+  State<_AssignmentConfirmation> createState() =>
+      _AssignmentConfirmationState();
+}
+
+class _AssignmentConfirmationState extends State<_AssignmentConfirmation> {
+  final _reason = TextEditingController();
+  @override
+  void dispose() {
+    _reason.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Confirm assignments'),
+    content: SizedBox(
+      width: 460,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.physicianName),
+            Text(widget.roleName),
+            Text('${widget.preview.results.length} dates; all-or-nothing'),
+            Text(
+              widget.preview.results.map((r) => r.date.toString()).join(', '),
+            ),
+            if (widget.requiresReason)
+              TextField(
+                controller: _reason,
+                decoration: const InputDecoration(
+                  labelText: 'Correction reason (required)',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: widget.requiresReason && _reason.text.trim().isEmpty
+            ? null
+            : () => Navigator.pop(context, _reason.text),
+        child: const Text('Confirm and apply'),
+      ),
+    ],
+  );
 }

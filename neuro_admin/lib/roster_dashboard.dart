@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart'
-    show ViennaSchedulingTime, HospitalDate, previewRoles;
+    show
+        ViennaSchedulingTime,
+        HospitalDate,
+        previewRoles,
+        AssignmentMutationService;
 
 import 'assignment_candidate_panel.dart';
 import 'calendar_day_grid.dart';
@@ -11,6 +15,7 @@ import 'data/workload.dart';
 import 'data/workload_category.dart';
 
 class RosterDashboard extends StatefulWidget {
+  final AssignmentMutationService? mutations;
   final RosterReader reader;
   final Future<void> Function() onSignOut;
   final PreviewServiceFactory? previewServiceFactory;
@@ -20,6 +25,7 @@ class RosterDashboard extends StatefulWidget {
     required this.reader,
     required this.onSignOut,
     this.previewServiceFactory,
+    this.mutations,
   });
 
   @override
@@ -36,6 +42,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   String? _doctorId;
   String? _roleId;
   bool _loading = true;
+  bool _applying = false;
   String? _error;
   int _request = 0;
 
@@ -112,136 +119,171 @@ class _RosterDashboardState extends State<RosterDashboard> {
   @override
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('NeuroDienst Admin'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _loading ? null : _refresh,
-            icon: const Icon(Icons.refresh),
-          ),
-          TextButton.icon(
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              spacing: 20,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (_months.isNotEmpty)
-                  DropdownButton<String>(
-                    key: const ValueKey('month-selector'),
-                    value: _selected?.id,
-                    items: [
-                      for (final month in _months)
-                        DropdownMenuItem(
-                          value: month.id,
-                          child: Text(month.label),
-                        ),
-                    ],
-                    onChanged: _loading
-                        ? null
-                        : (id) => _chooseMonth(
-                            _months.firstWhere((month) => month.id == id),
-                          ),
-                  ),
-                if (_selected != null)
-                  Chip(label: Text(_phaseLabel(_selected!.phase))),
-                if (_selected != null) Text(_phaseMeaning(_selected!.phase)),
-                const Text('Read-only: no roster changes can be made here.'),
-              ],
+    return AbsorbPointer(
+      absorbing: _applying,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('NeuroDienst Admin'),
+          actions: [
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: _loading ? null : _refresh,
+              icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(_error!),
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: _refresh,
-                            child: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : snapshot == null
-                  ? const Center(
-                      child: Text('No rosters have been generated yet.'),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) {
-                        // Preserve a desktop split even in a narrow resized window.
-                        final width = constraints.maxWidth < 760
-                            ? 760.0
-                            : constraints.maxWidth;
-                        return SingleChildScrollView(
-                          physics: _selection.isDragging
-                              ? const NeverScrollableScrollPhysics()
-                              : null,
-                          scrollDirection: Axis.horizontal,
-                          child: SizedBox(
-                            width: width,
-                            height: constraints.maxHeight,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(flex: 3, child: _calendar(snapshot)),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 2,
-                                  child:
-                                      _roleId != null &&
-                                          _selection.dates.isNotEmpty
-                                      ? AssignmentCandidatePanel(
-                                          snapshot: snapshot,
-                                          role: previewRoles(snapshot)
-                                              .firstWhere(
-                                                (role) => role.id == _roleId,
-                                              ),
-                                          dates: _selection.dates
-                                              .map(
-                                                HospitalDate
-                                                    .fromCalendarComponents,
-                                              )
-                                              .toSet(),
-                                          physicianId: _doctorId,
-                                          onPhysician: (id) =>
-                                              setState(() => _doctorId = id),
-                                          onCancel: () =>
-                                              setState(() => _roleId = null),
-                                          serviceFactory:
-                                              widget.previewServiceFactory,
-                                        )
-                                      : _workload(snapshot),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Read-only totals include all roster phases. Times use Europe/Vienna; calendar dates follow the stored roster day.',
-              style: TextStyle(fontSize: 12),
+            TextButton.icon(
+              onPressed: _signOut,
+              icon: const Icon(Icons.logout),
+              label: const Text('Sign out'),
             ),
           ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Wrap(
+                spacing: 20,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (_months.isNotEmpty)
+                    DropdownButton<String>(
+                      key: const ValueKey('month-selector'),
+                      value: _selected?.id,
+                      items: [
+                        for (final month in _months)
+                          DropdownMenuItem(
+                            value: month.id,
+                            child: Text(month.label),
+                          ),
+                      ],
+                      onChanged: _loading
+                          ? null
+                          : (id) => _chooseMonth(
+                              _months.firstWhere((month) => month.id == id),
+                            ),
+                    ),
+                  if (_selected != null)
+                    Chip(label: Text(_phaseLabel(_selected!.phase))),
+                  if (_selected != null) Text(_phaseMeaning(_selected!.phase)),
+                  Text(
+                    widget.mutations == null
+                        ? 'Read-only: no roster changes can be made here.'
+                        : 'Manual assignments require server validation and confirmation.',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_error!),
+                            const SizedBox(height: 12),
+                            FilledButton(
+                              onPressed: _refresh,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : snapshot == null
+                    ? const Center(
+                        child: Text('No rosters have been generated yet.'),
+                      )
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          // Preserve a desktop split even in a narrow resized window.
+                          final width = constraints.maxWidth < 760
+                              ? 760.0
+                              : constraints.maxWidth;
+                          return SingleChildScrollView(
+                            physics: _selection.isDragging
+                                ? const NeverScrollableScrollPhysics()
+                                : null,
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: width,
+                              height: constraints.maxHeight,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(flex: 3, child: _calendar(snapshot)),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    flex: 2,
+                                    child:
+                                        _roleId != null &&
+                                            _selection.dates.isNotEmpty
+                                        ? AssignmentCandidatePanel(
+                                            snapshot: snapshot,
+                                            role: previewRoles(snapshot)
+                                                .firstWhere(
+                                                  (role) => role.id == _roleId,
+                                                ),
+                                            dates: _selection.dates
+                                                .map(
+                                                  HospitalDate
+                                                      .fromCalendarComponents,
+                                                )
+                                                .toSet(),
+                                            physicianId: _doctorId,
+                                            onPhysician: (id) =>
+                                                setState(() => _doctorId = id),
+                                            onCancel: () =>
+                                                setState(() => _roleId = null),
+                                            serviceFactory:
+                                                widget.previewServiceFactory,
+                                            mutations: widget.mutations,
+                                            onBusyChanged: (busy) {
+                                              if (mounted) {
+                                                setState(
+                                                  () => _applying = busy,
+                                                );
+                                              }
+                                            },
+                                            onReload: (stale) async {
+                                              setState(() => _roleId = null);
+                                              await _refresh();
+                                              if (!mounted) return;
+                                              ScaffoldMessenger.of(
+                                                this.context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    _error != null
+                                                        ? (stale
+                                                              ? 'Roster changed; reload failed. Retry loading before previewing.'
+                                                              : 'Assignments saved, but reload failed. Retry loading to refresh workload.')
+                                                        : stale
+                                                        ? 'Roster changed. Data reloaded; select a role to preview again.'
+                                                        : 'Assignments saved. Roster and workload refreshed.',
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          )
+                                        : _workload(snapshot),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Read-only totals include all roster phases. Times use Europe/Vienna; calendar dates follow the stored roster day.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -321,7 +363,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
               ),
               if (roster.phase == RosterPhase.published)
                 const Text(
-                  'Published rosters require a new revision before editing.',
+                  'Published roster requires a new revision before editing.',
                 ),
               if (roster.phase == RosterPhase.locked)
                 const Text(

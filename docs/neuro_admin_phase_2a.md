@@ -1,5 +1,8 @@
 # Phase 2A: shared administrator services and backend safety design
 
+Historical design record. [Phase 2C](neuro_admin_phase_2c.md) implements the minimum
+safe versioned addition path; broader revision/publication and parity work remains.
+
 This is an implemented application boundary and a **proposed backend contract**.
 It does not enable desktop writes, deploy RPCs, change migrations, or migrate the
 mobile client. The full administrator scope includes accounts, physicians, roles,

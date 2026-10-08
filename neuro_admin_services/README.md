@@ -10,10 +10,13 @@ GET-only adapter and inject an ordinary authenticated Supabase client.
 
 Implemented: roster/physician reads, recorded workload, advisory snapshot assignment validation,
 intended lifecycle/authorization predicates and Europe/Vienna time conversion.
-Not implemented: authoritative assignment validation, any mutation adapter,
+Phase 2C adds `SupabaseAssignmentMutationService` through the optional
+`supabase_admin_mutations.dart` entry point: additions call the atomic server
+validate-and-apply RPC, with version checks, idempotency and structured failures.
+Not implemented: separate authoritative preview tokens, remove/replace adapters,
 invitation orchestration, roster generation, version selection or backend RPCs.
 Policies are design/application predicates, not evidence of server authorization.
-Never use a local preview or these predicates as permission to write.
+Never use a local preview or these predicates as permission to bypass server validation.
 
 The desktop's previous `lib/data` imports are compatibility exports, not copies.
 The mobile app has not been migrated. Its business operations must be extracted
@@ -26,4 +29,5 @@ adapters: it specifies transactions, concurrency, lifecycle, authorization and
 timezone migration requirements.
 The [Phase 2B implementation](../docs/neuro_admin_phase_2b.md) preserves exact database
 role/slot IDs and provides per-date errors, factual warnings and current occupants.
-Legacy snapshots are explicitly unversioned and cannot authorize writes.
+Legacy snapshots are explicitly unversioned and cannot enable writes.
+See [Phase 2C](../docs/neuro_admin_phase_2c.md) for the forward migration and safeguards.

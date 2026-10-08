@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:neuro_core/neuro_core.dart';
 
 import 'assignment_validation.dart';
@@ -7,6 +9,17 @@ import 'lifecycle.dart';
 final class AdminWriteIntent {
   final String requestId;
   final String? reason;
+  factory AdminWriteIntent.create({String? reason}) {
+    final random = Random.secure();
+    final bytes = List.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return AdminWriteIntent(
+      '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}',
+      reason: reason,
+    );
+  }
   AdminWriteIntent(this.requestId, {this.reason}) {
     if (requestId.trim().isEmpty) throw ArgumentError('Request ID required');
   }
@@ -25,6 +38,16 @@ final class RosterWriteIntent {
 final class AssignmentCommitRequest {
   final AdminWriteIntent operation;
   final AssignmentPreview preview;
+
+  /// Phase 2C atomic validate-and-apply path. This does not promote advisory
+  /// results to authority: the RPC independently validates under database locks.
+  AssignmentCommitRequest.atomicApply(this.operation, this.preview) {
+    if (!preview.allValid ||
+        preview.request.roster.contentVersion == null ||
+        preview.request.replacesAssignmentId != null) {
+      throw StateError('A complete versioned addition preview is required');
+    }
+  }
   AssignmentCommitRequest(
     this.operation,
     this.preview, {
@@ -73,15 +96,31 @@ final class AssignmentMutationReceipt {
        removedAssignmentIds = List.unmodifiable(removedAssignmentIds);
 }
 
-/// Contract only. Every implementation must use one server transaction, enforce
+/// Every implementation must use one server transaction, enforce
 /// admin+aal2 and phase rules, and revalidate rather than trusting the preview.
 abstract interface class AssignmentMutationService {
+  Future<bool> canApply();
   Future<AssignmentMutationReceipt> assign(AssignmentCommitRequest request);
   Future<AssignmentMutationReceipt> bulkAssign(AssignmentCommitRequest request);
   Future<AssignmentMutationReceipt> remove(AssignmentRemovalRequest request);
   Future<AssignmentMutationReceipt> replace(
     AssignmentReplacementRequest request,
   );
+}
+
+final class AssignmentMutationFailure implements Exception {
+  final String code;
+  final List<AssignmentValidationResult> results;
+
+  /// A transport failure may have happened after commit; retry the same request.
+  final bool outcomeUnknown;
+  AssignmentMutationFailure(
+    this.code, {
+    Iterable<AssignmentValidationResult> results = const [],
+    this.outcomeUnknown = false,
+  }) : results = List.unmodifiable(results);
+  @override
+  String toString() => 'Assignment operation failed: $code';
 }
 
 abstract interface class RosterLifecycleService {
