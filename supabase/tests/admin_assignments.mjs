@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const require = createRequire(path.resolve(process.argv[2], 'package.json'));
 const native = process.argv.includes('--postgres');
+const safeupdate = process.argv.includes('--safeupdate');
+if (safeupdate && !native) throw new Error('--safeupdate requires --postgres and the native safeupdate module');
 let db;
 let openConnection;
 if (native) {
@@ -15,7 +17,15 @@ if (native) {
     throw new Error('Only a local disposable neuro_admin_test_* database is allowed');
   }
   const { Client } = require('pg');
-  openConnection = async () => { const client = new Client({connectionString:url.toString()}); await client.connect(); return client; };
+  openConnection = async () => {
+    const client = new Client({connectionString:url.toString()}); await client.connect();
+    if (safeupdate) {
+      // Fixture setup intentionally exercises unqualified legacy writes too.
+      // Enable the actual guard for RPC execution through its function setting.
+      await client.query("LOAD 'safeupdate'; SET safeupdate.enabled=off");
+    }
+    return client;
+  };
   const client = await openConnection();
   const tables = await client.query("select count(*)::int as n from pg_tables where schemaname not in ('pg_catalog','information_schema')");
   if (tables.rows[0].n !== 0) { await client.end(); throw new Error('Disposable database must be empty'); }
@@ -34,6 +44,7 @@ for (const name of (await readdir(path.join(root, 'migrations'))).sort()) {
   const sql = (await readFile(path.join(root,'migrations',name),'utf8')).replace('create extension if not exists pgcrypto;','');
   await db.exec(sql);
 }
+if (safeupdate) await db.exec("alter function public.admin_apply_assignments(uuid,bigint,uuid,uuid,date[],uuid,text) set safeupdate.enabled=on");
 const id = n => `00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 await db.exec(`grant usage on schema public to authenticated;
 grant select on public.rosters, public.assignments, public.audit_log to authenticated;
@@ -69,6 +80,17 @@ async function test(name,run) {
   try { await run(); tests++; console.log(`PASS ${name}`); }
   finally { await db.exec('rollback; reset role;'); }
 }
+if (safeupdate) await test('original version trigger reproduces live 21000 with safeupdate enabled',async()=>{
+  const original=await readFile(path.join(root,'migrations','202610080001_admin_assignment_rpc.sql'),'utf8');
+  const trigger=original.match(/create function public\.invalidate_roster_versions\(\)[\s\S]*?end \$\$;/)[0];
+  await db.exec(trigger.replace('create function','create or replace function'));
+  await login(); const expected=await version();
+  const result=await apply({dates:['2026-10-05','2026-10-06'],expected});
+  assert.equal(result.code,'internalError'); assert.equal(result.diagnosticCode,'21000');
+  assert.equal(result.diagnosticStage,'assignment_insert');
+  assert.equal(await count('assignments'),0); assert.equal(await count('audit_log'),0);
+  assert.equal(await version(),expected);
+});
 await test('admin aal2 single creation, version and per-slot audit',async()=>{
   await login(); const v=await version(); const r=await apply({expected:v});
   assert.equal(r.ok,true); assert.equal(r.contentVersion,v+1); assert.equal(await count('assignments'),1);
@@ -79,6 +101,15 @@ await test('admin aal2 single creation, version and per-slot audit',async()=>{
 });
 await test('multi-date all valid succeeds once and records every audit',async()=>{
   await login(); assert.equal((await apply({dates:['2026-10-05','2026-10-06']})).ok,true);
+  assert.equal(await count('assignments'),2); assert.equal(await count('audit_log'),2);
+});
+await test('batch assignment with multiple roster versions advances each once',async()=>{
+  await db.exec(`insert into rosters(year,month) values (2026,7),(2026,8),(2026,9)`);
+  const before=(await db.query('select id,content_version from rosters order by id')).rows;
+  await login(); const result=await apply({dates:['2026-10-05','2026-10-06']});
+  assert.equal(result.ok,true,JSON.stringify(result));
+  const after=(await db.query('select id,content_version from rosters order by id')).rows;
+  assert.deepEqual(after.map(r=>[r.id,Number(r.content_version)]),before.map(r=>[r.id,Number(r.content_version)+1]));
   assert.equal(await count('assignments'),2); assert.equal(await count('audit_log'),2);
 });
 await test('all 31 August days for an eligible stroke-unit leader commit atomically',async()=>{
@@ -224,5 +255,5 @@ if (native) await test('independent PostgreSQL connections race: exactly one com
     assert.equal(await count('assignments'),1);
   } finally { await Promise.all(clients.map(c=>c.end())); }
 });
-console.log(`${tests} isolated PostgreSQL tests passed. ${native?'Independent-connection race passed.':'Contenders are queued in PGlite; real multi-connection lock testing requires --postgres.'}`);
+console.log(`${tests} isolated PostgreSQL tests passed. ${native?'Independent-connection race passed.':'Contenders are queued in PGlite; real multi-connection lock testing requires --postgres.'}${safeupdate?' Actual safeupdate module enabled for all RPC calls.':''}`);
 await db.close();

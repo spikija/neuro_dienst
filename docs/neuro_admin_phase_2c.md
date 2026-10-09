@@ -304,3 +304,43 @@ assignment-constraint failures verify full rollback, diagnostic stages/SQLSTATE
 and sanitized responses; the native log contains the expected safe records.
 Flutter/Dart application code is unchanged and its prior checks were not rerun.
 Logging follows the [Supabase function-debugging guidance](https://supabase.com/docs/guides/database/debugging-functions).
+
+### SQLSTATE 21000: version-trigger safeupdate compatibility fix
+
+The subsequent live log reported `21000` at `assignment_insert`. This matches a
+reproduced failure with the actual `pg-safeupdate` module: the original
+`invalidate_roster_versions()` trigger updates `rosters` without a WHERE clause.
+Safeupdate rejects that statement inside the assignment insert, causing the
+entire RPC to roll back. This SQLSTATE is not sufficient by itself to conclude
+that duplicate rows or an invalid physician caused the problem. The
+[upstream module](https://github.com/eradman/pg-safeupdate/blob/master/safeupdate.c)
+uses cardinality-violation SQLSTATE 21000 for unqualified UPDATE/DELETE, and
+[Supabase documents this guard](https://supabase.com/docs/guides/database/custom-postgres-config).
+
+Apply **only** `202610090002_roster_version_safeupdate.sql` after the prior
+migrations. It replaces the trigger function with an update explicitly targeting
+`content_version > 0`. Because that column is constrained positive and NOT NULL,
+the same set of initialized rosters still advances exactly once. Cross-month
+invalidation, zero-row-write handling, RLS/MFA, audit and all-or-nothing behavior
+remain intact. The migration does not change existing data or disable safeupdate.
+No desktop rebuild is needed; reload the roster and preview before retrying.
+
+Regression coverage now includes multiple rosters and an optional native
+`--postgres --safeupdate` test mode. It requires the actual module in PostgreSQL's
+library path and loads it into every test connection. Fixture setup runs with
+the guard off; the RPC has a test-only function setting that enables it for every
+call, including nested triggers and independent-connection races. The negative
+control temporarily reinstalls the original trigger within a rolled-back test:
+it reproduces the exact live code/stage and verifies no partial writes. All
+subsequent tests run the corrected trigger. No test-only settings are deployed.
+
+Verification on 2026-10-09:
+
+- **35 tests passed** on isolated PostgreSQL 14.24 with the upstream safeupdate
+  C module compiled and loaded, including the before/after reproduction.
+- **34 tests passed** on native Windows PostgreSQL 17.6.
+- **33 PGlite tests passed**; viewer regression still blocks all 33 write paths.
+- PostgreSQL/compiler packages for the extension test were extracted under a
+  dedicated WSL test-tools directory; no system package or service was installed.
+- Application code is unchanged. No live assignment was made by the agent;
+  deployment and successful live retry still require user verification.
