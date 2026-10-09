@@ -57,10 +57,10 @@ async function login(user=1,aal='aal2') {
 }
 const version = async () => Number((await db.query(`select content_version from rosters where id='${id(30)}'`)).rows[0].content_version);
 const count = async table => Number((await db.query(`select count(*) as n from ${table}`)).rows[0].n);
-async function apply({dates=['2026-10-05'],expected,request=70,physician=10,reason=null}={}) {
+async function apply({dates=['2026-10-05'],expected,request=70,physician=10,role=id(20),reason=null}={}) {
   const v=expected ?? await version();
   return (await db.query('select public.admin_apply_assignments($1,$2,$3,$4,$5::date[],$6,$7) as value',
-    [id(30),v,id(physician),id(20),dates,id(request),reason])).rows[0].value;
+    [id(30),v,id(physician),role,dates,id(request),reason])).rows[0].value;
 }
 const codes = result => result.results.flatMap(r=>r.errors);
 let tests=0;
@@ -80,6 +80,29 @@ await test('admin aal2 single creation, version and per-slot audit',async()=>{
 await test('multi-date all valid succeeds once and records every audit',async()=>{
   await login(); assert.equal((await apply({dates:['2026-10-05','2026-10-06']})).ok,true);
   assert.equal(await count('assignments'),2); assert.equal(await count('audit_log'),2);
+});
+await test('all 31 August days for an eligible stroke-unit leader commit atomically',async()=>{
+  await db.exec(`update rosters set month=8 where id='${id(30)}';
+    update roster_days set date=date - interval '2 months';
+    update roster_slots set starts_at=starts_at - interval '2 months', ends_at=ends_at - interval '2 months';
+    update roster_slots set role_id=(select id from roles where code='SUL');
+    insert into roster_days(roster_id,date)
+      select '${id(30)}', d::date from generate_series('2026-08-01'::date,'2026-08-31'::date,interval '1 day') d
+      where not exists(select 1 from roster_days existing where existing.date=d::date);
+    insert into roster_slots(roster_day_id,role_id,starts_at,ends_at)
+      select d.id,(select id from roles where code='SUL'),(d.date+time '08:00') at time zone 'Europe/Vienna',
+        (d.date+time '16:00') at time zone 'Europe/Vienna'
+      from roster_days d where not exists(select 1 from roster_slots s where s.roster_day_id=d.id);`);
+  const role=(await db.query("select id from roles where code='SUL'")).rows[0].id;
+  await login(); const expected=await version();
+  const dates=Array.from({length:31},(_,i)=>`2026-08-${String(i+1).padStart(2,'0')}`);
+  const result=await apply({dates,expected,role});
+  assert.equal(result.ok,true,JSON.stringify(result));
+  assert.equal(result.contentVersion,expected+1);
+  assert.equal(result.addedAssignments.length,31);
+  assert.equal(await count('assignments'),31); assert.equal(await count('audit_log'),31);
+  assert.deepEqual(await apply({dates,expected,role}),result);
+  assert.equal(await count('assignments'),31); assert.equal(await count('audit_log'),31);
 });
 for (const [user,aal,code] of [[2,'aal2','unauthorized'],[3,'aal2','unauthorized'],[0,'aal2','unauthorized'],[1,'aal1','mfaRequired']]) {
   await test(`access ${user}/${aal} rejected`,async()=>{
@@ -171,7 +194,20 @@ await test('audit failure rolls back assignments and version, returns no SQL det
     create trigger reject_test before insert on audit_log for each row execute function public.reject_test_audit();`);
   await login(); const expected=await version(); const r=await apply({expected});
   assert.equal(r.code,'internalError'); assert.equal(JSON.stringify(r).includes('PRIVATE'),false);
+  assert.equal(r.diagnosticCode,'P0001'); assert.equal(r.diagnosticStage,'audit_insert');
   assert.equal(await version(),expected); assert.equal(await count('assignments'),0);
+  await db.exec('reset role'); assert.equal(await count('admin_assignment_requests'),0);
+});
+await test('assignment constraint failure reports its step and rolls back the whole batch',async()=>{
+  await db.exec("alter table assignments add constraint fixture_reject_confirmed check (state <> 'confirmed')");
+  await login(); const expected=await version();
+  const r=await apply({dates:['2026-10-05','2026-10-06'],expected});
+  assert.equal(r.code,'internalError'); assert.equal(r.diagnosticCode,'23514');
+  assert.equal(r.diagnosticStage,'assignment_insert');
+  assert.equal(JSON.stringify(r).includes('fixture_reject_confirmed'),false);
+  assert.equal(await version(),expected); assert.equal(await count('assignments'),0);
+  assert.equal(await count('audit_log'),0);
+  await db.exec('reset role'); assert.equal(await count('admin_assignment_requests'),0);
 });
 if (native) await test('independent PostgreSQL connections race: exactly one commit',async()=>{
   await login(); const expected=await version();

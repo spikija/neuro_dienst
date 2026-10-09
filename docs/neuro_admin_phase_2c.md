@@ -242,3 +242,65 @@ the independent-connection race. Only this verification documentation changed;
 the prior Flutter/Dart checks and build above were not rerun. Live write
 verification remains outstanding, and the read-only probe confirms the configured
 backend still lacks `content_version`.
+
+### Reported live batch failure after deployment
+
+The administrator subsequently reported applying the migration and receiving
+`internalError` when assigning an eligible Stroke Unit Leader for all August days.
+That production failure is **not yet diagnosed or fixed**. The exception handler
+rolls back the operation but deliberately suppresses the underlying SQL error;
+the generic response alone cannot distinguish schema drift, extra triggers,
+privileges or other database failures.
+A repeated zero-row REST probe after the deployment returned HTTP 200 for
+`rosters.content_version`, confirming the column is now available. The supplied
+earlier `42703` missing-column log therefore does not explain the current RPC
+failure; it may correspond to the pre-deployment schema probe.
+
+A regression fixture now exercises all 31 August dates with the seeded `SUL`
+role, checks 31 assignments/audits and one version advance, and retries the same
+request without duplication. It passes with **31 PGlite tests and 32 native
+PostgreSQL 18.4 tests**, including the independent-connection race. These results
+do not reproduce or resolve the live failure.
+
+Run `supabase/scripts/diagnose_admin_assignments.sql` in the Supabase SQL editor
+to compare the deployed function, column types, constraints, trigger definitions
+and function-owner lock privileges. It runs inside a read-only transaction and
+reads catalogs only. The script was verified locally (77 columns, 19 triggers,
+38 constraints). The local RPC body MD5 is
+`e7fbac15a9cd7cd2247f6172b7cbe12d`; line-ending or whitespace differences can also
+change that hash, so a mismatch alone is not proof of a functional difference.
+No live mutations were made while investigating.
+
+The supplied live catalog results match the original function bodies exactly
+after converting line endings to CRLF (RPC MD5
+`9be2500073e9e3aad372c7b2a46e3190`). The reported column definitions, triggers and
+lock privileges show no explanatory discrepancy. Supabase runs PostgreSQL 17.6;
+the original 32-test native suite also passed on an isolated **17.6** cluster,
+including the full August/SUL case. The live root cause remains unconfirmed.
+
+### Forward diagnostic migration
+
+`202610090001_admin_assignment_diagnostics.sql` replaces only the assignment RPC
+to retain safe failure diagnostics. It does not alter tables/data, validation
+rules, authorization, locking, idempotency or rollback. No app rebuild is needed.
+
+On an unexpected exception, the failed block still rolls back completely. A
+server `LOG` entry prefixed `admin_apply_assignments failure` records the request
+UUID, SQLSTATE, a fixed operation-stage label, and schema/table/column/constraint
+names when PostgreSQL supplies them. It does not include SQLERRM, exception
+detail/context, JWTs, physician names, dates or correction reasons. The response
+retains `internalError` and adds `diagnosticCode` and `diagnosticStage`; existing
+clients ignore these optional fields.
+
+After applying only this new migration, retry the intended assignment once.
+If it fails, open Supabase Postgres logs, include **LOG** severity (not only
+ERROR), search `admin_apply_assignments failure`, and share that event message.
+The migration is diagnostic instrumentation, **not a claimed fix** for the
+unreproduced production failure.
+
+Validation: **33 native PostgreSQL 17.6 tests**, **32 PGlite tests**, and the
+existing viewer suite's **33 write-denial paths** passed. Forced audit and
+assignment-constraint failures verify full rollback, diagnostic stages/SQLSTATE
+and sanitized responses; the native log contains the expected safe records.
+Flutter/Dart application code is unchanged and its prior checks were not rerun.
+Logging follows the [Supabase function-debugging guidance](https://supabase.com/docs/guides/database/debugging-functions).
