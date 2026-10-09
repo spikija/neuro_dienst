@@ -5,6 +5,7 @@ import 'package:neuro_admin_services/supabase_admin_mutations.dart';
 import 'auth/session_gate.dart';
 import 'data/roster_reader.dart';
 import 'supabase_config.dart';
+import 'calendar_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,7 +49,8 @@ class NeuroAdminApp extends StatelessWidget {
     return MaterialApp(
       title: 'NeuroDienst Admin',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.blue),
+      theme: adminTheme(Brightness.light),
+      darkTheme: adminTheme(Brightness.dark),
       home: client != null
           ? SessionGate(
               gateway: SupabaseSessionGateway(client!),

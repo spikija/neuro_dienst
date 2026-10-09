@@ -162,6 +162,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
         child: Semantics(
           key: ValueKey(date),
           button: true,
+          enabled: widget.selection.canSelect(date),
           selected: selected,
           label: date.toIso8601String().split('T').first,
           onTap: () => _select(date),

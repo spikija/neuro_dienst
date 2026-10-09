@@ -31,3 +31,6 @@ The [Phase 2B implementation](../docs/neuro_admin_phase_2b.md) preserves exact d
 role/slot IDs and provides per-date errors, factual warnings and current occupants.
 Legacy snapshots are explicitly unversioned and cannot enable writes.
 See [Phase 2C](../docs/neuro_admin_phase_2c.md) for the forward migration and safeguards.
+See [Phase 2D](../docs/neuro_admin_phase_2d.md) for month-wide assignability,
+reporting contracts, and the preview/commit roster-generation design. Reporting
+and generation remain contracts only; mobile behavior has not been copied.

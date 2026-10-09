@@ -19,3 +19,8 @@ are denied. Missing configuration is shown explicitly, with no demo fallback.
 See [architecture and workload definitions](../docs/neuro_admin_initial_architecture.md).
 See [Phase 2B preview behavior and limitations](../docs/neuro_admin_phase_2b.md).
 See [Phase 2C RPC, deployment and verification](../docs/neuro_admin_phase_2c.md).
+See [month highlighting, preselection and reporting/generation parity](../docs/neuro_admin_phase_2d.md).
+
+Select a role and physician to highlight the whole month and preselect valid
+dates. Click to deselect/reselect; drag adds only assignable days. Clear selection
+keeps validity visible. Apply confirms only the selected valid dates.

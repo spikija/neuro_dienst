@@ -20,6 +20,9 @@ class AssignmentCandidatePanel extends StatefulWidget {
   final AssignmentMutationService? mutations;
   final ValueChanged<bool>? onBusyChanged;
   final Future<void> Function(bool stale)? onReload;
+  final void Function(MonthAssignability validity, bool preselect)?
+  onAssignability;
+  final VoidCallback? onValidationFailed;
   const AssignmentCandidatePanel({
     super.key,
     required this.snapshot,
@@ -32,6 +35,8 @@ class AssignmentCandidatePanel extends StatefulWidget {
     this.mutations,
     this.onBusyChanged,
     this.onReload,
+    this.onAssignability,
+    this.onValidationFailed,
   });
 
   @override
@@ -64,9 +69,11 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.snapshot, widget.snapshot) ||
         oldWidget.role.id != widget.role.id ||
-        !setEquals(oldWidget.dates, widget.dates) ||
+        oldWidget.physicianId != widget.physicianId ||
         oldWidget.serviceFactory != widget.serviceFactory) {
       _invalidate();
+    } else if (!setEquals(oldWidget.dates, widget.dates)) {
+      _pending = null;
     }
   }
 
@@ -88,7 +95,15 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
           (widget.serviceFactory ?? SnapshotAssignmentValidationService.new)(
             widget.snapshot,
           );
-      final dates = widget.dates.toList()..sort();
+      final month = widget.snapshot.month;
+      final dates = [
+        for (
+          var day = 1;
+          day <= DateTime.utc(month.year, month.month + 1, 0).day;
+          day++
+        )
+          HospitalDate(month.year, month.month, day),
+      ];
       final doctors = widget.snapshot.doctors;
       final previews = await Future.wait([
         for (final doctor in doctors)
@@ -115,6 +130,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         _loading = false;
         _authorized = authorized;
       });
+      _publishAssignability(true);
     } catch (_) {
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -122,6 +138,14 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         _error =
             'Preview could not be calculated. Reload the roster and retry.';
       });
+      widget.onValidationFailed?.call();
+    }
+  }
+
+  void _publishAssignability(bool preselect) {
+    final preview = _previews[widget.physicianId];
+    if (preview != null) {
+      widget.onAssignability?.call(MonthAssignability(preview), preselect);
     }
   }
 
@@ -134,6 +158,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
       return;
     }
     final generation = _generation;
+    final selectedDates = Set<HospitalDate>.of(widget.dates);
     final physicianId = widget.physicianId;
     final mutations = widget.mutations!;
     final onBusyChanged = widget.onBusyChanged;
@@ -159,6 +184,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         if (!mounted ||
             reason == null ||
             generation != _generation ||
+            !setEquals(selectedDates, widget.dates) ||
             physicianId != widget.physicianId) {
           return;
         }
@@ -189,6 +215,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
       }
       if (!mounted ||
           generation != _generation ||
+          !setEquals(selectedDates, widget.dates) ||
           physicianId != widget.physicianId ||
           !identical(operation, _pending)) {
         return;
@@ -207,15 +234,20 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
               ? 'The response was not received. The operation may have succeeded. Retry the same request to check safely.'
               : 'Server rejected the operation (${error.code}). No assignments were added.';
           if (error.results.isNotEmpty) {
-            _previews[physicianId!] = AssignmentPreview(
-              request: preview.request,
-              results: error.results,
+            final month = _previews[physicianId!]!;
+            final byDate = {
+              for (final result in error.results) result.date: result,
+            };
+            _previews[physicianId] = AssignmentPreview(
+              request: month.request,
+              results: month.results.map((r) => byDate[r.date] ?? r),
             );
           }
           if (error.code == 'unauthorized' || error.code == 'mfaRequired') {
             _authorized = false;
           }
         });
+        _publishAssignability(false);
       }
     } catch (_) {
       if (mounted) {
@@ -252,14 +284,17 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
 
   @override
   Widget build(BuildContext context) {
-    final selected = _previews[widget.physicianId];
+    final monthPreview = _previews[widget.physicianId];
+    final selected = monthPreview == null
+        ? null
+        : MonthAssignability(monthPreview).selectedPreview(widget.dates);
     final doctors = widget.snapshot.doctors.where((doctor) {
       final preview = _previews[doctor.id];
       return _filter == _Filter.all ||
           preview != null &&
               (_filter == _Filter.eligible
                   ? _eligible(preview)
-                  : preview.allValid);
+                  : preview.proposedAdditions > 0);
     }).toList();
     return Card.outlined(
       child: Padding(
@@ -330,7 +365,11 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                 ),
               ),
             ] else
-              const Text('Select a physician to inspect every selected date.'),
+              Text(
+                widget.physicianId == null
+                    ? 'Select a physician to check the whole month.'
+                    : 'Select an assignable date to preview additions.',
+              ),
             const SizedBox(height: 6),
             Text(
               widget.mutations == null
@@ -544,6 +583,7 @@ class _AssignmentConfirmationState extends State<_AssignmentConfirmation> {
             Text(widget.physicianName),
             Text(widget.roleName),
             Text('${widget.preview.results.length} dates; all-or-nothing'),
+            Text('${widget.preview.warningCount} selected dates with warnings'),
             Text(
               widget.preview.results.map((r) => r.date.toString()).join(', '),
             ),

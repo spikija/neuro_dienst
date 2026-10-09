@@ -54,6 +54,9 @@ class CalendarGridMonth {
 /// Local role-independent selection; the final state always contains dates.
 class CalendarSelection {
   final Set<DateTime> _dates = {};
+  Set<DateTime>? _allowedDates;
+  Set<DateTime> _dragBase = {};
+  bool _dragMoved = false;
   CalendarGridMonth? _grid;
   (int, int)? _anchor;
   bool _dragging = false;
@@ -62,13 +65,31 @@ class CalendarSelection {
   Set<DateTime> get dates => Set.unmodifiable(_dates);
   bool get isDragging => _dragging;
   DateTime? get lastVisited => _lastVisited;
+  bool canSelect(DateTime date) =>
+      _allowedDates == null || _allowedDates!.contains(calendarDate(date));
+
+  void restrictTo(Iterable<DateTime>? dates, {bool preselect = false}) {
+    endDrag();
+    _allowedDates = dates?.map(calendarDate).toSet();
+    if (_allowedDates != null) {
+      _dates.removeWhere((date) => !_allowedDates!.contains(date));
+      if (preselect) replace(_allowedDates!);
+    }
+  }
 
   void select(DateTime date) {
-    replace([date]);
+    date = calendarDate(date);
+    if (!canSelect(date)) return;
+    if (_allowedDates == null) {
+      replace([date]);
+    } else {
+      if (!_dates.remove(date)) _dates.add(date);
+      _lastVisited = date;
+    }
   }
 
   void replace(Iterable<DateTime> dates) {
-    final normalized = dates.map(calendarDate).toSet();
+    final normalized = dates.map(calendarDate).where(canSelect).toSet();
     clear();
     _dates.addAll(normalized);
     _lastVisited = (_dates.toList()..sort()).firstOrNull;
@@ -78,7 +99,10 @@ class CalendarSelection {
       replace(CalendarGridMonth(year, month).workingDays);
 
   void beginDrag(DateTime date) {
+    final base = Set<DateTime>.of(_dates);
     select(date);
+    _dragBase = base;
+    _dragMoved = false;
     _grid = CalendarGridMonth(date.year, date.month);
     _anchor = _grid!.cellOf(date);
     _dragging = true;
@@ -100,9 +124,14 @@ class CalendarSelection {
         column >= 7) {
       return;
     }
+    if (_allowedDates != null && !_dragMoved && (row, column) == _anchor) {
+      return;
+    }
+    _dragMoved = true;
     _dates
       ..clear()
-      ..addAll(_grid!.rectangle(_anchor!, (row, column)));
+      ..addAll(_allowedDates == null ? <DateTime>{} : _dragBase)
+      ..addAll(_grid!.rectangle(_anchor!, (row, column)).where(canSelect));
     _lastVisited = _grid!.dateAt(row, column);
   }
 

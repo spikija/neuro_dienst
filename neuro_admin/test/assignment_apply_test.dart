@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neuro_admin/assignment_candidate_panel.dart';
+import 'package:neuro_admin/calendar_day_grid.dart';
 import 'package:neuro_admin/roster_dashboard.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'package:neuro_core/neuro_core.dart';
@@ -58,6 +59,9 @@ Future<void> setup(
   await selectDates(tester, 1);
   await chooseRole(tester, leader);
   await chooseDoctor(tester, 'ana');
+  // Preselection includes all three valid dates. Explicitly keep only day 1.
+  await selectDates(tester, 2);
+  await selectDates(tester, 3);
 }
 
 AssignmentMutationReceipt receipt(AssignmentCommitRequest request) =>
@@ -131,8 +135,10 @@ void main() {
       pending.complete(receipt(request));
       await tester.pumpAndSettle();
       expect(reader.reads, 2);
-      expect(find.byType(AssignmentCandidatePanel), findsNothing);
-      expect(find.text('1 day selected'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pumpAndSettle();
+      expect(find.byType(AssignmentCandidatePanel), findsOneWidget);
+      expect(find.text('2 days selected'), findsOneWidget);
       expect(
         find.text('Assignments saved. Roster and workload refreshed.'),
         findsOneWidget,
@@ -164,7 +170,9 @@ void main() {
     await tester.tap(find.text('Confirm and apply'));
     await tester.pumpAndSettle();
     expect(reader.reads, 2);
-    expect(find.byType(AssignmentPreviewDetails), findsNothing);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(find.byType(AssignmentPreviewDetails), findsOneWidget);
     expect(
       find.textContaining('Roster changed. Data reloaded'),
       findsOneWidget,
@@ -200,12 +208,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tester
-          .widget<AssignmentPreviewDetails>(
-            find.byType(AssignmentPreviewDetails),
-          )
-          .preview
-          .blockedCount,
-      1,
+          .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+          .selection
+          .dates,
+      isEmpty,
+    );
+    expect(
+      find.text('2 assignable | 0 selected | 1 blocked | 0 warning-only'),
+      findsOneWidget,
     );
     expect(tester.widget<FilledButton>(apply).onPressed, isNull);
     expect(reader.reads, 1);

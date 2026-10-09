@@ -154,14 +154,89 @@ final class RosterGenerationRequest {
 }
 
 abstract interface class RosterGenerationService {
-  Future<RosterRevision> create(RosterGenerationRequest request);
-
-  /// Regenerate only a draft. Nonempty assignments require a reviewed plan,
-  /// not an implicit cascade-delete. Published versions are never deleted.
-  Future<RosterRevision> regenerate(
-    RosterWriteIntent draft, {
-    required String expectedConfigurationVersion,
+  /// Read-only review of exact active role/template identities, recurrence,
+  /// Vienna instants, holiday provenance and impacts on an existing draft.
+  Future<RosterGenerationPlan> preview(
+    RosterGenerationRequest request, {
+    RosterRevision? existing,
   });
+
+  /// One future server transaction: admin+aal2, idempotency, configuration and
+  /// roster version checks, audit. Create only if the month remains absent;
+  /// regenerate only the reviewed draft. Never delete a published roster.
+  Future<RosterRevision> apply(RosterGenerationCommitRequest request);
+}
+
+final class PlannedRosterSlot {
+  final String roleId;
+  final String templateId;
+  final DateTime date;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final int capacity;
+  const PlannedRosterSlot({
+    required this.roleId,
+    required this.templateId,
+    required this.date,
+    required this.startsAt,
+    required this.endsAt,
+    required this.capacity,
+  });
+}
+
+/// Design contract only: legacy mobile generation does not produce this plan.
+final class RosterGenerationPlan {
+  final RosterGenerationRequest request;
+  final RosterRevision? existing;
+  final List<CalendarDayInfo> days;
+  final List<PlannedRosterSlot> slots;
+  final Set<String> removedSlotIds;
+  final Set<String> impactedAssignmentIds;
+  final List<String> blockers;
+  final List<String> warnings;
+  final String holidaySource;
+  final String? backendToken;
+  final DateTime? expiresAt;
+  RosterGenerationPlan({
+    required this.request,
+    this.existing,
+    required Iterable<CalendarDayInfo> days,
+    required Iterable<PlannedRosterSlot> slots,
+    Iterable<String> removedSlotIds = const [],
+    Iterable<String> impactedAssignmentIds = const [],
+    Iterable<String> blockers = const [],
+    Iterable<String> warnings = const [],
+    required this.holidaySource,
+    this.backendToken,
+    this.expiresAt,
+  }) : days = List.unmodifiable(days),
+       slots = List.unmodifiable(slots),
+       removedSlotIds = Set.unmodifiable(removedSlotIds),
+       impactedAssignmentIds = Set.unmodifiable(impactedAssignmentIds),
+       blockers = List.unmodifiable(blockers),
+       warnings = List.unmodifiable(warnings);
+}
+
+final class RosterGenerationCommitRequest {
+  final RosterGenerationPlan plan;
+  RosterGenerationCommitRequest(this.plan, {required DateTime now}) {
+    final existing = plan.existing;
+    if (plan.backendToken?.trim().isNotEmpty != true ||
+        plan.expiresAt == null ||
+        !now.toUtc().isBefore(plan.expiresAt!.toUtc()) ||
+        plan.blockers.isNotEmpty ||
+        plan.impactedAssignmentIds.isNotEmpty ||
+        plan.holidaySource.trim().isEmpty ||
+        (existing != null &&
+            (existing.phase != RosterPhase.draft ||
+                existing.version.contentVersion == null ||
+                existing.year != plan.request.year ||
+                existing.month != plan.request.month))) {
+      throw StateError(
+        'Generation needs a current backend plan for an absent month or a draft with no assignment loss',
+      );
+    }
+  }
 }
 
 /// Deliberately excludes admin provisioning and privilege escalation.

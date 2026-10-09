@@ -4,12 +4,14 @@ import 'package:neuro_admin_services/neuro_admin_services.dart'
     show
         ViennaSchedulingTime,
         HospitalDate,
+        MonthAssignability,
         previewRoles,
         AssignmentMutationService;
 
 import 'assignment_candidate_panel.dart';
 import 'calendar_day_grid.dart';
 import 'calendar_selection.dart';
+import 'calendar_theme.dart';
 import 'data/roster_reader.dart';
 import 'data/workload.dart';
 import 'data/workload_category.dart';
@@ -41,6 +43,32 @@ class _RosterDashboardState extends State<RosterDashboard> {
   DateTime? _detailDate;
   String? _doctorId;
   String? _roleId;
+  MonthAssignability? _assignability;
+  bool _validityFailed = false;
+  bool get _assignmentMode => _roleId != null && _doctorId != null;
+
+  void _resetAssignability() {
+    _assignability = null;
+    _validityFailed = false;
+    _selection.restrictTo(_assignmentMode ? <DateTime>[] : null);
+  }
+
+  void _choosePhysician(String? id) {
+    if (_doctorId == id) return;
+    setState(() {
+      _doctorId = id;
+      _resetAssignability();
+    });
+  }
+
+  void _chooseRole(String? id) {
+    if (_roleId == id) return;
+    setState(() {
+      _roleId = id;
+      _resetAssignability();
+    });
+  }
+
   bool _loading = true;
   bool _applying = false;
   String? _error;
@@ -58,6 +86,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
       _loading = true;
       _error = null;
       _snapshot = null;
+      _resetAssignability();
     });
     try {
       final months = await widget.reader.listMonths();
@@ -81,6 +110,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
           _roleId = null;
         }
         _loading = false;
+        _resetAssignability();
       });
     } catch (error) {
       if (!mounted || request != _request) return;
@@ -97,8 +127,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
     setState(() {
       _selection.clear();
       _detailDate = null;
-      _doctorId = null;
-      _roleId = null;
       _selected = month;
     });
     await _refresh();
@@ -217,10 +245,11 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                   const SizedBox(width: 16),
                                   Expanded(
                                     flex: 2,
-                                    child:
-                                        _roleId != null &&
-                                            _selection.dates.isNotEmpty
+                                    child: _roleId != null
                                         ? AssignmentCandidatePanel(
+                                            key: ValueKey(
+                                              'assignment-preview-$_request',
+                                            ),
                                             snapshot: snapshot,
                                             role: previewRoles(snapshot)
                                                 .firstWhere(
@@ -233,10 +262,50 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                                 )
                                                 .toSet(),
                                             physicianId: _doctorId,
-                                            onPhysician: (id) =>
-                                                setState(() => _doctorId = id),
-                                            onCancel: () =>
-                                                setState(() => _roleId = null),
+                                            onPhysician: _choosePhysician,
+                                            onValidationFailed: () {
+                                              if (mounted &&
+                                                  identical(
+                                                    _snapshot,
+                                                    snapshot,
+                                                  )) {
+                                                setState(
+                                                  () => _validityFailed = true,
+                                                );
+                                              }
+                                            },
+                                            onCancel: () => _chooseRole(null),
+                                            onAssignability:
+                                                (validity, preselect) {
+                                                  if (!mounted ||
+                                                      !identical(
+                                                        _snapshot,
+                                                        snapshot,
+                                                      ) ||
+                                                      validity
+                                                              .preview
+                                                              .request
+                                                              .roleId !=
+                                                          _roleId ||
+                                                      validity
+                                                              .preview
+                                                              .request
+                                                              .physicianId !=
+                                                          _doctorId) {
+                                                    return;
+                                                  }
+                                                  setState(() {
+                                                    _assignability = validity;
+                                                    _selection.restrictTo(
+                                                      validity.assignableDates
+                                                          .map(
+                                                            (d) =>
+                                                                d.asDateOnlyUtc,
+                                                          ),
+                                                      preselect: preselect,
+                                                    );
+                                                  });
+                                                },
                                             serviceFactory:
                                                 widget.previewServiceFactory,
                                             mutations: widget.mutations,
@@ -248,7 +317,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                               }
                                             },
                                             onReload: (stale) async {
-                                              setState(() => _roleId = null);
                                               await _refresh();
                                               if (!mounted) return;
                                               ScaffoldMessenger.of(
@@ -261,7 +329,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                                               ? 'Roster changed; reload failed. Retry loading before previewing.'
                                                               : 'Assignments saved, but reload failed. Retry loading to refresh workload.')
                                                         : stale
-                                                        ? 'Roster changed. Data reloaded; select a role to preview again.'
+                                                        ? 'Roster changed. Data reloaded; review the updated preview.'
                                                         : 'Assignments saved. Roster and workload refreshed.',
                                                   ),
                                                 ),
@@ -309,6 +377,14 @@ class _RosterDashboardState extends State<RosterDashboard> {
             Text(
               '${_selection.dates.length} ${_selection.dates.length == 1 ? 'day' : 'days'} selected',
             ),
+            if (_assignmentMode)
+              Text(
+                _assignability == null
+                    ? _validityFailed
+                          ? 'Month validation failed. Reload to retry.'
+                          : 'Checking month assignability...'
+                    : '${_assignability!.assignableDates.length} assignable | ${_selection.dates.length} selected | ${_assignability!.blockedDates.length} blocked | ${_assignability!.warningDates.length} warning-only',
+              ),
             const Text(
               'Click a day or drag a rectangle to select calendar days.',
             ),
@@ -317,10 +393,23 @@ class _RosterDashboardState extends State<RosterDashboard> {
               children: [
                 TextButton(
                   onPressed: () => setState(() {
-                    _selection.selectWorkingDays(roster.year, roster.month);
+                    if (_assignmentMode) {
+                      _selection.replace(
+                        _assignability?.assignableDates.map(
+                              (d) => d.asDateOnlyUtc,
+                            ) ??
+                            [],
+                      );
+                    } else {
+                      _selection.selectWorkingDays(roster.year, roster.month);
+                    }
                     _detailDate = _selection.lastVisited;
                   }),
-                  child: const Text('Select all working days'),
+                  child: Text(
+                    _assignmentMode
+                        ? 'Select all assignable days'
+                        : 'Select all working days',
+                  ),
                 ),
                 TextButton(
                   onPressed: _selection.dates.isEmpty
@@ -333,8 +422,10 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 ),
               ],
             ),
-            const Text(
-              'Monday–Friday only; public holidays may be included.',
+            Text(
+              _assignmentMode
+                  ? 'Blue: assignable · Check: selected · Amber: warning · Block: unavailable'
+                  : 'Monday–Friday only; public holidays may be included.',
               style: TextStyle(fontSize: 12),
             ),
             const SizedBox(height: 12),
@@ -357,9 +448,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                       ),
                     ),
                 ],
-                onChanged: _selection.dates.isEmpty
-                    ? null
-                    : (id) => setState(() => _roleId = id),
+                onChanged: _chooseRole,
               ),
               if (roster.phase == RosterPhase.published)
                 const Text(
@@ -442,40 +531,118 @@ class _RosterDashboardState extends State<RosterDashboard> {
   }
 
   Widget _dateCell(DateTime date, StoredDay? day, bool selected) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors =
+        Theme.of(context).extension<CalendarColors>() ??
+        CalendarColors.forScheme(scheme);
+    final key = HospitalDate.fromCalendarComponents(date);
+    final valid = _assignability?.assignableDates.contains(key) ?? false;
+    final warning = _assignability?.warningDates.contains(key) ?? false;
+    final blocked = _assignability?.blockedDates.contains(key) ?? false;
+    final result = _assignability?.preview.results
+        .where((r) => r.date == key)
+        .firstOrNull;
+    final occupants =
+        day?.assignments
+            .where((a) => _roleId == null || a.duty.role.id == _roleId)
+            .toList() ??
+        [];
+    final status = blocked
+        ? 'Blocked'
+        : warning
+        ? 'Assignable with warning'
+        : valid
+        ? 'Assignable'
+        : _assignmentMode
+        ? 'No matching slot or awaiting validation'
+        : 'Calendar day';
     final assignments =
         day?.assignments
             .where((a) => _doctorId == null || a.doctor.id == _doctorId)
             .length ??
         0;
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: selected
-            ? Theme.of(context).colorScheme.secondaryContainer
-            : day?.calendarInfo.isWeekend == true ||
-                  day?.calendarInfo.isPublicHoliday == true
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : null,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: selected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.outlineVariant,
-          width: selected ? 2 : 1,
-        ),
-      ),
-      child: Center(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('${date.day}'),
-              Text(
-                day == null ? 'No roster day' : '$assignments duties',
-                style: const TextStyle(fontSize: 10),
+    return Tooltip(
+      message: [
+        status,
+        if (selected) 'Selected',
+        ...?result?.errors.map((e) => e.message),
+        ...?result?.warnings.map((w) => w.message),
+        if (occupants.isNotEmpty)
+          'Current: ${occupants.map((a) => a.doctor.fullName).join(', ')}',
+      ].join('\n'),
+      child: Semantics(
+        label: status,
+        child: AnimatedContainer(
+          key: ValueKey('assignability-$key'),
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: selected
+                ? colors.selected
+                : valid
+                ? colors.tint
+                : blocked ||
+                      day?.calendarInfo.isWeekend == true ||
+                      day?.calendarInfo.isPublicHoliday == true
+                ? scheme.surfaceContainerHighest
+                : scheme.surface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: selected || valid
+                  ? colors.assignable
+                  : scheme.outlineVariant,
+              width: selected
+                  ? 3
+                  : valid
+                  ? 2
+                  : 1,
+            ),
+          ),
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          fontWeight: selected
+                              ? FontWeight.bold
+                              : FontWeight.w500,
+                          color: blocked
+                              ? scheme.onSurfaceVariant
+                              : scheme.onSurface,
+                        ),
+                      ),
+                      if (selected)
+                        Icon(Icons.check, size: 14, color: colors.assignable),
+                      if (warning)
+                        Icon(
+                          Icons.warning_amber,
+                          size: 14,
+                          color: colors.warning,
+                        ),
+                      if (blocked)
+                        Icon(Icons.block, size: 14, color: scheme.error),
+                    ],
+                  ),
+                  Text(
+                    day == null ? 'No roster day' : '$assignments duties',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  if (occupants.isNotEmpty)
+                    Icon(
+                      Icons.person_outline,
+                      size: 14,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -526,9 +693,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
           const Text('Select a physician to inspect workload by stored role.'),
           if (_doctorId != null)
             TextButton(
-              onPressed: () => setState(() {
-                _doctorId = null;
-              }),
+              onPressed: () => _choosePhysician(null),
               child: const Text('Clear physician selection'),
             ),
           const Divider(),
@@ -575,9 +740,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
           subtitle: Text(
             '${current.assignments} assignments / ${current.assignedDays} days',
           ),
-          onTap: () => setState(() {
-            _doctorId = doctor.id;
-          }),
+          onTap: () => _choosePhysician(doctor.id),
         ),
         if (selected) ...[
           Text('Rank: ${doctor.rank.name}'),

@@ -89,7 +89,7 @@ Future<void> revealPreview(WidgetTester tester, Finder target) async {
 
 void main() {
   testWidgets(
-    'working-day and clear buttons invalidate preview, preserve role/physician and perform no reads',
+    'assignable and clear buttons preserve validity without new reads',
     (tester) async {
       tester.view.physicalSize = const Size(1440, 900);
       tester.view.devicePixelRatio = 1;
@@ -105,30 +105,26 @@ void main() {
       await selectDates(tester, 1);
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
-      await tester.tap(find.text('Select all working days'));
+      await tester.tap(find.text('Select all assignable days'));
       await tester.pump();
-      expect(find.byType(AssignmentPreviewDetails), findsNothing);
       await tester.pumpAndSettle();
       final preview = tester
           .widget<AssignmentPreviewDetails>(
             find.byType(AssignmentPreviewDetails),
           )
           .preview;
-      expect(preview.results, hasLength(22));
-      expect(preview.validCount, 2);
-      expect(preview.blockedCount, 20);
+      expect(preview.results, hasLength(3));
+      expect(preview.validCount, 3);
+      expect(preview.blockedCount, 0);
       expect(preview.request.physicianId, 'ana');
       expect(preview.request.roleId, 'sul');
-      expect(find.text('22 days selected'), findsOneWidget);
-      expect(
-        find.text('Monday–Friday only; public holidays may be included.'),
-        findsOneWidget,
-      );
+      expect(find.text('3 days selected'), findsOneWidget);
+      expect(find.textContaining('Blue: assignable'), findsOneWidget);
       await tester.tap(find.text('Clear selection'));
       await tester.pumpAndSettle();
       expect(find.text('0 days selected'), findsOneWidget);
-      expect(find.byType(AssignmentCandidatePanel), findsNothing);
-      await tester.tap(find.text('Select all working days'));
+      expect(find.byType(AssignmentCandidatePanel), findsOneWidget);
+      await tester.tap(find.text('Select all assignable days'));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -137,7 +133,7 @@ void main() {
             )
             .preview
             .results,
-        hasLength(22),
+        hasLength(3),
       );
       expect(reader.reads, 1);
       expect(reader.snapshot.facts, isEmpty);
@@ -220,16 +216,16 @@ void main() {
       await chooseDoctor(tester, 'ana');
       await chooseDoctor(tester, 'ben');
       expect(
-        find.text('0 valid | 0 valid with warnings | 3 blocked'),
+        find.text('0 assignable | 0 selected | 3 blocked | 0 warning-only'),
         findsOneWidget,
       );
-      expect(find.textContaining('physicianNotEligible:'), findsWidgets);
+      expect(find.byType(AssignmentPreviewDetails), findsNothing);
       await chooseRole(tester, ambulance);
       expect(
-        find.text('1 valid | 0 valid with warnings | 2 blocked'),
+        find.text('1 valid | 0 valid with warnings | 0 blocked'),
         findsOneWidget,
       );
-      expect(find.textContaining('missingSlot:'), findsWidgets);
+      expect(find.text('1 day selected'), findsOneWidget);
       expect(
         tester
             .widget<AssignmentPreviewDetails>(
@@ -247,10 +243,13 @@ void main() {
               find.byType(AssignmentPreviewDetails),
             )
             .preview
-            .results[2]
+            .results
+            .single
             .slotId,
         'icb-3',
       );
+      await selectDates(tester, 3);
+      expect(find.text('0 days selected'), findsOneWidget);
       await selectDates(tester, 3);
       expect(
         find.text('1 valid | 0 valid with warnings | 0 blocked'),
@@ -260,14 +259,14 @@ void main() {
       await tester.tap(find.byTooltip('Refresh'));
       await tester.pumpAndSettle();
       expect(
-        find.text('0 valid | 0 valid with warnings | 1 blocked'),
+        find.text('0 assignable | 0 selected | 1 blocked | 0 warning-only'),
         findsOneWidget,
       );
-      expect(find.textContaining('inactivePhysician:'), findsOneWidget);
+      expect(find.byType(AssignmentPreviewDetails), findsNothing);
       await tester.tap(find.byTooltip('Cancel preview'));
       await tester.pumpAndSettle();
       expect(find.byType(AssignmentCandidatePanel), findsNothing);
-      expect(find.text('1 day selected'), findsOneWidget);
+      expect(find.text('0 days selected'), findsOneWidget);
       await chooseRole(tester, leader);
       await tester.tap(find.byKey(const ValueKey('month-selector')));
       await tester.pumpAndSettle();
@@ -320,7 +319,7 @@ void main() {
           );
         } else {
           expect(
-            find.text('0 valid | 0 valid with warnings | 1 blocked'),
+            find.text('0 assignable | 0 selected | 1 blocked | 0 warning-only'),
             findsOneWidget,
           );
           expect(
@@ -329,6 +328,22 @@ void main() {
             ),
             findsWidgets,
           );
+        }
+        if (phase == RosterPhase.published) {
+          expect(
+            find.byTooltip(
+              'Blocked\nPublished roster requires a new revision before editing.\nCurrent: Ben Example',
+            ),
+            findsOneWidget,
+          );
+          expect(reader.snapshot.facts, hasLength(1));
+          return;
+        }
+        if (phase == RosterPhase.published) {
+          expect(find.byType(AssignmentPreviewDetails), findsNothing);
+          expect(reader.snapshot.facts, hasLength(1));
+          expect(tester.takeException(), isNull);
+          return;
         }
         await revealPreview(
           tester,
