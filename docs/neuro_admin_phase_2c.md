@@ -170,12 +170,48 @@ non-local hosts, databases not named `neuro_admin_test_*`, and nonempty database
 Use a disposable empty database and a local test owner allowed to create the test
 role/schema. The test leaves fixtures there; it never cleans a live database.
 
-No Docker/PostgreSQL/Supabase CLI or local PostgreSQL test URL was available here;
-the independent-connection test remains unexecuted. The forward migration has not
-been applied to live Supabase. No safe disposable live target was supplied, so no
-live assignment, mobile visibility check, live audit check or live cleanup was
-performed. Do not interpret fixture tests as live verification. Run the native
-race test and review/deploy the migration before controlled live verification.
+Native verification completed on 2026-10-09 using portable PostgreSQL **18.4**
+on Windows x64, installed only in the external temporary tools directory
+(`@embedded-postgres/windows-x64@18.4.0-beta.17`, `pg@8.23.1`). A disposable
+cluster listened only on `127.0.0.1:55439`; no Windows service was installed.
+All **31 tests passed**, including two independent connections submitting the
+same expected version: exactly one committed and the other returned `staleVersion`.
+The cluster was stopped after verification. This checks functional concurrency,
+not production throughput or every possible legacy-client lock ordering.
+
+For an already running disposable local cluster, reproduce with:
+
+```powershell
+$env:NEURO_ADMIN_TEST_DATABASE_URL = 'postgresql://neuro_test@127.0.0.1:55439/neuro_admin_test_phase2c'
+node supabase/tests/admin_assignments.mjs "$env:TEMP\neurodienst-viewer-test-tools" --postgres
+```
+
+The database must be newly created and empty for each run; an existing test
+database containing fixtures is deliberately rejected.
+
+A zero-row, read-only REST probe of `rosters.content_version` against the locally
+configured Supabase backend on 2026-10-09 returned HTTP 400 / PostgreSQL `42703`
+(undefined column). The migration is therefore still absent on that backend.
+This public-key schema probe does not verify authenticated login, MFA or data
+loading. No safe disposable live target was supplied, so no live assignment,
+mobile visibility check, live audit check or live cleanup was performed.
+Do not interpret fixture tests as live verification.
+
+### Deployment and controlled live verification still required
+
+1. Apply `supabase/migrations/202610080001_admin_assignment_rpc.sql` using the
+   project's authenticated migration/deployment process. It is a forward-only,
+   one-time migration; do not reset the database or replay all migrations over
+   existing data. Public application credentials cannot deploy this SQL.
+2. Reload the desktop roster with an administrator session at MFA assurance
+   level `aal2`. Confirm a real content version loads and a valid preview can
+   enable Apply; doctor/viewer sessions must still be denied.
+3. Identify a disposable roster/date, exact database role and physician before
+   any live write. Confirm one assignment, then verify the same slot/physician
+   in desktop and mobile and the corresponding audit record/request UUID.
+4. Removal is not implemented in this phase. Use only an explicitly approved
+   existing removal path if cleanup is required; do not invent a desktop delete
+   route or use direct SQL to bypass the intended workflow.
 
 ## Remaining scope
 
@@ -199,5 +235,10 @@ Final verification (2026-10-08):
 - Backend: **30 isolated PostgreSQL/PGlite tests passed**; existing viewer suite
   passed all 33 table-write denial paths while preserving doctor/admin permissions.
 - `git diff --check` passed. No direct assignment table mutations exist in the
-  desktop/shared adapters. Native PostgreSQL race and live verification remain
-  unexecuted for the reasons above.
+  desktop/shared adapters.
+
+Follow-up verification (2026-10-09): **31 native PostgreSQL tests passed**, including
+the independent-connection race. Only this verification documentation changed;
+the prior Flutter/Dart checks and build above were not rerun. Live write
+verification remains outstanding, and the read-only probe confirms the configured
+backend still lacks `content_version`.
