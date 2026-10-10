@@ -168,6 +168,8 @@ abstract interface class RosterGenerationService {
 }
 
 final class PlannedRosterSlot {
+  final String? existingSlotId;
+  final String? roleLabel;
   final String roleId;
   final String templateId;
   final DateTime date;
@@ -175,6 +177,8 @@ final class PlannedRosterSlot {
   final DateTime endsAt;
   final int capacity;
   const PlannedRosterSlot({
+    this.existingSlotId,
+    this.roleLabel,
     required this.roleId,
     required this.templateId,
     required this.date,
@@ -184,7 +188,7 @@ final class PlannedRosterSlot {
   });
 }
 
-/// Design contract only: legacy mobile generation does not produce this plan.
+/// Reviewed generation plan; legacy mobile generation does not produce it.
 final class RosterGenerationPlan {
   final RosterGenerationRequest request;
   final RosterRevision? existing;

@@ -8,6 +8,7 @@ import 'package:neuro_admin/roster_dashboard.dart';
 import 'package:neuro_admin/supabase_config.dart';
 import 'package:neuro_admin/data/roster_reader.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
+import 'package:neuro_admin_services/supabase_admin_workspace.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
@@ -32,7 +33,18 @@ void main() {
       markTestSkipped('LIVE_NOT_VERIFIED: no saved administrator session');
       return;
     }
-    final user = (await client.auth.getUser()).user;
+    User? user;
+    try {
+      if (client.auth.currentSession!.isExpired) {
+        await client.auth.refreshSession();
+      }
+      user = (await client.auth.getUser()).user;
+    } on AuthException {
+      markTestSkipped(
+        'LIVE_NOT_VERIFIED: saved session expired; sign in and complete MFA in the desktop application',
+      );
+      return;
+    }
     if (user == null) {
       markTestSkipped('LIVE_NOT_VERIFIED: session not verified');
       return;
@@ -55,6 +67,57 @@ void main() {
       return;
     }
     final snapshot = await reader.loadMonth(months.first);
+    final reporting = SupabaseReportingService(client);
+    final version = RosterVersion(snapshot.month.id, snapshot.contentVersion!);
+    final roleReport = await reporting.load(
+      ReportRequest(version, ReportLayout.roles),
+    );
+    final physicianReport = await reporting.load(
+      ReportRequest(version, ReportLayout.physicians),
+    );
+    final visibleRoles = roleReport.columns.map((c) => c.id).toSet();
+    expect(
+      roleReport.rows
+          .expand((r) => r.cells.values)
+          .expand((c) => c.assignments)
+          .map((a) => a.id)
+          .toSet(),
+      snapshot.days
+          .expand((d) => d.assignments)
+          .where((a) => visibleRoles.contains(a.duty.role.id))
+          .map((a) => a.id)
+          .toSet(),
+    );
+    final assignedPhysicians = snapshot.days
+        .expand((d) => d.assignments)
+        .map((a) => a.doctor.id)
+        .toSet();
+    expect(
+      assignedPhysicians.difference(
+        physicianReport.columns.map((c) => c.id).toSet(),
+      ),
+      isEmpty,
+    );
+    debugPrint(
+      'LIVE_REPORTS_VERIFIED: exact assignment facts and historical physician columns. Screen-only; no writes.',
+    );
+    try {
+      await SupabaseWorkspaceService(client).preview(
+        RosterGenerationRequest(
+          AdminWriteIntent.create(),
+          year: 2100,
+          month: 12,
+          expectedConfigurationVersion: 'server-preview',
+        ),
+      );
+      debugPrint(
+        'LIVE_GENERATION_PREVIEW_AVAILABLE: read-only preview completed. No generation or removal executed.',
+      );
+    } on AssignmentMutationFailure {
+      debugPrint(
+        'LIVE_WRITES_NOT_VERIFIED: workspace preview RPC unavailable; apply the workspace migration before deployment testing.',
+      );
+    }
     final roles = previewRoles(snapshot);
     if (roles.isEmpty || snapshot.doctors.isEmpty) {
       markTestSkipped('LIVE_NOT_VERIFIED: no role/physician pair');
@@ -112,15 +175,33 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.tap(find.byTooltip('Selection actions'));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find
-          .text(
-            '${role!.code}: ${role.name}${role.isActive == false ? ' (inactive)' : ''}',
-          )
-          .last,
+    await tester.tap(find.text('Select all working days'));
+    await tester.pumpAndSettle();
+    final working = tester
+        .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+        .selection
+        .dates;
+    expect(
+      working.every(
+        (d) => AustrianHolidays.isWorkingDay(
+          HospitalDate.fromCalendarComponents(d),
+        ),
+      ),
+      isTrue,
     );
+    final holidayCount = AustrianHolidays.forYear(
+      snapshot.month.year,
+    ).keys.where((d) => d.month == snapshot.month.month).length;
+    expect(
+      find.byIcon(Icons.celebration_outlined),
+      findsNWidgets(holidayCount),
+    );
+    debugPrint(
+      'LIVE_HOLIDAYS_VERIFIED: $holidayCount national holiday dates; working-day selection excludes them.',
+    );
+    await tester.tap(find.byKey(ValueKey('role-chip-${role!.id}')));
     await tester.pumpAndSettle();
     final candidate = find.byKey(
       ValueKey('candidate-${expected!.request.physicianId}'),

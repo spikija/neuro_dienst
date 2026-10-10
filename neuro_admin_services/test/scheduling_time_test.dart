@@ -4,25 +4,33 @@ import 'package:timezone/timezone.dart' as tz;
 
 void main() {
   test(
-    'dates beyond explicit Vienna transition coverage fail instead of guessing DST',
+    'future Vienna dates extend current EU recurrence instead of freezing at 2037',
     () {
       expect(
-        ViennaSchedulingTime.verifiedUntilUtc,
-        DateTime.utc(2037, 10, 25, 1),
+        ViennaSchedulingTime.localTime(DateTime.utc(2038, 7, 1, 6)).hour,
+        8,
       );
       expect(
-        () => ViennaSchedulingTime.localTime(DateTime.utc(2038, 7, 1)),
-        throwsFormatException,
+        ViennaSchedulingTime.resolveWallTime(HospitalDate(2100, 7, 1), 8, 0),
+        DateTime.utc(2100, 7, 1, 6),
       );
       expect(
-        () => ViennaSchedulingTime.parseInstant('2038-07-01T06:00:00Z'),
+        ViennaSchedulingTime.resolveWallTime(HospitalDate(2100, 1, 1), 8, 0),
+        DateTime.utc(2100, 1, 1, 7),
+      );
+      expect(
+        () => ViennaSchedulingTime.resolveWallTime(
+          HospitalDate(2040, 3, 25),
+          2,
+          30,
+        ),
         throwsFormatException,
       );
       expect(
         () => ViennaSchedulingTime.resolveWallTime(
-          HospitalDate(2100, 7, 1),
-          8,
-          0,
+          HospitalDate(2040, 10, 28),
+          2,
+          30,
         ),
         throwsFormatException,
       );

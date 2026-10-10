@@ -43,9 +43,7 @@ Future<void> selectDates(WidgetTester tester, int first, [int? last]) async {
 }
 
 Future<void> chooseRole(WidgetTester tester, StoredRole role) async {
-  await tester.tap(find.byType(DropdownButtonFormField<String>));
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('${role.code}: ${role.name}').last);
+  await tester.tap(find.byKey(ValueKey('role-chip-${role.id}')));
   await tester.pumpAndSettle();
 }
 
@@ -105,6 +103,8 @@ void main() {
       await selectDates(tester, 1);
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Select all assignable days'));
       await tester.pump();
       await tester.pumpAndSettle();
@@ -118,12 +118,28 @@ void main() {
       expect(preview.blockedCount, 0);
       expect(preview.request.physicianId, 'ana');
       expect(preview.request.roleId, 'sul');
-      expect(find.text('3 days selected'), findsOneWidget);
-      expect(find.textContaining('Blue: assignable'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(3),
+      );
+      expect(find.byTooltip('Selection actions'), findsOneWidget);
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Clear selection'));
       await tester.pumpAndSettle();
-      expect(find.text('0 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(0),
+      );
       expect(find.byType(AssignmentCandidatePanel), findsOneWidget);
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Select all assignable days'));
       await tester.pumpAndSettle();
       expect(
@@ -225,7 +241,13 @@ void main() {
         find.text('1 valid | 0 valid with warnings | 0 blocked'),
         findsOneWidget,
       );
-      expect(find.text('1 day selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(1),
+      );
       expect(
         tester
             .widget<AssignmentPreviewDetails>(
@@ -249,7 +271,13 @@ void main() {
         'icb-3',
       );
       await selectDates(tester, 3);
-      expect(find.text('0 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(0),
+      );
       await selectDates(tester, 3);
       expect(
         find.text('1 valid | 0 valid with warnings | 0 blocked'),
@@ -266,14 +294,26 @@ void main() {
       await tester.tap(find.byTooltip('Cancel preview'));
       await tester.pumpAndSettle();
       expect(find.byType(AssignmentCandidatePanel), findsNothing);
-      expect(find.text('0 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(0),
+      );
       await chooseRole(tester, leader);
       await tester.tap(find.byKey(const ValueKey('month-selector')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('2026-09').last);
       await tester.pumpAndSettle();
       expect(find.byType(AssignmentCandidatePanel), findsNothing);
-      expect(find.text('0 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(0),
+      );
       expect(reader.reads, 3);
       expect(tester.takeException(), isNull);
     },

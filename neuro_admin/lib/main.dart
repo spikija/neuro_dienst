@@ -6,6 +6,7 @@ import 'auth/session_gate.dart';
 import 'data/roster_reader.dart';
 import 'supabase_config.dart';
 import 'calendar_theme.dart';
+import 'package:neuro_admin_services/supabase_admin_workspace.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +57,9 @@ class NeuroAdminApp extends StatelessWidget {
               gateway: SupabaseSessionGateway(client!),
               reader: SupabaseRosterReader(client!),
               mutations: SupabaseAssignmentMutationService(client!),
+              generation: SupabaseWorkspaceService(client!),
+              removals: SupabaseWorkspaceService(client!),
+              reporting: SupabaseReportingService(client!),
             )
           : Scaffold(
               appBar: AppBar(title: const Text('NeuroDienst Admin')),

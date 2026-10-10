@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:neuro_admin_services/neuro_admin_services.dart'
-    show HospitalDate;
+    show HospitalDate, AustrianHolidays;
 
 /// Date-only identity: preserve calendar components, never convert timezones.
 DateTime calendarDate(DateTime value) =>
@@ -43,10 +43,10 @@ class CalendarGridMonth {
         ?dateAt(row, column),
   };
 
-  /// Holiday flags currently have no reliable provenance; weekdays only.
+  /// Hospital working days exclude nationwide Austrian statutory holidays.
   Set<DateTime> get workingDays => {
     for (var day = 1; day <= dayCount; day++)
-      if (DateTime.utc(year, month, day).weekday <= DateTime.friday)
+      if (AustrianHolidays.isWorkingDay(HospitalDate(year, month, day)))
         DateTime.utc(year, month, day),
   };
 }

@@ -57,7 +57,7 @@ void main() {
     },
   );
   test(
-    'working days use dates even without roster records; holidays remain weekdays',
+    'working days use dates even without roster records; Austrian holidays are excluded',
     () {
       final selection = CalendarSelection()..selectWorkingDays(2026, 10);
       expect(selection.dates, {
@@ -79,7 +79,6 @@ void main() {
           21,
           22,
           23,
-          26,
           27,
           28,
           29,
@@ -93,9 +92,8 @@ void main() {
       );
       expect(
         selection.dates,
-        contains(DateTime.utc(2026, 10, 26)),
-        reason:
-            'Austrian holiday is included: backend holiday coverage is not reliable',
+        isNot(contains(DateTime.utc(2026, 10, 26))),
+        reason: 'Austrian holiday is excluded even without persisted metadata',
       );
       selection.clear();
       expect(selection.dates, isEmpty);

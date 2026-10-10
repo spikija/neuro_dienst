@@ -13,8 +13,10 @@ intended lifecycle/authorization predicates and Europe/Vienna time conversion.
 Phase 2C adds `SupabaseAssignmentMutationService` through the optional
 `supabase_admin_mutations.dart` entry point: additions call the atomic server
 validate-and-apply RPC, with version checks, idempotency and structured failures.
-Not implemented: separate authoritative preview tokens, remove/replace adapters,
-invitation orchestration, roster generation, version selection or backend RPCs.
+Phase 2E adds `supabase_admin_workspace.dart`: transactional dated removal and
+generation adapters, plus reporting reads. The default entry point exports the
+offline Austrian holiday provider and factual report projection.
+Not implemented: replacement, invitation orchestration, or publication revisions.
 Policies are design/application predicates, not evidence of server authorization.
 Never use a local preview or these predicates as permission to bypass server validation.
 
@@ -32,5 +34,6 @@ role/slot IDs and provides per-date errors, factual warnings and current occupan
 Legacy snapshots are explicitly unversioned and cannot enable writes.
 See [Phase 2C](../docs/neuro_admin_phase_2c.md) for the forward migration and safeguards.
 See [Phase 2D](../docs/neuro_admin_phase_2d.md) for month-wide assignability,
-reporting contracts, and the preview/commit roster-generation design. Reporting
-and generation remain contracts only; mobile behavior has not been copied.
+reporting contracts, and the preview/commit roster-generation design.
+See [Phase 2E](../docs/neuro_admin_phase_2e.md) for their first implementations and
+the required forward migration. Existing mobile behavior remains unchanged.

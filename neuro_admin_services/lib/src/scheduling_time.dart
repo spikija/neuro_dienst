@@ -69,25 +69,40 @@ abstract final class ViennaSchedulingTime {
     return tz.getLocation(zoneName);
   }
 
-  /// Conservatively stop at the final explicit transition. The cached library
-  /// otherwise extrapolates its last offset forever, losing future DST.
+  /// End of explicit bundled history. Later years use the recurring EU rule,
+  /// not the package's incorrect permanent-last-offset extrapolation.
   static DateTime get verifiedUntilUtc => DateTime.fromMillisecondsSinceEpoch(
     _location.transitionAt.last,
     isUtc: true,
   );
 
-  static void _requireCovered(DateTime instant) {
-    if (!instant.toUtc().isBefore(verifiedUntilUtc)) {
-      throw FormatException(
-        'Europe/Vienna timezone data is verified only before '
-        '${verifiedUntilUtc.toIso8601String()}. Update timezone data for later duties.',
-      );
-    }
+  static final Map<int, tz.Location> _futureLocations = {};
+  static tz.Location _locationFor(DateTime instant) {
+    if (instant.toUtc().isBefore(verifiedUntilUtc)) return _location;
+    final year = instant.toUtc().year;
+    return _futureLocations.putIfAbsent(year, () {
+      final transitions = <int>[DateTime.utc(year - 1).millisecondsSinceEpoch];
+      final zones = <int>[0];
+      for (var y = year - 1; y <= year + 1; y++) {
+        for (final month in [3, 10]) {
+          final end = DateTime.utc(y, month + 1, 0, 1);
+          transitions.add(
+            end
+                .subtract(Duration(days: end.weekday % 7))
+                .millisecondsSinceEpoch,
+          );
+          zones.add(month == 3 ? 1 : 0);
+        }
+      }
+      return tz.Location(zoneName, transitions, zones, const [
+        tz.TimeZone(3600000, isDst: false, abbreviation: 'CET'),
+        tz.TimeZone(7200000, isDst: true, abbreviation: 'CEST'),
+      ]);
+    });
   }
 
   static tz.TZDateTime localTime(DateTime instant) {
-    _requireCovered(instant);
-    return tz.TZDateTime.from(instant, _location);
+    return tz.TZDateTime.from(instant, _locationFor(instant));
   }
 
   static HospitalDate dateOfInstant(DateTime instant) =>
@@ -100,7 +115,6 @@ abstract final class ViennaSchedulingTime {
       throw const FormatException('Duty timestamp must include a UTC offset.');
     }
     final instant = DateTime.parse(value).toUtc();
-    _requireCovered(instant);
     return instant;
   }
 
@@ -132,14 +146,13 @@ abstract final class ViennaSchedulingTime {
     final candidates = <DateTime>{};
     for (final offset in _location.zones.map((zone) => zone.offset).toSet()) {
       final candidate = wall.subtract(Duration(milliseconds: offset));
-      final local = tz.TZDateTime.from(candidate, _location);
+      final local = localTime(candidate);
       if (local.year == date.year &&
           local.month == date.month &&
           local.day == date.day &&
           local.hour == hour &&
           local.minute == minute &&
           local.second == second) {
-        _requireCovered(candidate);
         candidates.add(candidate);
       }
     }

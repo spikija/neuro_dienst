@@ -6,7 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/roster_reader.dart';
 import '../roster_dashboard.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart'
-    show AssignmentMutationService;
+    show
+        AssignmentMutationService,
+        RosterGenerationService,
+        AssignmentRemovalService,
+        ReportingService;
 
 enum AccessLevel { denied, requiresMfa, ready }
 
@@ -83,6 +87,9 @@ class SupabaseSessionGateway implements SessionGateway {
 
 class SessionGate extends StatefulWidget {
   final AssignmentMutationService? mutations;
+  final RosterGenerationService? generation;
+  final AssignmentRemovalService? removals;
+  final ReportingService? reporting;
   final SessionGateway gateway;
   final RosterReader reader;
   const SessionGate({
@@ -90,6 +97,9 @@ class SessionGate extends StatefulWidget {
     required this.gateway,
     required this.reader,
     this.mutations,
+    this.generation,
+    this.removals,
+    this.reporting,
   });
 
   @override
@@ -258,6 +268,9 @@ class _SessionGateState extends State<SessionGate> {
             reader: widget.reader,
             onSignOut: widget.gateway.signOut,
             mutations: widget.mutations,
+            generation: widget.generation,
+            removals: widget.removals,
+            reporting: widget.reporting,
           );
         }
         if (access.factors.isEmpty) {

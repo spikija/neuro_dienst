@@ -1,9 +1,10 @@
 # NeuroDienst Admin
 
 Administrator-only desktop roster and workload client. Windows first; macOS runner
-included, not yet qualified. Phase 2C supports confirmed manual additions through
-an atomic admin+MFA RPC after the backend migration is deployed. Unmigrated backends
-remain preview-only. No direct assignment table writes, removal or replacement.
+included, not yet qualified. Manual assignment additions, dated unassignment and
+month generation use atomic admin+MFA RPCs after their migrations are deployed.
+The three-pane workspace also offers screen-only reports. No direct client-side
+assignment writes or silent replacement.
 
 ```powershell
 flutter pub get
@@ -24,3 +25,11 @@ See [month highlighting, preselection and reporting/generation parity](../docs/n
 Select a role and physician to highlight the whole month and preselect valid
 dates. Click to deselect/reselect; drag adds only assignable days. Clear selection
 keeps validity visible. Apply confirms only the selected valid dates.
+
+Selection actions are in **Selection**. To target occupied/blocked dates for
+removal, enable **Select occupied days for removal**; then choose selected-role
+or all-role unassignment and review its confirmation. Disable removal selection
+to return to assignment highlighting. **Roster** offers create/preview and safe
+draft regeneration. **Reports** opens role/physician tables.
+
+See [Phase 2E workspace, migration and verification](../docs/neuro_admin_phase_2e.md).

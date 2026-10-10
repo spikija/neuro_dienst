@@ -138,7 +138,13 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
       expect(find.byType(AssignmentCandidatePanel), findsOneWidget);
-      expect(find.text('2 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(2),
+      );
       expect(
         find.text('Assignments saved. Roster and workload refreshed.'),
         findsOneWidget,

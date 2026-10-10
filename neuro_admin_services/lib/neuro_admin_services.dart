@@ -1,5 +1,5 @@
 /// Flutter-free application boundary. Supabase adapters are separate opt-in
-/// entry points; reporting and roster generation remain design contracts only.
+/// entry points. Calendar/report projections remain independent of Flutter.
 library;
 
 export 'src/admin_authorization.dart';
@@ -13,3 +13,5 @@ export 'src/workload.dart';
 export 'src/workload_category.dart';
 export 'src/month_assignability.dart';
 export 'src/reporting.dart';
+export 'src/austrian_holidays.dart';
+export 'src/assignment_removal.dart';

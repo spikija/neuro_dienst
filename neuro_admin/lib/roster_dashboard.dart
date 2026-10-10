@@ -1,24 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
-import 'package:neuro_admin_services/neuro_admin_services.dart'
-    show
-        ViennaSchedulingTime,
-        HospitalDate,
-        MonthAssignability,
-        previewRoles,
-        AssignmentMutationService;
+import 'package:neuro_admin_services/neuro_admin_services.dart';
+import 'workspace_dialogs.dart';
+import 'reports_screen.dart';
 
 import 'assignment_candidate_panel.dart';
 import 'calendar_day_grid.dart';
 import 'calendar_selection.dart';
 import 'calendar_theme.dart';
-import 'data/roster_reader.dart';
-import 'data/workload.dart';
-import 'data/workload_category.dart';
 
 class RosterDashboard extends StatefulWidget {
   final AssignmentMutationService? mutations;
   final RosterReader reader;
+  final RosterGenerationService? generation;
+  final AssignmentRemovalService? removals;
+  final ReportingService? reporting;
   final Future<void> Function() onSignOut;
   final PreviewServiceFactory? previewServiceFactory;
 
@@ -28,6 +24,9 @@ class RosterDashboard extends StatefulWidget {
     required this.onSignOut,
     this.previewServiceFactory,
     this.mutations,
+    this.generation,
+    this.removals,
+    this.reporting,
   });
 
   @override
@@ -45,7 +44,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
   String? _roleId;
   MonthAssignability? _assignability;
   bool _validityFailed = false;
-  bool get _assignmentMode => _roleId != null && _doctorId != null;
+  bool get _assignmentMode =>
+      !_removalMode && _roleId != null && _doctorId != null;
 
   void _resetAssignability() {
     _assignability = null;
@@ -57,6 +57,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
     if (_doctorId == id) return;
     setState(() {
       _doctorId = id;
+      _removalMode = false;
       _resetAssignability();
     });
   }
@@ -69,6 +70,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
     });
   }
 
+  bool _removalMode = false;
   bool _loading = true;
   bool _applying = false;
   String? _error;
@@ -129,6 +131,167 @@ class _RosterDashboardState extends State<RosterDashboard> {
       _detailDate = null;
       _selected = month;
     });
+    await _refresh();
+  }
+
+  List<Widget> _toolbar() => [
+    PopupMenuButton<String>(
+      tooltip: 'Selection actions',
+      child: const Padding(
+        padding: EdgeInsets.all(8),
+        child: Text('Selection ?'),
+      ),
+      onSelected: (action) async {
+        if (action == 'removeRole' || action == 'removeAll') {
+          await _remove(action == 'removeAll');
+          return;
+        }
+        setState(() {
+          if (action == 'removal') {
+            _removalMode = !_removalMode;
+            _resetAssignability();
+          }
+          if (action == 'working' && _selected != null) {
+            _selection.selectWorkingDays(_selected!.year, _selected!.month);
+          }
+          if (action == 'assignable') {
+            _selection.replace(
+              _assignability?.assignableDates.map((d) => d.asDateOnlyUtc) ?? [],
+            );
+          }
+          if (action == 'clear') {
+            _selection.clear();
+            _detailDate = null;
+          }
+          _detailDate = _selection.lastVisited;
+        });
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'working',
+          enabled: _selected != null,
+          child: const Text('Select all working days'),
+        ),
+        PopupMenuItem(
+          value: 'assignable',
+          enabled: _assignability != null && !_removalMode,
+          child: const Text('Select all assignable days'),
+        ),
+        const PopupMenuItem(value: 'clear', child: Text('Clear selection')),
+        const PopupMenuDivider(),
+        CheckedPopupMenuItem(
+          value: 'removal',
+          checked: _removalMode,
+          child: const Text('Select occupied days for removal'),
+        ),
+        PopupMenuItem(
+          value: 'removeRole',
+          enabled: _canRemove(false),
+          child: const Text('Unassign selected role'),
+        ),
+        PopupMenuItem(
+          value: 'removeAll',
+          enabled: _canRemove(true),
+          child: Text(
+            'Unassign all roles on selected days',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
+      ],
+    ),
+    PopupMenuButton<String>(
+      tooltip: 'Roster actions',
+      child: const Padding(padding: EdgeInsets.all(8), child: Text('Roster ?')),
+      onSelected: (a) => _generate(a == 'regenerate'),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'create',
+          enabled: widget.generation != null && !_loading,
+          child: const Text('Create month roster'),
+        ),
+        PopupMenuItem(
+          value: 'regenerate',
+          enabled:
+              widget.generation != null &&
+              _snapshot?.month.phase == RosterPhase.draft &&
+              _snapshot?.contentVersion != null,
+          child: const Text('Regenerate draft roster'),
+        ),
+      ],
+    ),
+    TextButton(
+      onPressed: widget.reporting == null || _snapshot == null
+          ? null
+          : () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ReportsScreen(
+                  service: widget.reporting!,
+                  roster: _snapshot!.contentVersion == null
+                      ? RosterVersion.unversioned(_snapshot!.month.id)
+                      : RosterVersion(
+                          _snapshot!.month.id,
+                          _snapshot!.contentVersion!,
+                        ),
+                ),
+              ),
+            ),
+      child: const Text('Reports'),
+    ),
+    const Tooltip(
+      message:
+          'Click to select a day. Drag to select a range. In assignment mode, valid days toggle and drag adds valid days. Use removal selection to select occupied days.',
+      child: Icon(Icons.help_outline, size: 20),
+    ),
+    if (_removalMode) const Chip(label: Text('Removal selection')),
+  ];
+  bool _canRemove(bool all) =>
+      widget.removals != null &&
+      _snapshot?.contentVersion != null &&
+      _snapshot?.month.phase != RosterPhase.published &&
+      _selection.dates.isNotEmpty &&
+      (all || _roleId != null) &&
+      _snapshot!.days
+          .expand((d) => d.assignments)
+          .any(
+            (a) =>
+                _selection.dates.contains(calendarDate(a.duty.date)) &&
+                (all || a.duty.role.id == _roleId),
+          );
+  Future<void> _remove(bool all) async {
+    final preview = AssignmentRemovalPreview(
+      _snapshot!,
+      _selection.dates.map(HospitalDate.fromCalendarComponents),
+      scope: all ? RemovalScope.all : RemovalScope.role,
+      roleId: all ? null : _roleId,
+    );
+    await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) =>
+          RemovalDialog(preview: preview, service: widget.removals!),
+    );
+    if (mounted) await _refresh();
+  }
+
+  Future<void> _generate(bool regenerate) async {
+    final result = await showDialog<RosterRevision>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => GenerationDialog(
+        service: widget.generation!,
+        existing: regenerate ? _snapshot : null,
+      ),
+    );
+    if (!mounted) return;
+    if (result != null) {
+      _selected = RosterChoice(
+        result.version.rosterId,
+        result.year,
+        result.month,
+        result.phase,
+      );
+    }
     await _refresh();
   }
 
@@ -194,12 +357,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     ),
                   if (_selected != null)
                     Chip(label: Text(_phaseLabel(_selected!.phase))),
-                  if (_selected != null) Text(_phaseMeaning(_selected!.phase)),
-                  Text(
-                    widget.mutations == null
-                        ? 'Read-only: no roster changes can be made here.'
-                        : 'Manual assignments require server validation and confirmation.',
-                  ),
+                  if (_selected != null)
+                    Tooltip(
+                      message: _phaseMeaning(_selected!.phase),
+                      child: const Icon(Icons.info_outline, size: 18),
+                    ),
+                  ..._toolbar(),
                 ],
               ),
               const SizedBox(height: 12),
@@ -227,8 +390,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     : LayoutBuilder(
                         builder: (context, constraints) {
                           // Preserve a desktop split even in a narrow resized window.
-                          final width = constraints.maxWidth < 760
-                              ? 760.0
+                          final width = constraints.maxWidth < 1180
+                              ? 1180.0
                               : constraints.maxWidth;
                           return SingleChildScrollView(
                             physics: _selection.isDragging
@@ -241,11 +404,19 @@ class _RosterDashboardState extends State<RosterDashboard> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Expanded(flex: 3, child: _calendar(snapshot)),
+                                  Expanded(
+                                    flex: 10,
+                                    child: _calendar(snapshot),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    flex: 5,
+                                    child: _dailyRoster(snapshot),
+                                  ),
                                   const SizedBox(width: 16),
                                   Expanded(
-                                    flex: 2,
-                                    child: _roleId != null
+                                    flex: 5,
+                                    child: _roleId != null && !_removalMode
                                         ? AssignmentCandidatePanel(
                                             key: ValueKey(
                                               'assignment-preview-$_request',
@@ -360,7 +531,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
   Widget _calendar(RosterSnapshot snapshot) {
     final roster = snapshot.month;
     final days = {for (final day in snapshot.days) calendarDate(day.date): day};
-    final selectedDay = days[_detailDate];
     return Card.outlined(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -370,13 +540,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
               ? const NeverScrollableScrollPhysics()
               : null,
           children: [
-            Text(
-              'Roster calendar',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            Text(
-              '${_selection.dates.length} ${_selection.dates.length == 1 ? 'day' : 'days'} selected',
-            ),
             if (_assignmentMode)
               Text(
                 _assignability == null
@@ -385,81 +548,30 @@ class _RosterDashboardState extends State<RosterDashboard> {
                           : 'Checking month assignability...'
                     : '${_assignability!.assignableDates.length} assignable | ${_selection.dates.length} selected | ${_assignability!.blockedDates.length} blocked | ${_assignability!.warningDates.length} warning-only',
               ),
-            const Text(
-              'Click a day or drag a rectangle to select calendar days.',
-            ),
             Wrap(
-              spacing: 8,
+              spacing: 6,
+              runSpacing: 4,
               children: [
-                TextButton(
-                  onPressed: () => setState(() {
-                    if (_assignmentMode) {
-                      _selection.replace(
-                        _assignability?.assignableDates.map(
-                              (d) => d.asDateOnlyUtc,
-                            ) ??
-                            [],
-                      );
-                    } else {
-                      _selection.selectWorkingDays(roster.year, roster.month);
-                    }
-                    _detailDate = _selection.lastVisited;
-                  }),
-                  child: Text(
-                    _assignmentMode
-                        ? 'Select all assignable days'
-                        : 'Select all working days',
+                for (final role in previewRoles(snapshot))
+                  Tooltip(
+                    message: role.name,
+                    child: ChoiceChip(
+                      key: ValueKey('role-chip-${role.id}'),
+                      label: Text(role.code),
+                      selected: _roleId == role.id,
+                      onSelected: (selected) =>
+                          _chooseRole(selected ? role.id : null),
+                    ),
                   ),
-                ),
-                TextButton(
-                  onPressed: _selection.dates.isEmpty
-                      ? null
-                      : () => setState(() {
-                          _selection.clear();
-                          _detailDate = null;
-                        }),
-                  child: const Text('Clear selection'),
-                ),
               ],
             ),
-            Text(
-              _assignmentMode
-                  ? 'Blue: assignable · Check: selected · Amber: warning · Block: unavailable'
-                  : 'Monday–Friday only; public holidays may be included.',
-              style: TextStyle(fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            ...[
-              DropdownButtonFormField<String>(
-                key: ValueKey('role-selector-$_roleId'),
-                initialValue: _roleId,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Duty role for preview',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final role in previewRoles(snapshot))
-                    DropdownMenuItem(
-                      value: role.id,
-                      child: Text(
-                        '${role.code}: ${role.name}${role.isActive == false ? ' (inactive)' : ''}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                ],
-                onChanged: _chooseRole,
+            if (roster.phase == RosterPhase.published)
+              const Text(
+                'Published roster requires a new revision before editing.',
               ),
-              if (roster.phase == RosterPhase.published)
-                const Text(
-                  'Published roster requires a new revision before editing.',
-                ),
-              if (roster.phase == RosterPhase.locked)
-                const Text(
-                  'Locked roster: a correction reason would be required.',
-                ),
-              const SizedBox(height: 8),
-            ],
+            if (roster.phase == RosterPhase.locked)
+              const Text('Locked roster: corrections require a reason.'),
+            const SizedBox(height: 8),
             Row(
               children: [
                 for (final label in [
@@ -486,6 +598,28 @@ class _RosterDashboardState extends State<RosterDashboard> {
               cellBuilder: (date, selected) =>
                   _dateCell(date, days[date], selected),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dailyRoster(RosterSnapshot snapshot) {
+    final roster = snapshot.month;
+    final days = {for (final day in snapshot.days) calendarDate(day.date): day};
+    final selectedDay =
+        days[_selection.dates.length == 1
+            ? _selection.dates.single
+            : _detailDate];
+    return Card.outlined(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: ListView(
+          key: const ValueKey('daily-roster-pane'),
+          children: [
+            Text('Daily roster', style: Theme.of(context).textTheme.titleLarge),
+            if (_selection.dates.length > 1)
+              Text('${_selection.dates.length} target dates'),
             const Divider(height: 24),
             if (_roleId != null && _selection.dates.isNotEmpty) ...[
               const Text(
@@ -536,6 +670,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
         Theme.of(context).extension<CalendarColors>() ??
         CalendarColors.forScheme(scheme);
     final key = HospitalDate.fromCalendarComponents(date);
+    final holiday = AustrianHolidays.day(key).publicHolidayName;
     final valid = _assignability?.assignableDates.contains(key) ?? false;
     final warning = _assignability?.warningDates.contains(key) ?? false;
     final blocked = _assignability?.blockedDates.contains(key) ?? false;
@@ -564,6 +699,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
     return Tooltip(
       message: [
         status,
+        ?holiday,
         if (selected) 'Selected',
         ...?result?.errors.map((e) => e.message),
         ...?result?.warnings.map((w) => w.message),
@@ -618,6 +754,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
                               : scheme.onSurface,
                         ),
                       ),
+                      if (holiday != null)
+                        Icon(
+                          Icons.celebration_outlined,
+                          size: 14,
+                          color: scheme.tertiary,
+                        ),
                       if (selected)
                         Icon(Icons.check, size: 14, color: colors.assignable),
                       if (warning)
@@ -672,6 +814,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
+      selected: _roleId == slot.role.id,
+      onTap: () => _chooseRole(slot.role.id),
       title: Text('${slot.role.code}: ${slot.role.name}'),
       subtitle: Text(
         '${_timestamp(start)} - ${_timestamp(end)}\n${names.isEmpty ? 'Unassigned' : names}',

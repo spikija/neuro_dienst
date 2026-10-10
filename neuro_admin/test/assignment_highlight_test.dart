@@ -203,6 +203,8 @@ void main() {
             .width,
         1,
       );
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Clear selection'));
       await tester.pumpAndSettle();
       await selectDates(tester, 1, 3);
@@ -210,9 +212,13 @@ void main() {
       await selectDates(tester, 1);
       await selectDates(tester, 3);
       expect(selected(tester), {DateTime.utc(2026, 10, 2)});
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Clear selection'));
       await tester.pumpAndSettle();
       expect(selected(tester), isEmpty);
+      await tester.tap(find.byTooltip('Selection actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Select all assignable days'));
       await tester.pumpAndSettle();
       expect(selected(tester), {DateTime.utc(2026, 10, 2)});

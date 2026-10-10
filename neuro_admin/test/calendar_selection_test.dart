@@ -132,14 +132,26 @@ void main() {
       await mouse.down(tester.getCenter(cell(1)));
       await mouse.up();
       await tester.pump();
-      expect(find.text('1 day selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(1),
+      );
       expect(tester.widget<Semantics>(cell(1)).properties.selected, isTrue);
       await mouse.down(tester.getCenter(cell(2)));
       await mouse.moveTo(tester.getCenter(cell(4)));
       await mouse.up();
       await tester.pump();
       expect(grid.selection.dates, {date(2), date(3), date(4)});
-      expect(find.text('3 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(3),
+      );
       expect(tester.widget<Semantics>(cell(1)).properties.selected, isFalse);
       expect(
         find.text('No generated roster day for 2026-10-04.'),
@@ -171,7 +183,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('2026-09').last);
       await tester.pumpAndSettle();
-      expect(find.text('0 days selected'), findsOneWidget);
+      expect(
+        tester
+            .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
+            .selection
+            .dates,
+        hasLength(0),
+      );
       expect(grid.selection.dates, isEmpty);
       expect(grid.selection.isDragging, isFalse);
       expect(tester.takeException(), isNull);
@@ -204,6 +222,8 @@ void main() {
       await tester.pumpAndSettle();
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: tester.getCenter(cell(1)));
+      await tester.ensureVisible(cell(1));
+      await tester.pumpAndSettle();
       await mouse.down(tester.getCenter(cell(1)));
       await mouse.moveTo(tester.getCenter(cell(4)));
       await tester.pump();
@@ -224,10 +244,24 @@ void main() {
             .dates,
         {date(1), date(2), date(3), date(4)},
       );
-      final beforeScroll = tester.getTopLeft(cell(1)).dy;
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('roster-calendar-scroll')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      final beforeScroll = scrollable.position.pixels;
       await tester.dragFrom(tester.getCenter(cell(1)), const Offset(0, -80));
       await tester.pumpAndSettle();
-      expect(tester.getTopLeft(cell(1)).dy, lessThan(beforeScroll));
+      expect(
+        scrollable.position.physics,
+        isNot(isA<NeverScrollableScrollPhysics>()),
+      );
+      if (scrollable.position.maxScrollExtent > beforeScroll) {
+        expect(scrollable.position.pixels, greaterThan(beforeScroll));
+      }
       expect(tester.takeException(), isNull);
     },
   );

@@ -2,6 +2,7 @@ import 'package:neuro_core/neuro_core.dart';
 import 'package:supabase/supabase.dart';
 import 'read_models.dart';
 import 'scheduling_time.dart';
+import 'austrian_holidays.dart';
 
 /// Read-only adapter. It deliberately exposes no mutation operations.
 class SupabaseRosterReader implements RosterReader, PhysicianReadService {
@@ -383,12 +384,7 @@ RosterSnapshot decodeRoster(
     for (final row in days)
       if (row['roster_id'] == month.id)
         StoredDay(
-          CalendarDayInfo(
-            date: _calendarDate(row['date']),
-            isWeekend: row['is_weekend'] as bool,
-            isPublicHoliday: row['is_public_holiday'] as bool,
-            publicHolidayName: row['public_holiday_name'] as String?,
-          ),
+          AustrianHolidays.day(HospitalDate.parse(row['date'] as String)),
           (slotsByDay[row['id']] ?? [])
             ..sort((a, b) => a.startsAt.compareTo(b.startsAt)),
           assignmentsByDay[row['id']] ?? [],
