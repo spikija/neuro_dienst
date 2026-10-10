@@ -15,3 +15,4 @@ export 'src/month_assignability.dart';
 export 'src/reporting.dart';
 export 'src/austrian_holidays.dart';
 export 'src/assignment_removal.dart';
+export 'src/directory.dart';

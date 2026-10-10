@@ -14,17 +14,38 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
     (start, end) => client
         .from('doctors')
         .select(
-          'id, first_name, last_name, rank, capabilities, print_order, is_active',
+          'id, auth_user_id, first_name, last_name, rank, capabilities, print_order, is_active',
         )
         .order('id')
         .range(start, end),
   );
 
+  Future<({List<JsonRow> rows, Set<String> excluded})> _staffRows() async {
+    final rows = await _doctorRows();
+    final viewers = await _pages(
+      (start, end) => client
+          .from('profiles')
+          .select('id')
+          .eq('role', 'viewer')
+          .order('id')
+          .range(start, end),
+    );
+    final viewerIds = viewers.map((r) => r['id']).toSet();
+    final excluded = {
+      for (final r in rows)
+        if (viewerIds.contains(r['auth_user_id'])) r['id'] as String,
+    };
+    return (
+      rows: rows.where((r) => !excluded.contains(r['id'])).toList(),
+      excluded: excluded,
+    );
+  }
+
   @override
   Future<List<PhysicianRecord>> loadPhysicians({
     bool includeInactive = true,
   }) async {
-    final rows = await _doctorRows();
+    final rows = (await _staffRows()).rows;
     return [
       for (final row in rows)
         if (includeInactive || row['is_active'] == true)
@@ -60,7 +81,8 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
   Future<RosterSnapshot> loadMonth(RosterChoice month) async {
     final version = await _version(month.id);
     // Load inactive doctors too: old assignments must not disappear.
-    final doctors = await _doctorRows();
+    final staff = await _staffRows();
+    final doctors = staff.rows;
     final days = await _pages(
       (start, end) => client
           .from('roster_days')
@@ -206,8 +228,12 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
       days: days,
       roles: roles,
       slots: slots,
-      assignments: assignments,
-      absences: absences,
+      assignments: assignments
+          .where((a) => !staff.excluded.contains(a['doctor_id']))
+          .toList(),
+      absences: absences
+          .where((a) => !staff.excluded.contains(a['doctor_id']))
+          .toList(),
       hasOverlapCoverage: true,
       contentVersion: version,
     );

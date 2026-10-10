@@ -64,6 +64,11 @@ const doctor = await invite({ rank: 'resident' });
 assert.equal(doctor.status, 201);
 assert.equal(doctor.data.accountRole, 'doctor');
 assert.ok(doctor.calls.some(c => c.operation === 'insert' && c.table === 'doctors'));
+const configured = await invite({rank:'consultant',isActive:false,printOrder:42});
+assert.equal(configured.status,201);
+assert.equal(configured.calls.find(c=>c.operation==='insert'&&c.table==='doctors').payload.is_active,false);
+assert.equal(configured.calls.find(c=>c.operation==='insert'&&c.table==='doctors').payload.print_order,42);
+assert.equal((await invite({rank:'resident',printOrder:1.5})).status,400);
 
 for (const role of ['admin', '', 'unknown']) {
   const rejected = await invite({ accountRole: role });

@@ -81,6 +81,12 @@ Deno.serve(async (request) => {
   const firstName = normalizedString(body.firstName)
   const lastName = normalizedString(body.lastName)
   const rank = normalizedString(body.rank)
+  const isActive = body.isActive === undefined ? true : body.isActive
+  const printOrder = body.printOrder
+  if (typeof isActive !== 'boolean' || (printOrder !== undefined &&
+    (typeof printOrder !== 'number' || !Number.isInteger(printOrder) || printOrder < -2147483648 || printOrder > 2147483647))) {
+    return jsonResponse(400, { error: 'Invalid active status or print order.' })
+  }
   // Never accept admin here; privileged accounts are not provisioned by this endpoint.
   const accountRole = body.accountRole === undefined ? 'doctor' : normalizedString(body.accountRole)
   if (!['doctor', 'viewer'].includes(accountRole)) {
@@ -160,8 +166,8 @@ Deno.serve(async (request) => {
           last_name: lastName,
           rank,
           capabilities,
-          is_active: true,
-          print_order: (highestPrintOrder?.print_order ?? 0) + 1,
+          is_active: isActive,
+          print_order: printOrder ?? (highestPrintOrder?.print_order ?? 0) + 1,
         })
         .select('id')
         .single()

@@ -16,6 +16,12 @@ void main() {
       final methods = <String>[];
       server.listen((request) async {
         methods.add(request.method);
+        if (request.uri.path.endsWith('/profiles')) {
+          request.response.headers.contentType = ContentType.json;
+          request.response.write('[]');
+          await request.response.close();
+          return;
+        }
         expect(request.uri.path, '/rest/v1/doctors');
         expect(request.uri.queryParameters.containsKey('is_active'), isFalse);
         request.response.headers.contentType = ContentType.json;
@@ -57,7 +63,7 @@ void main() {
       );
       final active = await service.loadPhysicians(includeInactive: false);
       expect(active.single.physician.id, 'current');
-      expect(methods, ['GET', 'GET']);
+      expect(methods, ['GET', 'GET', 'GET', 'GET']);
     },
   );
 

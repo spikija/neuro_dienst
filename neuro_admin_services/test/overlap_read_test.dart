@@ -84,6 +84,7 @@ void main() {
         methods.add(request.method);
         final query = request.uri.queryParameters;
         final Object rows = switch (request.uri.path.split('/').last) {
+          'profiles' => <Object>[],
           'rosters' => [
             {'id': 'oct', 'phase': 'draft'},
             {'id': 'nov', 'phase': 'published'},

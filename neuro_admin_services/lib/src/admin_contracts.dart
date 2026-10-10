@@ -257,6 +257,8 @@ final class InvitationRequest {
   final ProfileLanguage language;
   final DoctorRank? rank;
   final Set<Capability> capabilities;
+  final bool isActive;
+  final int? printOrder;
   InvitationRequest({
     required this.operation,
     required this.accountRole,
@@ -265,9 +267,11 @@ final class InvitationRequest {
     required this.lastName,
     required this.language,
     this.rank,
+    this.isActive = true,
+    this.printOrder,
     Iterable<Capability> capabilities = const [],
   }) : capabilities = Set.unmodifiable(capabilities) {
-    if (email.trim().isEmpty ||
+    if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email.trim()) ||
         firstName.trim().isEmpty ||
         lastName.trim().isEmpty ||
         (accountRole == ManagedAccountRole.doctor && rank == null) ||
