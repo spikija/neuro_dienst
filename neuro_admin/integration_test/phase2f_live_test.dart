@@ -14,6 +14,7 @@ import 'package:neuro_admin/localization.dart';
 import 'package:neuro_admin/roster_dashboard.dart';
 import 'package:neuro_admin/calendar_day_grid.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
+import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_admin_services/supabase_admin_reader.dart';
 import 'package:neuro_admin_services/supabase_admin_workspace.dart';
 import 'package:neuro_admin_services/supabase_admin_directory.dart';
@@ -145,9 +146,12 @@ void main() {
     debugPrint(
       'LIVE_REPORTS_VERIFIED: German UI, horizontal scroll, role/physician PDF in both A4 orientations. Output: ${output.path}',
     );
+    final directory = SupabaseDirectoryService(client);
+    var directoryAvailable = false;
     try {
-      await SupabaseDirectoryService(client).physicians();
-      await SupabaseDirectoryService(client).viewers();
+      await directory.physicians();
+      await directory.viewers();
+      directoryAvailable = true;
       debugPrint('LIVE_DIRECTORY_AVAILABLE');
     } on PostgrestException catch (e) {
       debugPrint(
@@ -155,26 +159,72 @@ void main() {
       );
     }
 
-    const email = String.fromEnvironment('LIVE_TEST_INVITE_EMAIL');
-    if (email.isNotEmpty) {
+    for (final invitation in [
+      (
+        ManagedAccountRole.viewer,
+        const String.fromEnvironment('LIVE_TEST_INVITE_EMAIL'),
+      ),
+      (
+        ManagedAccountRole.doctor,
+        const String.fromEnvironment('LIVE_TEST_PHYSICIAN_EMAIL'),
+      ),
+    ]) {
+      final (role, email) = invitation;
+      if (email.isEmpty || !directoryAvailable) continue;
+      // Repeat verification must not send duplicate invitations or change an
+      // existing account. Test physicians start inactive to avoid staffing use.
+      final physicians = await directory.physicians();
+      final viewers = await directory.viewers();
+      if (physicians.any(
+            (p) => p.email?.toLowerCase() == email.toLowerCase(),
+          ) ||
+          viewers.any((p) => p.email?.toLowerCase() == email.toLowerCase())) {
+        debugPrint(
+          'LIVE_INVITATION_SKIPPED: ${role.name} address already exists; retained.',
+        );
+        continue;
+      }
       try {
-        final result = await SupabaseDirectoryService(client).invite(
+        final result = await directory.invite(
           InvitationRequest(
             operation: AdminWriteIntent.create(),
-            accountRole: ManagedAccountRole.viewer,
+            accountRole: role,
             email: email,
             firstName: 'Desktop',
             lastName: 'Verification',
             language: ProfileLanguage.de,
+            rank: role == ManagedAccountRole.doctor
+                ? DoctorRank.resident
+                : null,
+            isActive: role != ManagedAccountRole.doctor,
           ),
         );
-        expect(result.physicianId, isNull);
-        debugPrint(
-          'LIVE_VIEWER_INVITATION_SENT: authorized test address; no physician record created.',
-        );
+        if (role == ManagedAccountRole.viewer) {
+          expect(result.physicianId, isNull);
+          final viewer = (await directory.viewers()).singleWhere(
+            (v) => v.email?.toLowerCase() == email.toLowerCase(),
+          );
+          final linked = await client
+              .from('doctors')
+              .select('id')
+              .eq('auth_user_id', viewer.id);
+          expect(linked, isEmpty);
+          debugPrint(
+            'LIVE_VIEWER_INVITATION_SENT: directory entry verified; no physician record or staffing identity.',
+          );
+        } else {
+          final physician = (await directory.physicians()).singleWhere(
+            (p) => p.id == result.physicianId,
+          );
+          expect(physician.isActive, isFalse);
+          expect(physician.rank, DoctorRank.resident);
+          debugPrint(
+            'LIVE_PHYSICIAN_INVITATION_SENT: directory entry verified; inactive test physician retained.',
+          );
+        }
       } on DirectoryFailure catch (e) {
         debugPrint(
-          'LIVE_VIEWER_INVITATION_NOT_VERIFIED: ${e.code}; not retried.',
+          'LIVE_INVITATION_NOT_VERIFIED: ${role.name}: ${e.code}; not retried.',
         );
       }
     }

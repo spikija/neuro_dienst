@@ -153,14 +153,19 @@ the calendar stayed visible. Only that test-created assignment was removed,
 with its receipt and scope checked first. The June 2027 roster remains; no existing
 roster or historical physician was deleted.
 
-Live directory verification remains blocked: the deployed backend returned
-`PGRST202` for the new directory RPC. The authorized viewer invitation was rejected
-by the older deployed Edge Function with `The selected rank is invalid.` No successful
-invitation is claimed, and no blind retry was made. A second address was authorized
-for physician invitation, but that test remains unrun pending backend deployment.
+Initial live directory verification returned `PGRST202` for the new directory RPC,
+and the older invitation function rejected a viewer with `The selected rank is invalid.`
+After the user confirmed deployment of both updates, a second Windows integration
+run passed: physician/viewer directory reads, German reports, horizontal scrolling,
+and both PDF orientations. Both authorized invitation addresses already existed in
+the directory, so invitations were skipped and those accounts retained unchanged.
+Fresh invitation delivery remains unverified; no successful email send is claimed.
+The repeatable integration test checks for existing directory addresses before
+inviting and creates any new test physician inactive. It accepts an optional
+`LIVE_TEST_PHYSICIAN_EMAIL` alongside the existing viewer email define.
 No test email addresses or credentials are stored in the repository. Viewer
 exclusion/revocation and physician archival/dependency protection passed isolated
-tests; their new live directory workflows still require verification after deployment.
+tests; live edits, archival and revocation still require separate verification.
 Actual printer output, the native Save PDF dialog and macOS builds remain unverified.
 Both temporary local PostgreSQL servers were stopped after testing.
 
