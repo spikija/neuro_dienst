@@ -75,6 +75,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   bool _applying = false;
   String? _error;
   int _request = 0;
+  int _snapshotRevision = 0;
 
   @override
   void initState() {
@@ -82,18 +83,17 @@ class _RosterDashboardState extends State<RosterDashboard> {
     _refresh();
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({String? targetMonthId}) async {
     final request = ++_request;
+    final requestedId = targetMonthId ?? _selected?.id;
     setState(() {
       _loading = true;
       _error = null;
-      _snapshot = null;
-      _resetAssignability();
     });
     try {
       final months = await widget.reader.listMonths();
       final selected =
-          months.where((month) => month.id == _selected?.id).firstOrNull ??
+          months.where((month) => month.id == requestedId).firstOrNull ??
           months.firstOrNull;
       final data = selected == null
           ? null
@@ -104,6 +104,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
         if (_selected?.id != data?.month.id) _selection.clear();
         _selected = data?.month ?? selected;
         _snapshot = data;
+        _snapshotRevision++;
         _detailDate = _selection.lastVisited ?? data?.days.firstOrNull?.date;
         if (data == null || !data.doctors.any((d) => d.id == _doctorId)) {
           _doctorId = null;
@@ -126,12 +127,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   }
 
   Future<void> _chooseMonth(RosterChoice month) async {
-    setState(() {
-      _selection.clear();
-      _detailDate = null;
-      _selected = month;
-    });
-    await _refresh();
+    await _refresh(targetMonthId: month.id);
   }
 
   List<Widget> _toolbar() => [
@@ -285,14 +281,8 @@ class _RosterDashboardState extends State<RosterDashboard> {
     );
     if (!mounted) return;
     if (result != null) {
-      _selected = RosterChoice(
-        result.version.rosterId,
-        result.year,
-        result.month,
-        result.phase,
-      );
+      await _refresh(targetMonthId: result.version.rosterId);
     }
-    await _refresh();
   }
 
   Future<void> _signOut() async {
@@ -311,7 +301,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
     return AbsorbPointer(
-      absorbing: _applying,
+      absorbing: _applying || (_loading && snapshot != null),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('NeuroDienst Admin'),
@@ -366,10 +356,18 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 ],
               ),
               const SizedBox(height: 12),
+              if (_loading && snapshot != null) const LinearProgressIndicator(),
+              if (_error != null && snapshot != null)
+                MaterialBanner(
+                  content: Text(_error!),
+                  actions: [
+                    TextButton(onPressed: _refresh, child: const Text('Retry')),
+                  ],
+                ),
               Expanded(
-                child: _loading
+                child: _loading && snapshot == null
                     ? const Center(child: CircularProgressIndicator())
-                    : _error != null
+                    : _error != null && snapshot == null
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -419,7 +417,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                     child: _roleId != null && !_removalMode
                                         ? AssignmentCandidatePanel(
                                             key: ValueKey(
-                                              'assignment-preview-$_request',
+                                              'assignment-preview-$_snapshotRevision',
                                             ),
                                             snapshot: snapshot,
                                             role: previewRoles(snapshot)
@@ -534,69 +532,95 @@ class _RosterDashboardState extends State<RosterDashboard> {
     return Card.outlined(
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: ListView(
+        child: CustomScrollView(
           key: const ValueKey('roster-calendar-scroll'),
           physics: _selection.isDragging
               ? const NeverScrollableScrollPhysics()
               : null,
-          children: [
-            if (_assignmentMode)
-              Text(
-                _assignability == null
-                    ? _validityFailed
-                          ? 'Month validation failed. Reload to retry.'
-                          : 'Checking month assignability...'
-                    : '${_assignability!.assignableDates.length} assignable | ${_selection.dates.length} selected | ${_assignability!.blockedDates.length} blocked | ${_assignability!.warningDates.length} warning-only',
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_assignmentMode)
+                    Text(
+                      _assignability == null
+                          ? _validityFailed
+                                ? 'Month validation failed. Reload to retry.'
+                                : 'Checking month assignability...'
+                          : '${_assignability!.assignableDates.length} assignable | ${_selection.dates.length} selected | ${_assignability!.blockedDates.length} blocked | ${_assignability!.warningDates.length} warning-only',
+                    ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final role in previewRoles(snapshot))
+                        Tooltip(
+                          message: role.name,
+                          child: ChoiceChip(
+                            key: ValueKey('role-chip-${role.id}'),
+                            label: Text(role.code),
+                            selected: _roleId == role.id,
+                            onSelected: (selected) =>
+                                _chooseRole(selected ? role.id : null),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (roster.phase == RosterPhase.published)
+                    const Text(
+                      'Published roster requires a new revision before editing.',
+                    ),
+                  if (roster.phase == RosterPhase.locked)
+                    const Text('Locked roster: corrections require a reason.'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (final label in [
+                        'Mon',
+                        'Tue',
+                        'Wed',
+                        'Thu',
+                        'Fri',
+                        'Sat',
+                        'Sun',
+                      ])
+                        Expanded(child: Center(child: Text(label))),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
               ),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final role in previewRoles(snapshot))
-                  Tooltip(
-                    message: role.name,
-                    child: ChoiceChip(
-                      key: ValueKey('role-chip-${role.id}'),
-                      label: Text(role.code),
-                      selected: _roleId == role.id,
-                      onSelected: (selected) =>
-                          _chooseRole(selected ? role.id : null),
+            ),
+            SliverLayoutBuilder(
+              builder: (context, constraints) {
+                final weeks =
+                    (DateTime.utc(roster.year, roster.month).weekday -
+                        1 +
+                        DateTime.utc(roster.year, roster.month + 1, 0).day +
+                        6) ~/
+                    7;
+                final height =
+                    (constraints.viewportMainAxisExtent -
+                            constraints.precedingScrollExtent)
+                        .clamp(weeks * 68.0, double.infinity);
+                return SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: height,
+                    child: CalendarDayGrid(
+                      key: ValueKey(roster.id),
+                      year: roster.year,
+                      month: roster.month,
+                      selection: _selection,
+                      onChanged: () => setState(() {
+                        _detailDate = _selection.lastVisited;
+                      }),
+                      cellBuilder: (date, selected) =>
+                          _dateCell(date, days[date], selected),
                     ),
                   ),
-              ],
-            ),
-            if (roster.phase == RosterPhase.published)
-              const Text(
-                'Published roster requires a new revision before editing.',
-              ),
-            if (roster.phase == RosterPhase.locked)
-              const Text('Locked roster: corrections require a reason.'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final label in [
-                  'Mon',
-                  'Tue',
-                  'Wed',
-                  'Thu',
-                  'Fri',
-                  'Sat',
-                  'Sun',
-                ])
-                  Expanded(child: Center(child: Text(label))),
-              ],
-            ),
-            const SizedBox(height: 6),
-            CalendarDayGrid(
-              key: ValueKey(roster.id),
-              year: roster.year,
-              month: roster.month,
-              selection: _selection,
-              onChanged: () => setState(() {
-                _detailDate = _selection.lastVisited;
-              }),
-              cellBuilder: (date, selected) =>
-                  _dateCell(date, days[date], selected),
+                );
+              },
             ),
           ],
         ),

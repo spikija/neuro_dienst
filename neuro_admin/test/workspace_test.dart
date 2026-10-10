@@ -4,6 +4,7 @@ import 'package:neuro_admin/calendar_day_grid.dart';
 import 'package:neuro_admin/roster_dashboard.dart';
 import 'package:neuro_admin/workspace_dialogs.dart';
 import 'package:neuro_admin/reports_screen.dart';
+import 'package:neuro_admin/report_table.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'package:neuro_core/neuro_core.dart';
 import '../../neuro_admin_services/test/support/preview_fixture.dart';
@@ -274,7 +275,7 @@ void main() {
         roster: RosterVersion('october', 1),
       ),
     );
-    expect(find.byType(DataTable), findsOneWidget);
+    expect(find.byType(ReportTable), findsOneWidget);
     expect(find.text('SUL: Stroke Unit Leadership'), findsOneWidget);
     await tester.tap(find.text('By physician'));
     await tester.pumpAndSettle();

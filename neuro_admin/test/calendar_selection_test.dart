@@ -227,10 +227,10 @@ void main() {
       await mouse.down(tester.getCenter(cell(1)));
       await mouse.moveTo(tester.getCenter(cell(4)));
       await tester.pump();
-      final calendar = tester.widget<ListView>(
+      final calendar = tester.widget<CustomScrollView>(
         find.ancestor(
           of: find.byType(CalendarDayGrid),
-          matching: find.byType(ListView),
+          matching: find.byType(CustomScrollView),
         ),
       );
       expect(calendar.physics, isA<NeverScrollableScrollPhysics>());

@@ -27,7 +27,8 @@ class CalendarDayGrid extends StatefulWidget {
 }
 
 class _CalendarDayGridState extends State<CalendarDayGrid> {
-  static const _rowHeight = 68.0;
+  double _rowHeight = 68.0;
+  int get _weeks => (_offset + _count + 6) ~/ 7;
   final _gridKey = GlobalKey();
   int? _pointer;
 
@@ -121,38 +122,47 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   }
 
   @override
-  Widget build(BuildContext context) => Listener(
-    onPointerDown: _down,
-    onPointerMove: _move,
-    onPointerUp: _end,
-    onPointerCancel: _end,
-    // Claim mouse pans so an enclosing scroll view does not move the grid.
-    child: GestureDetector(
-      supportedDevices: const {PointerDeviceKind.mouse},
-      onPanStart: (_) {},
-      onPanUpdate: (_) {},
-      child: SelectionContainer.disabled(
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Column(
-            key: _gridKey,
-            children: [
-              for (var week = 0; week < (_offset + _count + 6) ~/ 7; week++)
-                Row(
-                  children: [
-                    for (var weekday = 0; weekday < 7; weekday++)
-                      Expanded(child: _cell(week * 7 + weekday - _offset + 1)),
-                  ],
-                ),
-            ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      _rowHeight = constraints.hasBoundedHeight
+          ? (constraints.maxHeight / _weeks).clamp(68.0, double.infinity)
+          : 68.0;
+      return Listener(
+        onPointerDown: _down,
+        onPointerMove: _move,
+        onPointerUp: _end,
+        onPointerCancel: _end,
+        // Claim mouse pans so an enclosing scroll view does not move the grid.
+        child: GestureDetector(
+          supportedDevices: const {PointerDeviceKind.mouse},
+          onPanStart: (_) {},
+          onPanUpdate: (_) {},
+          child: SelectionContainer.disabled(
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Column(
+                key: _gridKey,
+                children: [
+                  for (var week = 0; week < _weeks; week++)
+                    Row(
+                      children: [
+                        for (var weekday = 0; weekday < 7; weekday++)
+                          Expanded(
+                            child: _cell(week * 7 + weekday - _offset + 1),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
 
   Widget _cell(int day) {
-    if (day < 1 || day > _count) return const SizedBox(height: _rowHeight);
+    if (day < 1 || day > _count) return SizedBox(height: _rowHeight);
     final date = _date(day);
     final selected = widget.selection.dates.contains(date);
     return SizedBox(
