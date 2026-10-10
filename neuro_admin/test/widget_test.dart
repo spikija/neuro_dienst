@@ -21,10 +21,7 @@ void main() {
         expect(find.text('NeuroDienst Admin'), findsOneWidget);
         expect(find.text('Roster calendar'), findsOneWidget);
         expect(find.text('Physicians / workload'), findsOneWidget);
-        expect(
-          find.text('Desktop administrator client - read-only roster'),
-          findsOneWidget,
-        );
+        expect(find.text('Desktop administrator client'), findsOneWidget);
         expect(
           find.text('Supabase configuration not provided'),
           findsOneWidget,

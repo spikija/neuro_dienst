@@ -1,3 +1,5 @@
+import 'validation_localization.dart';
+import 'localization.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -232,7 +234,10 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         setState(() {
           _error = error.outcomeUnknown
               ? 'The response was not received. The operation may have succeeded. Retry the same request to check safely.'
-              : 'Server rejected the operation (${error.code}). No assignments were added.';
+              : AdminStrings.of(context).text(
+                  'Server rejected the operation ({code}). No assignments were added.',
+                  {'code': error.code},
+                );
           if (error.results.isNotEmpty) {
             final month = _previews[physicianId!]!;
             final byDate = {
@@ -289,6 +294,10 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         ? null
         : MonthAssignability(monthPreview).selectedPreview(widget.dates);
     final doctors = widget.snapshot.doctors.where((doctor) {
+      if (widget.snapshot.inactiveDoctorIds.contains(doctor.id) ||
+          widget.snapshot.unknownActivityDoctorIds.contains(doctor.id)) {
+        return false;
+      }
       final preview = _previews[doctor.id];
       return _filter == _Filter.all ||
           preview != null &&
@@ -305,19 +314,19 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
             Row(
               children: [
                 const Expanded(
-                  child: Text(
+                  child: AdminText(
                     'Physician candidates',
                     style: TextStyle(fontSize: 18),
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Cancel preview',
+                  tooltip: AdminStrings.of(context).text('Cancel preview'),
                   onPressed: _applying ? null : widget.onCancel,
                   icon: const Icon(Icons.close),
                 ),
               ],
             ),
-            Text(
+            AdminText(
               '${widget.role.code}: ${widget.role.name}',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -327,7 +336,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
               children: [
                 for (final filter in _Filter.values)
                   ChoiceChip(
-                    label: Text(switch (filter) {
+                    label: AdminText(switch (filter) {
                       _Filter.all => 'All',
                       _Filter.eligible => 'Eligible',
                       _Filter.available => 'Available',
@@ -339,7 +348,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
             ),
             if (_loading) const LinearProgressIndicator(),
             if (_error != null)
-              Text(
+              AdminText(
                 _error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
@@ -348,7 +357,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                 key: const ValueKey('physician-candidates'),
                 children: [
                   if (doctors.isEmpty && !_loading)
-                    const Text('No physicians match this filter.'),
+                    const AdminText('No physicians match this filter.'),
                   for (final doctor in doctors)
                     _candidate(doctor, _previews[doctor.id]),
                 ],
@@ -365,13 +374,13 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                 ),
               ),
             ] else
-              Text(
+              AdminText(
                 widget.physicianId == null
                     ? 'Select a physician to check the whole month.'
                     : 'Select an assignable date to preview additions.',
               ),
             const SizedBox(height: 6),
-            Text(
+            AdminText(
               widget.mutations == null
                   ? 'Preview only - assignment writes are not enabled yet.'
                   : widget.snapshot.contentVersion == null
@@ -379,7 +388,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                   : 'All dates must pass server validation; no partial assignments.',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
-            Tooltip(
+            AdminTooltip(
               message: !_authorized
                   ? 'Verified administrator MFA session required'
                   : 'Confirm all selected dates',
@@ -393,7 +402,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                         widget.snapshot.month.phase != RosterPhase.published
                     ? () => _apply(selected!)
                     : null,
-                child: Text(
+                child: AdminText(
                   _applying
                       ? 'Applying...'
                       : _pending != null
@@ -426,7 +435,13 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
     final text = preview == null
         ? 'Checking...'
         : preview.blockedCount > 0
-        ? '${preview.proposedAdditions}/${preview.results.length} dates available; ${preview.blockedCount} blocked'
+        ? AdminStrings.of(
+            context,
+          ).text('{available}/{total} dates available; {blocked} blocked', {
+            'available': preview.proposedAdditions,
+            'total': preview.results.length,
+            'blocked': preview.blockedCount,
+          })
         : preview.warningCount > 0
         ? 'Eligible with warnings'
         : 'Eligible and available';
@@ -437,16 +452,17 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         : preview.warningCount > 0
         ? Icons.warning_amber
         : Icons.check_circle_outline;
-    final reason = preview?.results
-        .expand((r) => r.errors)
-        .firstOrNull
-        ?.message;
+    final reason = preview?.results.expand((r) => r.errors).firstOrNull;
     return ListTile(
       key: ValueKey('candidate-${doctor.id}'),
       contentPadding: const EdgeInsets.symmetric(vertical: 4),
       selected: widget.physicianId == doctor.id,
-      title: Text(
-        '${doctor.fullName}${snapshot.inactiveDoctorIds.contains(doctor.id) ? ' (inactive)' : ''}',
+      title: AdminText(
+        snapshot.inactiveDoctorIds.contains(doctor.id)
+            ? AdminStrings.of(
+                context,
+              ).text('{name} (inactive)', {'name': doctor.fullName})
+            : doctor.fullName,
       ),
       onTap: _applying
           ? null
@@ -457,25 +473,52 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Rank: ${doctor.rank.name}'),
-          Text(
-            'Capabilities: ${doctor.capabilities.isEmpty ? 'None' : doctor.capabilities.map((c) => c.name).join(', ')}',
+          AdminText(
+            'Rank: {p0}',
+            args: {'p0': AdminStrings.of(context).text(doctor.rank.name)},
+          ),
+          AdminText(
+            'Capabilities: {p0}',
+            args: {
+              'p0': doctor.capabilities.isEmpty
+                  ? AdminStrings.of(context).text('None')
+                  : doctor.capabilities
+                        .map((c) => AdminStrings.of(context).text(c.name))
+                        .join(', '),
+            },
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(icon, size: 16),
               const SizedBox(width: 4),
-              Expanded(child: Text(text)),
+              Expanded(child: AdminText(text)),
             ],
           ),
           if (reason != null)
-            Text(reason, maxLines: 2, overflow: TextOverflow.ellipsis),
-          Text(
-            '90 days: 24h ${history.recordedDuty24Days} (weekend ${history.recordedWeekendDuty24Days}) | station ${history.daysFor(WorkloadCategory.station)} | ambulance ${history.daysFor(WorkloadCategory.ambulance)} | science ${history.daysFor(WorkloadCategory.science)}',
+            AdminText(
+              validationErrorText(AdminStrings.of(context), reason),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          AdminText(
+            '90 days: 24h {p0} (weekend {p1}) | station {p2} | ambulance {p3} | science {p4}',
+            args: {
+              'p0': history.recordedDuty24Days,
+              'p1': history.recordedWeekendDuty24Days,
+              'p2': history.daysFor(WorkloadCategory.station),
+              'p3': history.daysFor(WorkloadCategory.ambulance),
+              'p4': history.daysFor(WorkloadCategory.science),
+            },
           ),
-          Text(
-            'Current month: ${current.assignments} assignments / ${current.assignedDays} days; ${current.confirmed} confirmed / ${current.provisional} provisional',
+          AdminText(
+            'Current month: {p0} assignments / {p1} days; {p2} confirmed / {p3} provisional',
+            args: {
+              'p0': current.assignments,
+              'p1': current.assignedDays,
+              'p2': current.confirmed,
+              'p3': current.provisional,
+            },
           ),
         ],
       ),
@@ -496,14 +539,23 @@ class AssignmentPreviewDetails extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
     key: const ValueKey('assignment-preview-details'),
     children: [
-      Text(
-        'Assignment preview - ${preview.results.length} target dates',
+      AdminText(
+        'Assignment preview - {p0} target dates',
+        args: {'p0': preview.results.length},
         style: Theme.of(context).textTheme.titleMedium,
       ),
-      Text(
-        '${preview.validCount} valid | ${preview.warningCount} valid with warnings | ${preview.blockedCount} blocked',
+      AdminText(
+        '{p0} valid | {p1} valid with warnings | {p2} blocked',
+        args: {
+          'p0': preview.validCount,
+          'p1': preview.warningCount,
+          'p2': preview.blockedCount,
+        },
       ),
-      Text('${preview.proposedAdditions} proposed additions; no replacements'),
+      AdminText(
+        '{p0} proposed additions; no replacements',
+        args: {'p0': preview.proposedAdditions},
+      ),
       for (final result in preview.results)
         Padding(
           key: ValueKey('preview-${result.date}'),
@@ -511,29 +563,53 @@ class AssignmentPreviewDetails extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              AdminText(
                 '${result.date}: ${!result.isValid
-                    ? 'Blocked'
+                    ? AdminStrings.of(context).text('Blocked')
                     : result.warnings.isNotEmpty
-                    ? 'Valid with warnings'
-                    : 'Valid'}',
+                    ? AdminStrings.of(context).text('Valid with warnings')
+                    : AdminStrings.of(context).text('Valid')}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               for (final slot in result.matchingSlots)
-                Text(
-                  '${slot.role.code} ${_time(slot.startsAt)} - ${_time(slot.endsAt)}; capacity ${slot.capacity}',
+                AdminText(
+                  '{p0} {p1} - {p2}; capacity {p3}',
+                  args: {
+                    'p0': slot.role.code,
+                    'p1': _time(slot.startsAt),
+                    'p2': _time(slot.endsAt),
+                    'p3': slot.capacity,
+                  },
                 ),
-              Text(
-                'Current: ${result.currentAssignments.isEmpty ? 'Unassigned' : result.currentAssignments.map((a) => '${a.doctor.fullName} (${a.state.name})').join(', ')}',
+              AdminText(
+                'Current: {p0}',
+                args: {
+                  'p0': result.currentAssignments.isEmpty
+                      ? AdminStrings.of(context).text('Unassigned')
+                      : result.currentAssignments
+                            .map(
+                              (a) =>
+                                  '${a.doctor.fullName} (${AdminStrings.of(context).text(a.state.name)})',
+                            )
+                            .join(', '),
+                },
               ),
-              Text('Proposed: $physicianName'),
+              AdminText('Proposed: {p0}', args: {'p0': physicianName}),
               for (final error in result.errors)
-                Text(
-                  '${error.code.name}: ${error.message}',
+                AdminText(
+                  validationErrorText(AdminStrings.of(context), error),
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               for (final warning in result.warnings)
-                Text('Warning: ${warning.message}'),
+                AdminText(
+                  'Warning: {p0}',
+                  args: {
+                    'p0': validationWarningText(
+                      AdminStrings.of(context),
+                      warning,
+                    ),
+                  },
+                ),
             ],
           ),
         ),
@@ -572,7 +648,7 @@ class _AssignmentConfirmationState extends State<_AssignmentConfirmation> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Confirm assignments'),
+    title: const AdminText('Confirm assignments'),
     content: SizedBox(
       width: 460,
       child: SingleChildScrollView(
@@ -580,18 +656,26 @@ class _AssignmentConfirmationState extends State<_AssignmentConfirmation> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.physicianName),
-            Text(widget.roleName),
-            Text('${widget.preview.results.length} dates; all-or-nothing'),
-            Text('${widget.preview.warningCount} selected dates with warnings'),
-            Text(
+            AdminText(widget.physicianName),
+            AdminText(widget.roleName),
+            AdminText(
+              '{p0} dates; all-or-nothing',
+              args: {'p0': widget.preview.results.length},
+            ),
+            AdminText(
+              '{p0} selected dates with warnings',
+              args: {'p0': widget.preview.warningCount},
+            ),
+            AdminText(
               widget.preview.results.map((r) => r.date.toString()).join(', '),
             ),
             if (widget.requiresReason)
               TextField(
                 controller: _reason,
-                decoration: const InputDecoration(
-                  labelText: 'Correction reason (required)',
+                decoration: InputDecoration(
+                  labelText: AdminStrings.of(
+                    context,
+                  ).text('Correction reason (required)'),
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -602,13 +686,13 @@ class _AssignmentConfirmationState extends State<_AssignmentConfirmation> {
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
+        child: const AdminText('Cancel'),
       ),
       FilledButton(
         onPressed: widget.requiresReason && _reason.text.trim().isEmpty
             ? null
             : () => Navigator.pop(context, _reason.text),
-        child: const Text('Confirm and apply'),
+        child: const AdminText('Confirm and apply'),
       ),
     ],
   );

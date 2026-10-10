@@ -1,3 +1,4 @@
+import 'localization.dart';
 import 'package:flutter/material.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'package:neuro_core/neuro_core.dart';
@@ -79,7 +80,10 @@ class _GenerationDialogState extends State<GenerationDialog> {
       if (mounted) {
         setState(
           () => error = e is AssignmentMutationFailure
-              ? 'Preview unavailable (${e.code}). Check the workspace migration and access.'
+              ? AdminStrings.of(context).text(
+                  'Preview unavailable ({code}). Check the workspace migration and access.',
+                  {'code': e.code},
+                )
               : 'Enter a valid year (2000–2100) and reload the roster if needed.',
         );
       }
@@ -100,7 +104,13 @@ class _GenerationDialogState extends State<GenerationDialog> {
           final unknown = e is AssignmentMutationFailure && e.outcomeUnknown;
           error = unknown
               ? 'Response uncertain. Retry the same request, or close and reload before starting another operation.'
-              : 'Generation rejected. Reload the preview (${e is AssignmentMutationFailure ? e.code : 'expired preview'}).';
+              : AdminStrings.of(
+                  context,
+                ).text('Generation rejected. Reload the preview ({code}).', {
+                  'code': e is AssignmentMutationFailure
+                      ? e.code
+                      : AdminStrings.of(context).text('expired preview'),
+                });
           if (!unknown) {
             pending = null;
             plan = null;
@@ -116,7 +126,7 @@ class _GenerationDialogState extends State<GenerationDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: AlertDialog(
-      title: Text(
+      title: AdminText(
         widget.existing == null
             ? 'Create month roster'
             : 'Regenerate draft roster',
@@ -136,7 +146,9 @@ class _GenerationDialogState extends State<GenerationDialog> {
                         controller: year,
                         enabled: !busy && pending == null,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Year'),
+                        decoration: InputDecoration(
+                          labelText: AdminStrings.of(context).text('Year'),
+                        ),
                         onChanged: (_) => setState(() => plan = null),
                       ),
                     ),
@@ -151,18 +163,33 @@ class _GenerationDialogState extends State<GenerationDialog> {
                             }),
                       items: [
                         for (var n = 1; n <= 12; n++)
-                          DropdownMenuItem(value: n, child: Text('$n')),
+                          DropdownMenuItem(value: n, child: AdminText('$n')),
                       ],
                     ),
                   ],
                 ),
               if (plan != null) ...[
-                Text('${plan!.request.year}-${plan!.request.month} · DRAFT'),
-                Text(
-                  '${plan!.days.length} calendar days · ${plan!.days.where((d) => !d.isWeekend).length} weekdays · ${plan!.days.where((d) => d.isPublicHoliday).length} Austrian holidays',
+                AdminText(
+                  '{p0}-{p1} · DRAFT',
+                  args: {'p0': plan!.request.year, 'p1': plan!.request.month},
                 ),
-                Text(
-                  '${plan!.slots.where((s) => s.existingSlotId == null).length} slots to add · ${plan!.removedSlotIds.length} to remove · ${plan!.impactedAssignmentIds.length} assignments affected',
+                AdminText(
+                  '{p0} calendar days · {p1} weekdays · {p2} Austrian holidays',
+                  args: {
+                    'p0': plan!.days.length,
+                    'p1': plan!.days.where((d) => !d.isWeekend).length,
+                    'p2': plan!.days.where((d) => d.isPublicHoliday).length,
+                  },
+                ),
+                AdminText(
+                  '{p0} slots to add · {p1} to remove · {p2} assignments affected',
+                  args: {
+                    'p0': plan!.slots
+                        .where((s) => s.existingSlotId == null)
+                        .length,
+                    'p1': plan!.removedSlotIds.length,
+                    'p2': plan!.impactedAssignmentIds.length,
+                  },
                 ),
                 const SizedBox(height: 8),
                 for (final label
@@ -172,16 +199,16 @@ class _GenerationDialogState extends State<GenerationDialog> {
                               '${s.roleLabel ?? 'Duty'} · ${_wallTime(s.startsAt)}–${_wallTime(s.endsAt)}',
                         )
                         .toSet())
-                  Text(label),
+                  AdminText(label),
                 for (final d in plan!.days.where((d) => d.isPublicHoliday))
-                  Text(
+                  AdminText(
                     '${HospitalDate.fromCalendarComponents(d.date)}: ${d.publicHolidayName}',
                   ),
-                const Text(
+                const AdminText(
                   'Weekday templates also create holiday slots. Existing assignments are preserved; destructive regeneration is blocked.',
                 ),
                 for (final blocker in plan!.blockers)
-                  Text(
+                  AdminText(
                     _generationBlocker(blocker),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
@@ -189,7 +216,7 @@ class _GenerationDialogState extends State<GenerationDialog> {
                   ),
               ],
               if (error != null)
-                Text(
+                AdminText(
                   error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
@@ -201,17 +228,17 @@ class _GenerationDialogState extends State<GenerationDialog> {
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.pop(context),
-          child: const Text('Close'),
+          child: const AdminText('Close'),
         ),
         TextButton(
           onPressed: busy || pending != null ? null : preview,
-          child: const Text('Preview'),
+          child: const AdminText('Preview'),
         ),
         FilledButton(
           onPressed: busy || plan == null || plan!.blockers.isNotEmpty
               ? null
               : apply,
-          child: Text(
+          child: AdminText(
             pending != null
                 ? 'Retry same request'
                 : widget.existing == null
@@ -259,7 +286,13 @@ class _RemovalDialogState extends State<RemovalDialog> {
           final unknown = e is AssignmentMutationFailure && e.outcomeUnknown;
           error = unknown
               ? 'Response uncertain. Retry the same request, or close and reload before another removal.'
-              : 'Removal rejected (${e is AssignmentMutationFailure ? e.code : 'invalid request'}). Close and reload.';
+              : AdminStrings.of(
+                  context,
+                ).text('Removal rejected ({code}). Close and reload.', {
+                  'code': e is AssignmentMutationFailure
+                      ? e.code
+                      : AdminStrings.of(context).text('invalid request'),
+                });
           rejected = !unknown;
         });
       }
@@ -275,8 +308,9 @@ class _RemovalDialogState extends State<RemovalDialog> {
     return PopScope(
       canPop: !busy,
       child: AlertDialog(
-        title: Text(
-          'Remove ${p.assignments.length} assignments across ${p.dates.length} selected days?',
+        title: AdminText(
+          'Remove {p0} assignments across {p1} selected days?',
+          args: {'p0': p.assignments.length, 'p1': p.dates.length},
         ),
         content: SizedBox(
           width: 650,
@@ -285,24 +319,29 @@ class _RemovalDialogState extends State<RemovalDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                AdminText(
                   p.scope == RemovalScope.all
                       ? 'ALL ROLES on selected days'
                       : 'Selected role only',
                 ),
                 for (final a in p.assignments)
-                  Text(
-                    '${HospitalDate.fromCalendarComponents(a.duty.date)} · ${a.duty.role.name} · ${a.doctor.fullName} (${a.state.name})',
+                  AdminText(
+                    '${HospitalDate.fromCalendarComponents(a.duty.date)} · ${a.duty.role.name} · ${a.doctor.fullName} (${AdminStrings.of(context).text(a.state.name)})',
                   ),
                 for (final d in p.noOpDates)
-                  Text('$d: no matching assignments (no change)'),
+                  AdminText(
+                    '{p0}: no matching assignments (no change)',
+                    args: {'p0': d},
+                  ),
                 if (locked)
                   TextField(
                     controller: reason,
                     enabled: pending == null && !busy,
                     onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Correction reason (required)',
+                    decoration: InputDecoration(
+                      labelText: AdminStrings.of(
+                        context,
+                      ).text('Correction reason (required)'),
                     ),
                   ),
                 CheckboxListTile(
@@ -311,11 +350,11 @@ class _RemovalDialogState extends State<RemovalDialog> {
                   onChanged: busy || pending != null
                       ? null
                       : (v) => setState(() => confirmed = v!),
-                  title: const Text(
+                  title: const AdminText(
                     'I confirm removal of exactly the assignments listed above.',
                   ),
                 ),
-                if (error != null) Text(error!),
+                if (error != null) AdminText(error!),
                 if (busy) const LinearProgressIndicator(),
               ],
             ),
@@ -324,7 +363,7 @@ class _RemovalDialogState extends State<RemovalDialog> {
         actions: [
           TextButton(
             onPressed: busy ? null : () => Navigator.pop(context),
-            child: const Text('Close'),
+            child: const AdminText('Close'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -338,7 +377,7 @@ class _RemovalDialogState extends State<RemovalDialog> {
                     (locked && reason.text.trim().isEmpty)
                 ? null
                 : apply,
-            child: Text(
+            child: AdminText(
               pending != null ? 'Retry same request' : 'Remove assignments',
             ),
           ),

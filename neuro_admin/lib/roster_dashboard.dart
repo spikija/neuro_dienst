@@ -1,8 +1,12 @@
+import 'validation_localization.dart';
+import 'report_presentation.dart';
 import 'package:flutter/material.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'workspace_dialogs.dart';
 import 'reports_screen.dart';
+import 'administration_screen.dart';
+import 'localization.dart';
 
 import 'assignment_candidate_panel.dart';
 import 'calendar_day_grid.dart';
@@ -15,6 +19,7 @@ class RosterDashboard extends StatefulWidget {
   final RosterGenerationService? generation;
   final AssignmentRemovalService? removals;
   final ReportingService? reporting;
+  final DirectoryAdministrationService? administration;
   final Future<void> Function() onSignOut;
   final PreviewServiceFactory? previewServiceFactory;
 
@@ -27,6 +32,7 @@ class RosterDashboard extends StatefulWidget {
     this.generation,
     this.removals,
     this.reporting,
+    this.administration,
   });
 
   @override
@@ -132,10 +138,10 @@ class _RosterDashboardState extends State<RosterDashboard> {
 
   List<Widget> _toolbar() => [
     PopupMenuButton<String>(
-      tooltip: 'Selection actions',
+      tooltip: AdminStrings.of(context).text('Selection actions'),
       child: const Padding(
         padding: EdgeInsets.all(8),
-        child: Text('Selection ?'),
+        child: AdminText('Selection ?'),
       ),
       onSelected: (action) async {
         if (action == 'removeRole' || action == 'removeAll') {
@@ -166,29 +172,41 @@ class _RosterDashboardState extends State<RosterDashboard> {
         PopupMenuItem(
           value: 'working',
           enabled: _selected != null,
-          child: const Text('Select all working days'),
+          child: const ActionMenuLabel(
+            'Select all working days',
+            Icons.calendar_month,
+          ),
         ),
         PopupMenuItem(
           value: 'assignable',
           enabled: _assignability != null && !_removalMode,
-          child: const Text('Select all assignable days'),
+          child: const ActionMenuLabel(
+            'Select all assignable days',
+            Icons.check_circle_outline,
+          ),
         ),
-        const PopupMenuItem(value: 'clear', child: Text('Clear selection')),
+        const PopupMenuItem(
+          value: 'clear',
+          child: AdminText('Clear selection'),
+        ),
         const PopupMenuDivider(),
         CheckedPopupMenuItem(
           value: 'removal',
           checked: _removalMode,
-          child: const Text('Select occupied days for removal'),
+          child: const AdminText('Select occupied days for removal'),
         ),
         PopupMenuItem(
           value: 'removeRole',
           enabled: _canRemove(false),
-          child: const Text('Unassign selected role'),
+          child: const ActionMenuLabel(
+            'Unassign selected role',
+            Icons.person_remove,
+          ),
         ),
         PopupMenuItem(
           value: 'removeAll',
           enabled: _canRemove(true),
-          child: Text(
+          child: AdminText(
             'Unassign all roles on selected days',
             style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
@@ -196,14 +214,17 @@ class _RosterDashboardState extends State<RosterDashboard> {
       ],
     ),
     PopupMenuButton<String>(
-      tooltip: 'Roster actions',
-      child: const Padding(padding: EdgeInsets.all(8), child: Text('Roster ?')),
+      tooltip: AdminStrings.of(context).text('Roster actions'),
+      child: const Padding(
+        padding: EdgeInsets.all(8),
+        child: AdminText('Roster ?'),
+      ),
       onSelected: (a) => _generate(a == 'regenerate'),
       itemBuilder: (_) => [
         PopupMenuItem(
           value: 'create',
           enabled: widget.generation != null && !_loading,
-          child: const Text('Create month roster'),
+          child: const ActionMenuLabel('Create month roster', Icons.add_box),
         ),
         PopupMenuItem(
           value: 'regenerate',
@@ -211,11 +232,15 @@ class _RosterDashboardState extends State<RosterDashboard> {
               widget.generation != null &&
               _snapshot?.month.phase == RosterPhase.draft &&
               _snapshot?.contentVersion != null,
-          child: const Text('Regenerate draft roster'),
+          child: const ActionMenuLabel(
+            'Regenerate draft roster',
+            Icons.refresh,
+          ),
         ),
       ],
     ),
-    TextButton(
+    TextButton.icon(
+      icon: const Icon(Icons.table_chart_outlined),
       onPressed: widget.reporting == null || _snapshot == null
           ? null
           : () => Navigator.push(
@@ -232,14 +257,14 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 ),
               ),
             ),
-      child: const Text('Reports'),
+      label: const AdminText('Reports'),
     ),
-    const Tooltip(
+    const AdminTooltip(
       message:
           'Click to select a day. Drag to select a range. In assignment mode, valid days toggle and drag adds valid days. Use removal selection to select occupied days.',
       child: Icon(Icons.help_outline, size: 20),
     ),
-    if (_removalMode) const Chip(label: Text('Removal selection')),
+    if (_removalMode) const Chip(label: AdminText('Removal selection')),
   ];
   bool _canRemove(bool all) =>
       widget.removals != null &&
@@ -291,7 +316,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not sign out. Please retry.')),
+          const SnackBar(
+            content: AdminText('Could not sign out. Please retry.'),
+          ),
         );
       }
     }
@@ -304,17 +331,33 @@ class _RosterDashboardState extends State<RosterDashboard> {
       absorbing: _applying || (_loading && snapshot != null),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('NeuroDienst Admin'),
+          title: const AdminText('NeuroDienst Admin'),
           actions: [
+            const LanguageButton(),
+            if (widget.administration != null)
+              IconButton(
+                tooltip: AdminStrings.of(context).text('Administration'),
+                icon: const Icon(Icons.manage_accounts),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          AdministrationScreen(service: widget.administration!),
+                    ),
+                  );
+                  if (mounted) await _refresh();
+                },
+              ),
             IconButton(
-              tooltip: 'Refresh',
+              tooltip: AdminStrings.of(context).text('Refresh'),
               onPressed: _loading ? null : _refresh,
               icon: const Icon(Icons.refresh),
             ),
             TextButton.icon(
               onPressed: _signOut,
               icon: const Icon(Icons.logout),
-              label: const Text('Sign out'),
+              label: const AdminText('Sign out'),
             ),
           ],
         ),
@@ -336,7 +379,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         for (final month in _months)
                           DropdownMenuItem(
                             value: month.id,
-                            child: Text(month.label),
+                            child: AdminText(month.label),
                           ),
                       ],
                       onChanged: _loading
@@ -346,9 +389,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
                             ),
                     ),
                   if (_selected != null)
-                    Chip(label: Text(_phaseLabel(_selected!.phase))),
+                    Chip(label: AdminText(_phaseLabel(_selected!.phase))),
                   if (_selected != null)
-                    Tooltip(
+                    AdminTooltip(
                       message: _phaseMeaning(_selected!.phase),
                       child: const Icon(Icons.info_outline, size: 18),
                     ),
@@ -359,9 +402,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
               if (_loading && snapshot != null) const LinearProgressIndicator(),
               if (_error != null && snapshot != null)
                 MaterialBanner(
-                  content: Text(_error!),
+                  content: AdminText(_error!),
                   actions: [
-                    TextButton(onPressed: _refresh, child: const Text('Retry')),
+                    TextButton(
+                      onPressed: _refresh,
+                      child: const AdminText('Retry'),
+                    ),
                   ],
                 ),
               Expanded(
@@ -372,18 +418,18 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(_error!),
+                            AdminText(_error!),
                             const SizedBox(height: 12),
                             FilledButton(
                               onPressed: _refresh,
-                              child: const Text('Retry'),
+                              child: const AdminText('Retry'),
                             ),
                           ],
                         ),
                       )
                     : snapshot == null
                     ? const Center(
-                        child: Text('No rosters have been generated yet.'),
+                        child: AdminText('No rosters have been generated yet.'),
                       )
                     : LayoutBuilder(
                         builder: (context, constraints) {
@@ -492,7 +538,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                                 this.context,
                                               ).showSnackBar(
                                                 SnackBar(
-                                                  content: Text(
+                                                  content: AdminText(
                                                     _error != null
                                                         ? (stale
                                                               ? 'Roster changed; reload failed. Retry loading before previewing.'
@@ -515,7 +561,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                       ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              const AdminText(
                 'Read-only totals include all roster phases. Times use Europe/Vienna; calendar dates follow the stored roster day.',
                 style: TextStyle(fontSize: 12),
               ),
@@ -543,12 +589,21 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   if (_assignmentMode)
-                    Text(
+                    AdminText(
                       _assignability == null
                           ? _validityFailed
                                 ? 'Month validation failed. Reload to retry.'
                                 : 'Checking month assignability...'
-                          : '${_assignability!.assignableDates.length} assignable | ${_selection.dates.length} selected | ${_assignability!.blockedDates.length} blocked | ${_assignability!.warningDates.length} warning-only',
+                          : AdminStrings.of(context).text(
+                              '{available} assignable | {selected} selected | {blocked} blocked | {warnings} warning-only',
+                              {
+                                'available':
+                                    _assignability!.assignableDates.length,
+                                'selected': _selection.dates.length,
+                                'blocked': _assignability!.blockedDates.length,
+                                'warnings': _assignability!.warningDates.length,
+                              },
+                            ),
                     ),
                   Wrap(
                     spacing: 6,
@@ -559,7 +614,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                           message: role.name,
                           child: ChoiceChip(
                             key: ValueKey('role-chip-${role.id}'),
-                            label: Text(role.code),
+                            label: AdminText(role.code),
                             selected: _roleId == role.id,
                             onSelected: (selected) =>
                                 _chooseRole(selected ? role.id : null),
@@ -568,11 +623,13 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     ],
                   ),
                   if (roster.phase == RosterPhase.published)
-                    const Text(
+                    const AdminText(
                       'Published roster requires a new revision before editing.',
                     ),
                   if (roster.phase == RosterPhase.locked)
-                    const Text('Locked roster: corrections require a reason.'),
+                    const AdminText(
+                      'Locked roster: corrections require a reason.',
+                    ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -585,7 +642,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         'Sat',
                         'Sun',
                       ])
-                        Expanded(child: Center(child: Text(label))),
+                        Expanded(child: Center(child: AdminText(label))),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -641,46 +698,61 @@ class _RosterDashboardState extends State<RosterDashboard> {
         child: ListView(
           key: const ValueKey('daily-roster-pane'),
           children: [
-            Text('Daily roster', style: Theme.of(context).textTheme.titleLarge),
+            AdminText(
+              'Daily roster',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             if (_selection.dates.length > 1)
-              Text('${_selection.dates.length} target dates'),
+              AdminText(
+                '{p0} target dates',
+                args: {'p0': _selection.dates.length},
+              ),
             const Divider(height: 24),
             if (_roleId != null && _selection.dates.isNotEmpty) ...[
-              const Text(
+              const AdminText(
                 'Current role occupants (no replacements)',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               for (final date in (_selection.dates.toList()..sort()))
-                Text('${_dateLabel(date)}: ${_occupants(days[date])}'),
+                AdminText('${_dateLabel(date)}: ${_occupants(days[date])}'),
               const Divider(),
             ],
             if (selectedDay == null)
-              Text(
+              AdminText(
                 _detailDate == null
                     ? 'Select a generated day to inspect its duties.'
-                    : 'No generated roster day for ${_dateLabel(_detailDate!)}.',
+                    : AdminStrings.of(context).text(
+                        'No generated roster day for {date}.',
+                        {'date': _dateLabel(_detailDate!)},
+                      ),
               )
             else ...[
-              Text(
+              AdminText(
                 '${selectedDay.date.day}.${roster.month}.${roster.year}',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               if (selectedDay.calendarInfo.isPublicHoliday)
-                Text(
-                  selectedDay.calendarInfo.publicHolidayName ??
-                      'Public holiday',
+                AdminText(
+                  selectedDay.calendarInfo.publicHolidayName == null
+                      ? 'Public holiday'
+                      : localizedHoliday(
+                          selectedDay.calendarInfo.publicHolidayName!,
+                          AdminStrings.of(context),
+                        ),
                 ),
               if (selectedDay.slots.isEmpty)
-                const Text('No duties on this day.'),
+                const AdminText('No duties on this day.'),
               for (final slot in selectedDay.slots)
                 _dutyTile(slot, selectedDay),
               const Divider(),
-              const Text('Absences / day markers'),
+              const AdminText('Absences / day markers'),
               for (final doctor in snapshot.doctors)
                 for (final period in doctor.availabilities.where(
                   (p) => p.includes(selectedDay.date),
                 ))
-                  Text('${doctor.fullName}: ${period.label}'),
+                  AdminText(
+                    '${doctor.fullName}: ${AdminStrings.of(context).text(period.label)}',
+                  ),
             ],
           ],
         ),
@@ -720,18 +792,25 @@ class _RosterDashboardState extends State<RosterDashboard> {
             .where((a) => _doctorId == null || a.doctor.id == _doctorId)
             .length ??
         0;
-    return Tooltip(
+    return AdminTooltip(
       message: [
-        status,
-        ?holiday,
-        if (selected) 'Selected',
-        ...?result?.errors.map((e) => e.message),
-        ...?result?.warnings.map((w) => w.message),
+        AdminStrings.of(context).text(status),
+        if (holiday != null)
+          localizedHoliday(holiday, AdminStrings.of(context)),
+        if (selected) AdminStrings.of(context).text('Selected'),
+        ...?result?.errors.map(
+          (e) => validationErrorText(AdminStrings.of(context), e),
+        ),
+        ...?result?.warnings.map(
+          (w) => validationWarningText(AdminStrings.of(context), w),
+        ),
         if (occupants.isNotEmpty)
-          'Current: ${occupants.map((a) => a.doctor.fullName).join(', ')}',
+          AdminStrings.of(context).text('Current: {p0}', {
+            'p0': occupants.map((a) => a.doctor.fullName).join(', '),
+          }),
       ].join('\n'),
       child: Semantics(
-        label: status,
+        label: AdminStrings.of(context).text(status),
         child: AnimatedContainer(
           key: ValueKey('assignability-$key'),
           duration: const Duration(milliseconds: 140),
@@ -767,7 +846,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      AdminText(
                         '${date.day}',
                         style: TextStyle(
                           fontWeight: selected
@@ -796,8 +875,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         Icon(Icons.block, size: 14, color: scheme.error),
                     ],
                   ),
-                  Text(
-                    day == null ? 'No roster day' : '$assignments duties',
+                  AdminText(
+                    day == null
+                        ? 'No roster day'
+                        : AdminStrings.of(
+                            context,
+                          ).text('{count} duties', {'count': assignments}),
                     style: const TextStyle(fontSize: 10),
                   ),
                   if (occupants.isNotEmpty)
@@ -818,12 +901,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
   String _occupants(StoredDay? day) {
     final slots =
         day?.slots.where((slot) => slot.role.id == _roleId).toList() ?? [];
-    if (slots.isEmpty) return 'No slot';
+    if (slots.isEmpty) return AdminStrings.of(context).text('No slot');
     final people = day!.assignments
         .where((a) => a.duty.role.id == _roleId)
         .map((a) => a.doctor.fullName)
         .join(', ');
-    return '${slots.length > 1 ? 'Multiple slots - ambiguous. ' : ''}${people.isEmpty ? 'Unassigned' : people}';
+    return '${slots.length > 1 ? AdminStrings.of(context).text('Multiple slots - ambiguous. ') : ''}${people.isEmpty ? AdminStrings.of(context).text('Unassigned') : people}';
   }
 
   Widget _dutyTile(StoredDuty slot, StoredDay day) {
@@ -833,18 +916,28 @@ class _RosterDashboardState extends State<RosterDashboard> {
     final start = ViennaSchedulingTime.localTime(slot.startsAt);
     final end = ViennaSchedulingTime.localTime(slot.endsAt);
     final names = assignments
-        .map((a) => '${a.doctor.fullName} (${a.state.name})')
+        .map(
+          (a) =>
+              '${a.doctor.fullName} (${AdminStrings.of(context).text(a.state.name)})',
+        )
         .join(', ');
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
       selected: _roleId == slot.role.id,
       onTap: () => _chooseRole(slot.role.id),
-      title: Text('${slot.role.code}: ${slot.role.name}'),
-      subtitle: Text(
-        '${_timestamp(start)} - ${_timestamp(end)}\n${names.isEmpty ? 'Unassigned' : names}',
+      title: AdminText('${slot.role.code}: ${slot.role.name}'),
+      subtitle: AdminText(
+        '{p0} - {p1}\n{p2}',
+        args: {
+          'p0': _timestamp(start),
+          'p1': _timestamp(end),
+          'p2': names.isEmpty
+              ? AdminStrings.of(context).text('Unassigned')
+              : names,
+        },
       ),
-      trailing: Text('${assignments.length}/${slot.capacity}'),
+      trailing: AdminText('${assignments.length}/${slot.capacity}'),
     );
   }
 
@@ -854,22 +947,24 @@ class _RosterDashboardState extends State<RosterDashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          AdminText(
             'Physicians / workload',
             style: Theme.of(context).textTheme.titleLarge,
           ),
-          const Text('Select a physician to inspect workload by stored role.'),
+          const AdminText(
+            'Select a physician to inspect workload by stored role.',
+          ),
           if (_doctorId != null)
             TextButton(
               onPressed: () => _choosePhysician(null),
-              child: const Text('Clear physician selection'),
+              child: const AdminText('Clear physician selection'),
             ),
           const Divider(),
           Expanded(
             child: ListView(
               children: [
                 if (snapshot.doctors.isEmpty)
-                  const Text('No physicians available.'),
+                  const AdminText('No physicians available.'),
                 for (final doctor in snapshot.doctors)
                   _doctorTile(snapshot, doctor),
               ],
@@ -902,47 +997,76 @@ class _RosterDashboardState extends State<RosterDashboard> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           selected: selected,
-          title: Text(
-            '${doctor.fullName}${snapshot.inactiveDoctorIds.contains(doctor.id) ? ' (inactive)' : ''}',
+          title: AdminText(
+            snapshot.inactiveDoctorIds.contains(doctor.id)
+                ? AdminStrings.of(
+                    context,
+                  ).text('{name} (inactive)', {'name': doctor.fullName})
+                : doctor.fullName,
           ),
-          subtitle: Text(
-            '${current.assignments} assignments / ${current.assignedDays} days',
+          subtitle: AdminText(
+            '{p0} assignments / {p1} days',
+            args: {'p0': current.assignments, 'p1': current.assignedDays},
           ),
           onTap: () => _choosePhysician(doctor.id),
         ),
         if (selected) ...[
-          Text('Rank: ${doctor.rank.name}'),
-          Text(
-            'Current month: ${current.confirmed} confirmed / ${current.provisional} provisional',
+          AdminText(
+            'Rank: {p0}',
+            args: {'p0': AdminStrings.of(context).text(doctor.rank.name)},
+          ),
+          AdminText(
+            'Current month: {p0} confirmed / {p1} provisional',
+            args: {'p0': current.confirmed, 'p1': current.provisional},
           ),
           ..._roleTotals(current),
           const Divider(),
-          Text(
-            'Previous 90 days: ${_dateLabel(snapshot.historyStart)} to ${_dateLabel(snapshot.historyEnd.subtract(const Duration(days: 1)))}',
+          AdminText(
+            'Previous 90 days: {p0} to {p1}',
+            args: {
+              'p0': _dateLabel(snapshot.historyStart),
+              'p1': _dateLabel(
+                snapshot.historyEnd.subtract(const Duration(days: 1)),
+              ),
+            },
           ),
-          Text(
-            '${snapshot.loadedHistoryDates.length}/90 roster dates available. Missing dates may mean incomplete history.',
+          AdminText(
+            '{p0}/90 roster dates available. Missing dates may mean incomplete history.',
+            args: {'p0': snapshot.loadedHistoryDates.length},
           ),
-          Text('${history.recordedDuty24Days} recorded 24-hour duty days'),
-          Text('${history.recordedWeekendDuty24Days} on Saturdays/Sundays'),
-          Text(
-            '${history.daysFor(WorkloadCategory.station)} station-role days',
+          AdminText(
+            '{p0} recorded 24-hour duty days',
+            args: {'p0': history.recordedDuty24Days},
           ),
-          Text(
-            '${history.daysFor(WorkloadCategory.ambulance)} ambulance-role days',
+          AdminText(
+            '{p0} on Saturdays/Sundays',
+            args: {'p0': history.recordedWeekendDuty24Days},
           ),
-          Text(
-            '${history.daysFor(WorkloadCategory.science)} science-role days',
+          AdminText(
+            '{p0} station-role days',
+            args: {'p0': history.daysFor(WorkloadCategory.station)},
           ),
-          Text('${history.daysFor(WorkloadCategory.other)} other-role days'),
-          const Text(
+          AdminText(
+            '{p0} ambulance-role days',
+            args: {'p0': history.daysFor(WorkloadCategory.ambulance)},
+          ),
+          AdminText(
+            '{p0} science-role days',
+            args: {'p0': history.daysFor(WorkloadCategory.science)},
+          ),
+          AdminText(
+            '{p0} other-role days',
+            args: {'p0': history.daysFor(WorkloadCategory.other)},
+          ),
+          const AdminText(
             '24-hour counts use recorded day markers, not duty-role assignments.',
           ),
-          Text(
-            '${history.confirmed} confirmed / ${history.provisional} provisional assignments',
+          AdminText(
+            '{p0} confirmed / {p1} provisional assignments',
+            args: {'p0': history.confirmed, 'p1': history.provisional},
           ),
           ..._roleTotals(history),
-          const Text(
+          const AdminText(
             'Categories use SUL/SU1/SU2, AMB and SCI. Other codes remain separate. All phases and assignment states are included.',
           ),
           const Divider(),
@@ -952,12 +1076,19 @@ class _RosterDashboardState extends State<RosterDashboard> {
   }
 
   List<Widget> _roleTotals(PhysicianWorkload workload) => [
-    if (workload.roles.isEmpty) const Text('No recorded role assignments.'),
+    if (workload.roles.isEmpty)
+      const AdminText('No recorded role assignments.'),
     for (final item in workload.roles)
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Text(
-          '${item.role.code} - ${item.role.name}: ${item.days} days / ${item.assignments} assignments',
+        child: AdminText(
+          '{p0} - {p1}: {p2} days / {p3} assignments',
+          args: {
+            'p0': item.role.code,
+            'p1': item.role.name,
+            'p2': item.days,
+            'p3': item.assignments,
+          },
         ),
       ),
   ];

@@ -344,7 +344,10 @@ void main() {
       await tester.tap(find.byTooltip('Refresh'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Could not load roster data'), findsOneWidget);
-      expect(find.text('Ada Test (inactive)'), findsNothing);
+      expect(
+        find.text('Ada Test (inactive)'),
+        findsOneWidget,
+      ); // Preserve snapshot on reload failure.
       reader.fail = false;
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neuro_admin/report_table.dart';
 import 'package:neuro_admin/calendar_day_grid.dart';
@@ -29,10 +29,7 @@ void main() {
           ],
           physicianPrintOrder: {},
         ),
-        ReportRequest(
-          RosterVersion.unversioned('october'),
-          ReportLayout.roles,
-        ),
+        ReportRequest(RosterVersion.unversioned('october'), ReportLayout.roles),
       );
       await display(tester, ReportTable(report: report));
       tester.view.physicalSize = size;
@@ -91,4 +88,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-

@@ -1,3 +1,5 @@
+import 'report_presentation.dart';
+import 'localization.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
@@ -42,19 +44,10 @@ class _ReportTableState extends State<ReportTable> {
   Widget build(BuildContext context) {
     final report = widget.report;
     final style = Theme.of(context).textTheme.bodyMedium!;
-    final labels = [
-      ...report.columns.map((c) => c.label),
-      'Absences / holiday',
-    ];
+    final presentation = ReportPresentation(report, AdminStrings.of(context));
+    final labels = presentation.headings;
     final widths = [...report.columns.map((_) => 180.0), 260.0];
-    final values = [
-      for (final row in report.rows)
-        [
-          for (final c in report.columns)
-            reportCellText(row.cells[c.id]!, report.request.layout),
-          reportNotes(report, row),
-        ],
-    ];
+    final values = report.rows.map(presentation.cells).toList();
     double height(List<String> texts) {
       var result = 48.0;
       for (var i = 0; i < texts.length; i++) {
@@ -102,7 +95,7 @@ class _ReportTableState extends State<ReportTable> {
         Row(
           children: [
             cell(
-              'Date',
+              AdminStrings.of(context).text('Date'),
               120,
               headerHeight,
               key: const ValueKey('report-corner'),
@@ -174,7 +167,7 @@ class _ReportTableState extends State<ReportTable> {
                                                   .assignments
                                                   .map(
                                                     (a) =>
-                                                        '${a.doctor.fullName}: ${a.duty.role.name} (${a.state.name})',
+                                                        '${a.doctor.fullName}: ${a.duty.role.name} (${AdminStrings.of(context).text(a.state.name)})',
                                                   )
                                                   .join('\n')
                                             : null,
@@ -196,12 +189,3 @@ class _ReportTableState extends State<ReportTable> {
     );
   }
 }
-
-String reportNotes(ReportDocument report, ReportRow row) => [
-  if (row.calendar.publicHolidayName != null) row.calendar.publicHolidayName!,
-  ...{
-    for (final cell in row.cells.values)
-      for (final entry in cell.absencesByPhysician.entries)
-        '${report.physicianLabels[entry.key] ?? "Unknown physician"}: ${entry.value.map((a) => a.label).join(', ')}',
-  },
-].join('\n');

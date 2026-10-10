@@ -11,6 +11,9 @@ import 'package:neuro_admin_services/neuro_admin_services.dart'
         RosterGenerationService,
         AssignmentRemovalService,
         ReportingService;
+import 'package:neuro_admin_services/neuro_admin_services.dart'
+    show DirectoryAdministrationService;
+import '../localization.dart';
 
 enum AccessLevel { denied, requiresMfa, ready }
 
@@ -90,6 +93,7 @@ class SessionGate extends StatefulWidget {
   final RosterGenerationService? generation;
   final AssignmentRemovalService? removals;
   final ReportingService? reporting;
+  final DirectoryAdministrationService? administration;
   final SessionGateway gateway;
   final RosterReader reader;
   const SessionGate({
@@ -100,6 +104,7 @@ class SessionGate extends StatefulWidget {
     this.generation,
     this.removals,
     this.reporting,
+    this.administration,
   });
 
   @override
@@ -163,7 +168,13 @@ class _SessionGateState extends State<SessionGate> {
     } on AuthException catch (error) {
       if (mounted) {
         setState(() {
-          _error = error.message;
+          _error = AdminStrings.of(context).language == 'en'
+              ? error.message
+              : AdminStrings.of(context).text(
+                  error.code == 'invalid_credentials'
+                      ? 'Invalid email or password.'
+                      : 'Could not complete authentication. Please retry.',
+                );
         });
       }
     } catch (_) {
@@ -191,7 +202,7 @@ class _SessionGateState extends State<SessionGate> {
   Widget build(BuildContext context) {
     if (!widget.gateway.isSignedIn) {
       return _panel([
-        Text(
+        AdminText(
           'Administrator sign-in',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
@@ -200,7 +211,9 @@ class _SessionGateState extends State<SessionGate> {
           controller: _email,
           enabled: !_busy,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(labelText: 'Email'),
+          decoration: InputDecoration(
+            labelText: AdminStrings.of(context).text('Email'),
+          ),
           autofillHints: const [AutofillHints.username],
         ),
         TextField(
@@ -210,9 +223,11 @@ class _SessionGateState extends State<SessionGate> {
           autocorrect: false,
           enableSuggestions: false,
           decoration: InputDecoration(
-            labelText: 'Password',
+            labelText: AdminStrings.of(context).text('Password'),
             suffixIcon: IconButton(
-              tooltip: _passwordVisible ? 'Hide password' : 'Show password',
+              tooltip: AdminStrings.of(
+                context,
+              ).text(_passwordVisible ? 'Hide password' : 'Show password'),
               onPressed: _busy
                   ? null
                   : () => setState(() {
@@ -228,16 +243,16 @@ class _SessionGateState extends State<SessionGate> {
         const SizedBox(height: 20),
         FilledButton(
           onPressed: _busy ? null : _signIn,
-          child: const Text('Sign in'),
+          child: const AdminText('Sign in'),
         ),
         const SizedBox(height: 12),
-        const Text(
+        const AdminText(
           'Use your existing NeuroDienst administrator account. Password recovery and MFA enrollment are available in the existing app.',
         ),
       ]);
     }
     if (_check == null) {
-      return _panel([const Text('Session verification unavailable.')]);
+      return _panel([const AdminText('Session verification unavailable.')]);
     }
     return FutureBuilder<AccessCheck>(
       future: _check,
@@ -248,17 +263,17 @@ class _SessionGateState extends State<SessionGate> {
         }
         if (snapshot.hasError) {
           return _panel([
-            const Text('Could not verify administrator access.'),
+            const AdminText('Could not verify administrator access.'),
             TextButton(
               onPressed: () => setState(_reload),
-              child: const Text('Retry'),
+              child: const AdminText('Retry'),
             ),
           ]);
         }
         final access = snapshot.requireData;
         if (access.level == AccessLevel.denied) {
           return _panel([
-            const Text(
+            const AdminText(
               'Administrator access required. This desktop client is not available to doctor or viewer accounts.',
             ),
           ]);
@@ -271,16 +286,17 @@ class _SessionGateState extends State<SessionGate> {
             generation: widget.generation,
             removals: widget.removals,
             reporting: widget.reporting,
+            administration: widget.administration,
           );
         }
         if (access.factors.isEmpty) {
           return _panel([
-            const Text(
+            const AdminText(
               'Set up an authenticator in the existing NeuroDienst app, then retry.',
             ),
             TextButton(
               onPressed: () => setState(_reload),
-              child: const Text('Retry'),
+              child: const AdminText('Retry'),
             ),
           ]);
         }
@@ -288,7 +304,7 @@ class _SessionGateState extends State<SessionGate> {
             ? _factorId!
             : access.factors.first.$1;
         return _panel([
-          Text(
+          AdminText(
             'Two-factor verification',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
@@ -297,7 +313,7 @@ class _SessionGateState extends State<SessionGate> {
             isExpanded: true,
             items: [
               for (final factor in access.factors)
-                DropdownMenuItem(value: factor.$1, child: Text(factor.$2)),
+                DropdownMenuItem(value: factor.$1, child: AdminText(factor.$2)),
             ],
             onChanged: _busy
                 ? null
@@ -310,12 +326,14 @@ class _SessionGateState extends State<SessionGate> {
             enabled: !_busy,
             keyboardType: TextInputType.number,
             maxLength: 6,
-            decoration: const InputDecoration(labelText: 'Authenticator code'),
+            decoration: InputDecoration(
+              labelText: AdminStrings.of(context).text('Authenticator code'),
+            ),
             onSubmitted: (_) => _verify(selected),
           ),
           FilledButton(
             onPressed: _busy ? null : () => _verify(selected),
-            child: const Text('Verify'),
+            child: const AdminText('Verify'),
           ),
         ]);
       },
@@ -335,12 +353,13 @@ class _SessionGateState extends State<SessionGate> {
 
   Widget _panel(List<Widget> children) => Scaffold(
     appBar: AppBar(
-      title: const Text('NeuroDienst Admin'),
+      title: const AdminText('NeuroDienst Admin'),
       actions: [
+        const LanguageButton(),
         if (widget.gateway.isSignedIn)
           TextButton(
             onPressed: _busy ? null : () => _perform(widget.gateway.signOut),
-            child: const Text('Sign out'),
+            child: const AdminText('Sign out'),
           ),
       ],
     ),
@@ -356,7 +375,7 @@ class _SessionGateState extends State<SessionGate> {
               if (_error != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 16),
-                  child: Text(
+                  child: AdminText(
                     _error!,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:neuro_admin_services/supabase_admin_directory.dart';
+import 'localization.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:neuro_admin_services/supabase_admin_mutations.dart';
 
@@ -33,7 +37,7 @@ Future<void> main() async {
   );
 }
 
-class NeuroAdminApp extends StatelessWidget {
+class NeuroAdminApp extends StatefulWidget {
   final SupabaseConfig config;
   final SupabaseClient? client;
   final String? startupError;
@@ -46,23 +50,69 @@ class NeuroAdminApp extends StatelessWidget {
   });
 
   @override
+  State<NeuroAdminApp> createState() => _NeuroAdminAppState();
+}
+
+class _NeuroAdminAppState extends State<NeuroAdminApp> {
+  Locale _locale = const Locale('en');
+  bool _languageChosen = false;
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    try {
+      final saved = (await SharedPreferences.getInstance()).getString(
+        'admin_language',
+      );
+      if (mounted && !_languageChosen && ['en', 'de'].contains(saved)) {
+        setState(() => _locale = Locale(saved!));
+      }
+    } catch (_) {
+      /* English remains available if preference storage fails. */
+    }
+  }
+
+  void _setLanguage(Locale locale) {
+    _languageChosen = true;
+    setState(() => _locale = locale);
+    SharedPreferences.getInstance()
+        .then((p) => p.setString('admin_language', locale.languageCode))
+        .catchError((_) => false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final client = widget.client;
+    final config = widget.config;
+    final startupError = widget.startupError;
     return MaterialApp(
+      locale: _locale,
+      supportedLocales: const [Locale('en'), Locale('de')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      builder: (context, child) =>
+          AdminLanguageScope(onChanged: _setLanguage, child: child!),
       title: 'NeuroDienst Admin',
       debugShowCheckedModeBanner: false,
       theme: adminTheme(Brightness.light),
       darkTheme: adminTheme(Brightness.dark),
       home: client != null
           ? SessionGate(
-              gateway: SupabaseSessionGateway(client!),
-              reader: SupabaseRosterReader(client!),
-              mutations: SupabaseAssignmentMutationService(client!),
-              generation: SupabaseWorkspaceService(client!),
-              removals: SupabaseWorkspaceService(client!),
-              reporting: SupabaseReportingService(client!),
+              gateway: SupabaseSessionGateway(client),
+              reader: SupabaseRosterReader(client),
+              mutations: SupabaseAssignmentMutationService(client),
+              generation: SupabaseWorkspaceService(client),
+              removals: SupabaseWorkspaceService(client),
+              reporting: SupabaseReportingService(client),
+              administration: SupabaseDirectoryService(client),
             )
           : Scaffold(
-              appBar: AppBar(title: const Text('NeuroDienst Admin')),
+              appBar: AppBar(
+                title: const AdminText('NeuroDienst Admin'),
+                actions: const [LanguageButton()],
+              ),
               body: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -90,11 +140,9 @@ class NeuroAdminApp extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Desktop administrator client - read-only roster',
-                    ),
+                    const AdminText('Desktop administrator client'),
                     const SizedBox(height: 4),
-                    Text(
+                    AdminText(
                       startupError ??
                           (config.isConfigured
                               ? 'Supabase is not initialized. Restart with valid configuration.'
@@ -129,7 +177,7 @@ class _PlaceholderPane extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Icon(icon),
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              AdminText(title, style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
         ),

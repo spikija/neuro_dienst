@@ -111,6 +111,11 @@ void main() {
       await tester.pump();
       expect(mutations.calls, hasLength(1));
       expect(
+        find.byType(CalendarDayGrid),
+        findsOneWidget,
+        reason: 'The roster stays visible while the write is pending',
+      );
+      expect(
         tester
             .widget<FilledButton>(
               find.widgetWithText(FilledButton, 'Applying...'),
