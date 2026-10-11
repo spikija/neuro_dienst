@@ -36,7 +36,7 @@ class FakeDirectory implements DirectoryAdministrationService {
   @override
   Future<void> change(DirectoryChange r) async {
     changes.add(r);
-    if (r.changes['delete'] == true) {
+    if (r.changes['delete_permanently'] == true) {
       throw const DirectoryFailure('physicianHasDependencies');
     }
     if (uncertain) {
@@ -114,9 +114,27 @@ void main() {
     (tester) async {
       final service = FakeDirectory();
       await display(tester, AdministrationScreen(service: service));
-      await tester.tap(find.byTooltip('Delete'));
+      await tester.tap(find.text('Ana Historical'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      expect(
+        tester
+            .widget<ListTile>(find.byKey(const ValueKey('directory-doctor')))
+            .selected,
+        isTrue,
+      );
+      await tester.tap(find.byTooltip('Delete permanently'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Delete permanently'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete permanently'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('History or dependent records prevent deletion'),
@@ -135,6 +153,8 @@ void main() {
       final service = FakeDirectory()..uncertain = true;
       await display(tester, AdministrationScreen(service: service));
       await tester.tap(find.text('Viewers'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Test Viewer'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Revoke access'));
       await tester.pumpAndSettle();
@@ -155,6 +175,8 @@ void main() {
   ) async {
     final service = FakeDirectory();
     await display(tester, AdministrationScreen(service: service));
+    await tester.tap(find.text('Ana Historical'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Edit'));
     await tester.pumpAndSettle();
     await tester.enterText(

@@ -4,6 +4,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'localization.dart';
 import 'report_presentation.dart';
+import 'report_print_layout.dart';
 
 enum ReportOrientation { portrait, landscape }
 
@@ -20,39 +21,55 @@ Future<ReportPdf> buildReportPdf(
   ReportOrientation orientation,
   AdminStrings strings,
 ) async {
-  final regular = pw.Font.ttf(
-    await rootBundle.load('assets/fonts/roboto-regular.ttf'),
-  );
-  final bold = pw.Font.ttf(
-    await rootBundle.load('assets/fonts/roboto-bold.ttf'),
-  );
   final format = orientation == ReportOrientation.portrait
       ? PdfPageFormat.a4
       : PdfPageFormat.a4.landscape;
   final presentation = ReportPresentation(report, strings);
   final headings = presentation.headings;
   final values = report.rows.map(presentation.cells).toList();
-  final perBand = ((format.width - 48 - 72) / 120).floor().clamp(1, 100);
+  final layout = ReportPrintLayout(
+    page: format,
+    roleCount: report.columns.length,
+    monthly: report.request.layout == ReportLayout.roles,
+  );
+  layout.validate();
+  final regular = pw.Font.ttf(
+    await rootBundle.load('assets/fonts/roboto-regular.ttf'),
+  );
+  final bold = pw.Font.ttf(
+    await rootBundle.load('assets/fonts/roboto-bold.ttf'),
+  );
+
+  final perBand = layout.monthly
+      ? headings.length
+      : ((format.width - 48 - 72) / 120).floor().clamp(1, 100);
   final pdf = pw.Document(
     title: presentation.title,
     theme: pw.ThemeData.withFont(base: regular, bold: bold),
   );
   for (var start = 0; start < headings.length; start += perBand) {
     final end = (start + perBand).clamp(0, headings.length);
-    pw.Widget cell(String value, {bool heading = false}) => pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: pw.Text(
-        value,
-        style: pw.TextStyle(
-          fontSize: 9,
-          fontWeight: heading ? pw.FontWeight.bold : pw.FontWeight.normal,
-        ),
-      ),
-    );
+    pw.Widget cell(String value, {bool heading = false, ReportRow? row}) =>
+        pw.Container(
+          constraints: row == null
+              ? null
+              : pw.BoxConstraints(minHeight: layout.minimumRowHeight(row)),
+          padding: pw.EdgeInsets.symmetric(
+            horizontal: layout.horizontalPadding,
+            vertical: row == null ? 3 : layout.verticalPadding(row),
+          ),
+          child: pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: layout.fontSize,
+              fontWeight: heading ? pw.FontWeight.bold : pw.FontWeight.normal,
+            ),
+          ),
+        );
     pdf.addPage(
       pw.MultiPage(
         pageFormat: format,
-        margin: const pw.EdgeInsets.all(24),
+        margin: pw.EdgeInsets.all(layout.margin),
         maxPages: 1000,
         header: (_) => pw.Padding(
           padding: const pw.EdgeInsets.only(bottom: 8),
@@ -74,12 +91,23 @@ Future<ReportPdf> buildReportPdf(
         build: (_) => [
           pw.Table(
             border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.4),
-            columnWidths: {0: const pw.FixedColumnWidth(72)},
+            columnWidths: {
+              0: pw.FixedColumnWidth(layout.dateWidth),
+              if (layout.monthly) ...{
+                for (var c = 1; c <= report.columns.length; c++)
+                  c: pw.FixedColumnWidth(layout.roleWidth),
+                report.columns.length + 1: pw.FixedColumnWidth(
+                  layout.notesWidth,
+                ),
+              },
+            },
             defaultColumnWidth: const pw.FlexColumnWidth(),
             children: [
               pw.TableRow(
                 repeat: true,
-                decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+                decoration: const pw.BoxDecoration(
+                  color: ReportPrintLayout.headerColor,
+                ),
                 children: [
                   cell(strings.text('Date'), heading: true),
                   for (var c = start; c < end; c++)
@@ -88,9 +116,38 @@ Future<ReportPdf> buildReportPdf(
               ),
               for (var r = 0; r < report.rows.length; r++)
                 pw.TableRow(
+                  decoration: pw.BoxDecoration(
+                    color: layout.rowColor(report.rows[r]),
+                  ),
                   children: [
-                    cell('${report.rows[r].date}'),
-                    for (var c = start; c < end; c++) cell(values[r][c]),
+                    pw.Container(
+                      constraints: pw.BoxConstraints(
+                        minHeight: layout.minimumRowHeight(report.rows[r]),
+                      ),
+                      padding: pw.EdgeInsets.symmetric(
+                        horizontal: 1,
+                        vertical: layout.verticalPadding(report.rows[r]),
+                      ),
+                      child: pw.RichText(
+                        text: pw.TextSpan(
+                          style: pw.TextStyle(fontSize: layout.fontSize),
+                          children: [
+                            pw.TextSpan(
+                              text:
+                                  '${reportWeekday(report.rows[r].date, strings.language)} ',
+                              style: pw.TextStyle(
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.TextSpan(
+                              text: europeanReportDate(report.rows[r].date),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    for (var c = start; c < end; c++)
+                      cell(values[r][c], row: report.rows[r]),
                   ],
                 ),
             ],
@@ -100,5 +157,11 @@ Future<ReportPdf> buildReportPdf(
     );
   }
   final bytes = await pdf.save();
-  return ReportPdf(bytes, pdf.document.pdfPageList.pages.length);
+  final pages = pdf.document.pdfPageList.pages.length;
+  if (layout.monthly && pages > 1) {
+    throw const ReportPrintLayoutException(
+      'This month contains too much text for one readable page. Choose another orientation or reduce configured report columns.',
+    );
+  }
+  return ReportPdf(bytes, pages);
 }

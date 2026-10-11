@@ -137,7 +137,7 @@ class _ReportTableState extends State<ReportTable> {
                         children: [
                           for (var r = 0; r < report.rows.length; r++)
                             cell(
-                              '${report.rows[r].date}',
+                              europeanReportDate(report.rows[r].date),
                               120,
                               heights[r],
                               key: ValueKey('report-date-$r'),

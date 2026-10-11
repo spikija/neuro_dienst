@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'localization.dart';
+import 'configuration_screen.dart';
 
 class AdministrationScreen extends StatefulWidget {
   final DirectoryAdministrationService service;
@@ -15,6 +16,7 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
   List<ManagedViewer> _viewers = [];
   bool _busy = true, _failed = false, _viewingViewers = false;
   String _search = '';
+  String? _selectedId;
   bool? _active;
   @override
   void initState() {
@@ -77,6 +79,9 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
         service: widget.service,
         request: change,
         title: title,
+        subject: change.directory == 'physicians'
+            ? _physicians.firstWhere((p) => p.id == change.id).fullName
+            : _viewers.firstWhere((p) => p.id == change.id).displayName,
         deleting: deleting,
       ),
     );
@@ -103,6 +108,20 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
       appBar: AppBar(
         title: const AdminText('Administration'),
         actions: [
+          if (widget.service is ConfigurationAdministrationService)
+            TextButton.icon(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ConfigurationScreen(
+                    service:
+                        widget.service as ConfigurationAdministrationService,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.tune),
+              label: const AdminText('Roles / templates'),
+            ),
           const LanguageButton(),
           IconButton(
             tooltip: strings.text('Refresh'),
@@ -177,119 +196,215 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
               ],
             ),
           Expanded(
-            child: ListView.builder(
-              itemCount: _viewingViewers
-                  ? _viewers
-                        .where(
-                          (p) =>
-                              matches(p.displayName, p.email, !p.accessRevoked),
-                        )
-                        .length
-                  : _physicians
-                        .where((p) => matches(p.fullName, p.email, p.isActive))
-                        .length,
-              itemBuilder: (context, index) {
-                if (_viewingViewers) {
-                  final p = _viewers
-                      .where(
-                        (p) =>
-                            matches(p.displayName, p.email, !p.accessRevoked),
-                      )
-                      .elementAt(index);
-                  return ListTile(
-                    title: Text(p.displayName),
-                    subtitle: Text(
-                      '${p.email ?? ''}\n${strings.text(p.accessRevoked ? 'Access revoked' : 'Active')}',
-                    ),
-                    isThreeLine: true,
-                    trailing: Wrap(
-                      children: [
-                        IconButton(
-                          tooltip: strings.text('Edit'),
-                          onPressed: _busy || _failed
-                              ? null
-                              : () => _edit(viewer: p),
-                          icon: const Icon(Icons.edit),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 760,
+                child: ListView.builder(
+                  itemCount: _viewingViewers
+                      ? _viewers
+                            .where(
+                              (p) => matches(
+                                p.displayName,
+                                p.email,
+                                !p.accessRevoked,
+                              ),
+                            )
+                            .length
+                      : _physicians
+                            .where(
+                              (p) => matches(p.fullName, p.email, p.isActive),
+                            )
+                            .length,
+                  itemBuilder: (context, index) {
+                    if (_viewingViewers) {
+                      final p = _viewers
+                          .where(
+                            (p) => matches(
+                              p.displayName,
+                              p.email,
+                              !p.accessRevoked,
+                            ),
+                          )
+                          .elementAt(index);
+                      return Card(
+                        color: _selectedId == p.id
+                            ? Theme.of(context).colorScheme.secondaryContainer
+                            : null,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: _selectedId == p.id
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).dividerColor,
+                            width: _selectedId == p.id ? 2 : 1,
+                          ),
                         ),
-                        IconButton(
-                          tooltip: strings.text(
-                            p.accessRevoked
-                                ? 'Restore access'
-                                : 'Revoke access',
+                        child: ListTile(
+                          key: ValueKey('directory-${p.id}'),
+                          selected: _selectedId == p.id,
+                          onTap: () => setState(() => _selectedId = p.id),
+                          leading: Icon(
+                            _selectedId == p.id
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
                           ),
-                          icon: Icon(
-                            p.accessRevoked
-                                ? Icons.person_add
-                                : Icons.person_off,
+                          title: Text(p.displayName),
+                          subtitle: Text(
+                            '${p.email ?? ''}\n${strings.text(p.accessRevoked ? 'Access revoked' : 'Active')}',
                           ),
-                          onPressed: _busy || _failed
+                          isThreeLine: true,
+                          trailing: _selectedId != p.id
                               ? null
-                              : () => _action(
-                                  p.accessRevoked
-                                      ? 'Restore access'
-                                      : 'Revoke access',
-                                  DirectoryChange(
-                                    operation: AdminWriteIntent.create(),
-                                    directory: 'viewers',
-                                    id: p.id,
-                                    updatedAt: p.updatedAt,
-                                    changes: {
-                                      'access_revoked': !p.accessRevoked,
-                                    },
-                                  ),
+                              : Wrap(
+                                  children: [
+                                    IconButton(
+                                      tooltip: strings.text('Edit'),
+                                      onPressed: _busy || _failed
+                                          ? null
+                                          : () => _edit(viewer: p),
+                                      icon: const Icon(Icons.edit),
+                                    ),
+                                    IconButton(
+                                      tooltip: strings.text(
+                                        p.accessRevoked
+                                            ? 'Restore access'
+                                            : 'Revoke access',
+                                      ),
+                                      icon: Icon(
+                                        p.accessRevoked
+                                            ? Icons.person_add
+                                            : Icons.person_off,
+                                      ),
+                                      onPressed: _busy || _failed
+                                          ? null
+                                          : () => _action(
+                                              p.accessRevoked
+                                                  ? 'Restore access'
+                                                  : 'Revoke access',
+                                              DirectoryChange(
+                                                operation:
+                                                    AdminWriteIntent.create(),
+                                                directory: 'viewers',
+                                                id: p.id,
+                                                updatedAt: p.updatedAt,
+                                                changes: {
+                                                  'access_revoked':
+                                                      !p.accessRevoked,
+                                                },
+                                              ),
+                                            ),
+                                    ),
+                                    IconButton(
+                                      tooltip: strings.text(
+                                        'Delete permanently',
+                                      ),
+                                      icon: const Icon(Icons.delete_forever),
+                                      onPressed: _busy || _failed
+                                          ? null
+                                          : () => _action(
+                                              'Delete permanently',
+                                              DirectoryChange(
+                                                operation:
+                                                    AdminWriteIntent.create(),
+                                                directory: 'viewers',
+                                                id: p.id,
+                                                updatedAt: p.updatedAt,
+                                                changes: {
+                                                  'delete_permanently': true,
+                                                  'acknowledged': true,
+                                                },
+                                              ),
+                                              deleting: true,
+                                            ),
+                                    ),
+                                  ],
                                 ),
                         ),
-                      ],
-                    ),
-                  );
-                }
-                final p = _physicians
-                    .where((p) => matches(p.fullName, p.email, p.isActive))
-                    .elementAt(index);
-                return ListTile(
-                  title: Text(p.fullName),
-                  subtitle: Text(
-                    '${p.email ?? strings.text('No account linked')} · ${strings.text(p.isActive ? 'Active' : 'Inactive')}\n${strings.text(p.rank.name)} · ${p.capabilities.map((c) => strings.text(c.name)).join(', ')}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Wrap(
-                    children: [
-                      IconButton(
-                        tooltip: strings.text('Edit'),
-                        onPressed: _busy || _failed
-                            ? null
-                            : () => _edit(physician: p),
-                        icon: const Icon(Icons.edit),
+                      );
+                    }
+                    final p = _physicians
+                        .where((p) => matches(p.fullName, p.email, p.isActive))
+                        .elementAt(index);
+                    return Card(
+                      color: _selectedId == p.id
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : null,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: _selectedId == p.id
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).dividerColor,
+                          width: _selectedId == p.id ? 2 : 1,
+                        ),
                       ),
-                      IconButton(
-                        tooltip: strings.text(
-                          p.isActive ? 'Deactivate' : 'Reactivate',
+                      child: ListTile(
+                        key: ValueKey('directory-${p.id}'),
+                        selected: _selectedId == p.id,
+                        onTap: () => setState(() => _selectedId = p.id),
+                        leading: Icon(
+                          _selectedId == p.id
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
                         ),
-                        icon: Icon(
-                          p.isActive ? Icons.archive : Icons.unarchive,
+                        title: Text(p.fullName),
+                        subtitle: Text(
+                          '${p.email ?? strings.text('No account linked')} · ${strings.text(p.isActive ? 'Active' : 'Inactive')}\n${strings.text(p.rank.name)} · ${p.capabilities.map((c) => strings.text(c.name)).join(', ')}',
                         ),
-                        onPressed: _busy || _failed
+                        isThreeLine: true,
+                        trailing: _selectedId != p.id
                             ? null
-                            : () => _action(
-                                p.isActive ? 'Deactivate' : 'Reactivate',
-                                _physicianChange(p, {'is_active': !p.isActive}),
+                            : Wrap(
+                                children: [
+                                  IconButton(
+                                    tooltip: strings.text('Edit'),
+                                    onPressed: _busy || _failed
+                                        ? null
+                                        : () => _edit(physician: p),
+                                    icon: const Icon(Icons.edit),
+                                  ),
+                                  IconButton(
+                                    tooltip: strings.text(
+                                      p.isActive ? 'Deactivate' : 'Reactivate',
+                                    ),
+                                    icon: Icon(
+                                      p.isActive
+                                          ? Icons.archive
+                                          : Icons.unarchive,
+                                    ),
+                                    onPressed: _busy || _failed
+                                        ? null
+                                        : () => _action(
+                                            p.isActive
+                                                ? 'Deactivate'
+                                                : 'Reactivate',
+                                            _physicianChange(p, {
+                                              'is_active': !p.isActive,
+                                            }),
+                                          ),
+                                  ),
+                                  IconButton(
+                                    tooltip: strings.text('Delete permanently'),
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: _busy || _failed
+                                        ? null
+                                        : () => _action(
+                                            'Delete permanently',
+                                            _physicianChange(p, {
+                                              'delete_permanently': true,
+                                              'acknowledged': true,
+                                            }),
+                                            deleting: true,
+                                          ),
+                                  ),
+                                ],
                               ),
                       ),
-                      IconButton(
-                        tooltip: strings.text('Delete'),
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: _busy || _failed
-                            ? null
-                            : () => _action(
-                                'Delete',
-                                _physicianChange(p, {'delete': true}),
-                                deleting: true,
-                              ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                    );
+                  },
+                ),
+              ),
             ),
           ),
         ],
@@ -300,6 +415,12 @@ class _AdministrationScreenState extends State<AdministrationScreen> {
 
 String directoryFailureText(Object e) => e is DirectoryFailure
     ? switch (e.code) {
+        'accountHasDependencies' =>
+          'History or dependent records prevent permanent deletion. Archive or revoke access instead.',
+        'configurationHasDependencies' =>
+          'This role is referenced. Deactivate it instead.',
+        'duplicateCode' => 'This role code already exists.',
+        'protectedAccount' => 'Administrator accounts cannot be deleted here.',
         'physicianHasDependencies' =>
           'History or dependent records prevent deletion. Deactivate the physician instead.',
         'staleVersion' =>
@@ -323,11 +444,13 @@ class _DirectoryCommandDialog extends StatefulWidget {
   final DirectoryAdministrationService service;
   final DirectoryChange request;
   final String title;
+  final String subject;
   final bool deleting;
   const _DirectoryCommandDialog({
     required this.service,
     required this.request,
     required this.title,
+    required this.subject,
     required this.deleting,
   });
   @override
@@ -337,7 +460,10 @@ class _DirectoryCommandDialog extends StatefulWidget {
 
 class _DirectoryCommandDialogState extends State<_DirectoryCommandDialog> {
   DirectoryChange? _archiveRequest;
-  bool busy = false, rejected = false, dependencies = false;
+  bool busy = false,
+      rejected = false,
+      dependencies = false,
+      acknowledged = false;
   String? error;
   Future<void> apply({bool archive = false}) async {
     setState(() => busy = true);
@@ -349,7 +475,9 @@ class _DirectoryCommandDialogState extends State<_DirectoryCommandDialog> {
           directory: r.directory,
           id: r.id,
           updatedAt: r.updatedAt,
-          changes: {'is_active': false},
+          changes: r.directory == 'viewers'
+              ? {'access_revoked': true}
+              : {'is_active': false},
         );
       }
       await widget.service.change(_archiveRequest ?? r);
@@ -360,7 +488,11 @@ class _DirectoryCommandDialogState extends State<_DirectoryCommandDialog> {
           error = directoryFailureText(e);
           rejected = e is! DirectoryFailure || !e.outcomeUnknown;
           dependencies =
-              e is DirectoryFailure && e.code == 'physicianHasDependencies';
+              e is DirectoryFailure &&
+              {
+                'physicianHasDependencies',
+                'accountHasDependencies',
+              }.contains(e.code);
         });
       }
     } finally {
@@ -376,11 +508,23 @@ class _DirectoryCommandDialogState extends State<_DirectoryCommandDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Text(
+            widget.subject,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           AdminText(
             widget.deleting
-                ? 'Delete this unused physician record? The login account will remain.'
+                ? 'Permanently delete this unused account, profile and physician record? This cannot be undone.'
                 : 'Historical records are retained.',
           ),
+          if (widget.deleting)
+            CheckboxListTile(
+              value: acknowledged,
+              onChanged: busy ? null : (v) => setState(() => acknowledged = v!),
+              title: const AdminText(
+                'I understand that permanent deletion cannot be undone.',
+              ),
+            ),
           if (error != null)
             AdminText(
               error!,
@@ -398,11 +542,17 @@ class _DirectoryCommandDialogState extends State<_DirectoryCommandDialog> {
           FilledButton.icon(
             onPressed: busy ? null : () => apply(archive: true),
             icon: const Icon(Icons.archive),
-            label: const AdminText('Deactivate'),
+            label: AdminText(
+              widget.request.directory == 'viewers'
+                  ? 'Revoke access'
+                  : 'Deactivate',
+            ),
           )
         else
           FilledButton(
-            onPressed: busy || rejected ? null : apply,
+            onPressed: busy || rejected || (widget.deleting && !acknowledged)
+                ? null
+                : apply,
             child: AdminText(
               error == null ? widget.title : 'Retry same request',
             ),

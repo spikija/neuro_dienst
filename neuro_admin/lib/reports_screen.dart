@@ -3,6 +3,7 @@ import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'report_table.dart';
 import 'report_export.dart';
 import 'report_pdf.dart';
+import 'report_print_layout.dart';
 import 'localization.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -148,6 +149,7 @@ class ReportExportDialog extends StatefulWidget {
 
 class _ReportExportDialogState extends State<ReportExportDialog> {
   bool busy = false, failed = false;
+  String? printError;
   Future<void> run(bool print) async {
     final strings = AdminStrings.of(context);
     setState(() {
@@ -162,8 +164,13 @@ class _ReportExportDialogState extends State<ReportExportDialog> {
         print: print,
       );
       if (mounted) Navigator.pop(context);
-    } catch (_) {
-      if (mounted) setState(() => failed = true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          failed = true;
+          printError = e is ReportPrintLayoutException ? e.message : null;
+        });
+      }
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -182,8 +189,9 @@ class _ReportExportDialogState extends State<ReportExportDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (failed)
-            const AdminText(
-              'Operation failed. Check your access and connection.',
+            AdminText(
+              printError ??
+                  'Operation failed. Check your access and connection.',
             ),
           if (busy) const LinearProgressIndicator(),
         ],

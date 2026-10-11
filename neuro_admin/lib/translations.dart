@@ -12,6 +12,46 @@ const englishLabels = <String, String>{
   'canSupervise': 'Supervision',
 };
 const german = <String, String>{
+  "Roles / templates": "Rollen / Vorlagen",
+  "Roles": "Rollen",
+  "Templates": "Vorlagen",
+  "Create role": "Rolle erstellen",
+  "Create template": "Vorlage erstellen",
+  "Role": "Rolle",
+  "Template": "Vorlage",
+  "Template changes apply only to future generation or explicit draft regeneration. Times use Europe/Vienna.":
+      "Vorlagen gelten für künftige Erstellung oder ausdrückliche Neugenerierung von Entwürfen. Zeitzone: Europe/Vienna.",
+  "Delete permanently": "Endgültig löschen",
+  "Permanently delete this unused account, profile and physician record? This cannot be undone.":
+      "Dieses unbenutzte Konto samt Profil und Arzt-Datensatz endgültig löschen? Dies kann nicht rückgängig gemacht werden.",
+  "I understand that permanent deletion cannot be undone.":
+      "Ich verstehe, dass die endgültige Löschung nicht rückgängig gemacht werden kann.",
+  "History or dependent records prevent permanent deletion. Archive or revoke access instead.":
+      "Historische oder abhängige Daten verhindern die endgültige Löschung. Stattdessen archivieren oder Zugriff entziehen.",
+  "This role is referenced. Deactivate it instead.":
+      "Diese Rolle wird referenziert. Stattdessen deaktivieren.",
+  "This role code already exists.": "Dieser Rollencode existiert bereits.",
+  "Administrator accounts cannot be deleted here.":
+      "Administratorkonten können hier nicht gelöscht werden.",
+  "Confirm deletion. Existing roster facts will remain unchanged.":
+      "Löschung bestätigen. Bestehende Dienstplandaten bleiben erhalten.",
+  "Code": "Code",
+  "Report order": "Reihenfolge im Bericht",
+  "Visible in reports": "Im Bericht sichtbar",
+  "Allowed ranks (empty means all)": "Zulässige Dienstgrade (leer: alle)",
+  "Required capabilities": "Erforderliche Fähigkeiten",
+  "Monthly day": "Monatstag",
+  "Day of month": "Tag des Monats",
+  "Start time (Europe/Vienna)": "Beginn (Europe/Vienna)",
+  "End time (Europe/Vienna)": "Ende (Europe/Vienna)",
+  "Capacity": "Kapazität",
+  "Select at least one weekday.": "Mindestens einen Wochentag auswählen.",
+  "End time must be after start time.": "Das Ende muss nach dem Beginn liegen.",
+  "Enter a valid whole number.": "Gültige ganze Zahl eingeben.",
+  "Too many role columns for legible printing. Choose landscape or reduce configured report columns.":
+      "Zu viele Rollenspalten für einen lesbaren Ausdruck. Querformat wählen oder Berichtsspalten reduzieren.",
+  "This month contains too much text for one readable page. Choose another orientation or reduce configured report columns.":
+      "Dieser Monat enthält zu viel Text für eine lesbare Seite. Andere Ausrichtung wählen oder Berichtsspalten reduzieren.",
   'SUPABASE_URL must be a valid HTTP or HTTPS URL.':
       'SUPABASE_URL muss eine gültige HTTP- oder HTTPS-Adresse sein.',
   'Use a Supabase publishable key, never a secret key.':

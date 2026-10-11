@@ -64,3 +64,17 @@ String localizedHoliday(String name, AdminStrings strings) =>
                 n,
           )
           .join('; ');
+
+String europeanReportDate(HospitalDate d) =>
+    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+String reportWeekday(HospitalDate d, String language) => (language == 'de'
+    ? const ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+    : const [
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun',
+      ])[d.asDateOnlyUtc.weekday - 1];
