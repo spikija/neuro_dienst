@@ -94,7 +94,7 @@ await test('national holidays across years and beyond 2037',async()=>{
 });
 for(const [user,aal,code] of [[2,'aal2','unauthorized'],[3,'aal2','unauthorized'],[0,'aal2','unauthorized'],[1,'aal1','mfaRequired']]) {
  await test(`workspace denies ${user}/${aal}`,async()=>{
- await login(user,aal); assert.equal((await preview()).code,code); assert.equal((await remove()).code,code);
+ const expected=await version(); await login(user,aal); assert.equal((await preview()).code,code); assert.equal((await remove({expected})).code,code);
  assert.equal((await db.query('select admin_apply_generation(2027,4,null,null,\'x\',$1) value',[id(800)])).rows[0].value.code,code);
  });
 }

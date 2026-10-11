@@ -2,9 +2,13 @@ import 'package:neuro_core/neuro_core.dart';
 import 'package:supabase/supabase.dart';
 import 'admin_contracts.dart';
 import 'directory.dart';
+import 'configuration.dart';
 
 /// Shared adapter for both clients. No Auth admin API or privileged key.
-class SupabaseDirectoryService implements DirectoryAdministrationService {
+class SupabaseDirectoryService
+    implements
+        DirectoryAdministrationService,
+        ConfigurationAdministrationService {
   final SupabaseClient client;
   SupabaseDirectoryService(this.client);
   Future<List<Map<String, dynamic>>> _rows(String kind) async {
@@ -60,12 +64,55 @@ class SupabaseDirectoryService implements DirectoryAdministrationService {
     try {
       final response =
           await client.rpc(
-                'admin_manage_directory',
+                request.changes['delete_permanently'] == true
+                    ? 'admin_delete_account'
+                    : 'admin_manage_directory',
                 params: {
                   'p_kind': request.directory,
                   'p_id': request.id,
                   'p_expected_updated_at': request.updatedAt,
-                  'p_changes': request.changes,
+                  if (request.changes['delete_permanently'] == true)
+                    'p_acknowledged': request.changes['acknowledged'] == true
+                  else
+                    'p_changes': request.changes,
+                  'p_request_id': request.operation.requestId,
+                },
+              )
+              as Map;
+      if (response['error'] != null) throw DirectoryFailure(response['error']);
+      if (response['success'] != true ||
+          response['requestId'] != request.operation.requestId) {
+        throw const DirectoryFailure('unavailable', outcomeUnknown: true);
+      }
+    } on DirectoryFailure {
+      rethrow;
+    } on PostgrestException catch (e) {
+      throw DirectoryFailure(e.code ?? 'unavailable');
+    } catch (_) {
+      throw const DirectoryFailure('unavailable', outcomeUnknown: true);
+    }
+  }
+
+  @override
+  Future<ConfigurationSnapshot> configuration() async =>
+      ConfigurationSnapshot.fromJson(
+        Map<String, dynamic>.from(
+          await client.rpc('admin_configuration') as Map,
+        ),
+      );
+
+  @override
+  Future<void> saveConfiguration(ConfigurationChange request) async {
+    try {
+      final response =
+          await client.rpc(
+                'admin_save_configuration',
+                params: {
+                  'p_kind': request.kind,
+                  'p_id': request.id,
+                  'p_expected_updated_at': request.updatedAt,
+                  'p_values': request.values,
+                  'p_delete': request.delete,
                   'p_request_id': request.operation.requestId,
                 },
               )

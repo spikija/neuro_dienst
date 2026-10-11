@@ -175,6 +175,29 @@ void main() {
       await service.change(change);
       expect(bodies[0], bodies[1]);
       expect(bodies.first['p_expected_updated_at'], change.updatedAt);
+      final permanent = DirectoryChange(
+        operation: AdminWriteIntent.create(),
+        directory: 'viewers',
+        id: 'unused',
+        updatedAt: '2026-10-11T00:00:00Z',
+        changes: {'delete_permanently': true, 'acknowledged': true},
+      );
+      await service.change(permanent);
+      expect(paths.last, '/rest/v1/rpc/admin_delete_account');
+      expect(bodies.last['p_acknowledged'], true);
+      expect(bodies.last.containsKey('p_changes'), false);
+      final configuration = ConfigurationChange(
+        operation: AdminWriteIntent.create(),
+        kind: 'roles',
+        id: 'arbitrary',
+        values: {'code': 'CUSTOM-17', 'max_doctors': 3},
+      );
+      await service.saveConfiguration(configuration);
+      await service.saveConfiguration(configuration);
+      expect(paths.last, '/rest/v1/rpc/admin_save_configuration');
+      expect(bodies[bodies.length - 1], bodies[bodies.length - 2]);
+      expect(bodies.last['p_values'], configuration.values);
+
       final receipt = await service.invite(
         InvitationRequest(
           operation: AdminWriteIntent.create(),
