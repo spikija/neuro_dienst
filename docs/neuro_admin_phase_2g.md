@@ -154,5 +154,10 @@ New SQL tested on PGlite, native PostgreSQL 17 and PostgreSQL 14 with safeupdate
 PyMuPDF verifies one-page portrait/landscape, all role headers/rightmost column,
 text bounds, bold weekday spans, European dates, compact weekend row geometry,
 holiday annotation and four distinct restrained fill treatments.
-Windows release build result is recorded after completion. No live deletion or
-new migration deployment is claimed. Physical printers/macOS remain unverified.
+Final Windows release build passed (82.8 seconds), producing
+`neuro_admin/build/windows/x64/runner/Release/neuro_admin.exe`.
+The final confirmation/label changes also passed seven targeted administrator
+widget tests and clean analysis. The portrait PDF was rendered and visually
+inspected. Both isolated PostgreSQL servers were stopped after verification.
+No live deletion or new migration deployment is claimed. Physical printers/macOS
+remain unverified.
