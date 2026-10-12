@@ -37,7 +37,8 @@ localized section label; this does not require changes to scheduling services.
 Apply the grouping migration after the color migration and before deploying the
 new build. No live migration is applied by this task.
 
-Daily rows use 5 px vertical padding, 11-13 px text with a 1.15 line height, and 2 px card margins. Same-day shifts show times only; overnight
+Daily rows use 5 px vertical padding, 11-14 px text (physician names: 14 px)
+with a 1.15 line height, and 2 px card margins. Same-day shifts show times only; overnight
 shifts retain dates. All physicians and assignment states remain visible.
 Ten single-slot vacant roles fit without scrolling in the tested desktop sizes;
 long names, multiple shifts and larger accessibility text can require scrolling.

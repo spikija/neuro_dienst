@@ -1258,7 +1258,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
           ),
           AdminText(
             names.isEmpty ? 'Unassigned' : names,
-            style: const TextStyle(fontSize: 12, height: 1.15),
+            style: TextStyle(fontSize: names.isEmpty ? 12 : 14, height: 1.15),
           ),
         ],
       ),
