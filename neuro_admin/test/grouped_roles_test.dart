@@ -100,7 +100,11 @@ void main() {
                   ),
                 )
                 .painter,
-            isA<RoleStatusPainter>(),
+            isA<RoleStatusPainter>().having(
+              (p) => p.square,
+              'square',
+              role.group == RoleGroup.ambulatory,
+            ),
           );
         }
         expect(tester.takeException(), isNull);

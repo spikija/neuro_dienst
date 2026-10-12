@@ -7,30 +7,42 @@ import '../../neuro_admin_services/test/support/preview_fixture.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  test('outlined, partial and filled circles paint distinct shapes', () async {
-    for (final state in RoleStaffingState.values) {
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      const color = Color(0xff1565c0);
-      RoleStatusPainter(state, color).paint(canvas, const Size(32, 32));
-      final picture = recorder.endRecording();
-      final image = await picture.toImage(32, 32);
-      final bytes = (await image.toByteData())!;
-      int alpha(int x, int y) => bytes.getUint8((y * 32 + x) * 4 + 3);
-      expect(
-        alpha(8, 16),
-        state == RoleStaffingState.staffed ? greaterThan(200) : 0,
-      );
-      expect(
-        alpha(24, 16),
-        state == RoleStaffingState.staffed || state == RoleStaffingState.partial
-            ? greaterThan(200)
-            : 0,
-      );
-      image.dispose();
-      picture.dispose();
-    }
-  });
+  for (final square in [false, true]) {
+    test(
+      'outlined, partial and filled markers paint correctly (square=$square)',
+      () async {
+        for (final state in RoleStaffingState.values) {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder);
+          const color = Color(0xff1565c0);
+          RoleStatusPainter(
+            state,
+            color,
+            square: square,
+          ).paint(canvas, const Size(32, 32));
+          final picture = recorder.endRecording();
+          final image = await picture.toImage(32, 32);
+          final bytes = (await image.toByteData())!;
+          int alpha(int x, int y) => bytes.getUint8((y * 32 + x) * 4 + 3);
+          expect(
+            alpha(8, 16),
+            state == RoleStaffingState.staffed ? greaterThan(200) : 0,
+          );
+          expect(
+            alpha(24, 16),
+            state == RoleStaffingState.staffed ||
+                    state == RoleStaffingState.partial
+                ? greaterThan(200)
+                : 0,
+          );
+          // A box has a visible top-left corner; a circle does not.
+          expect(alpha(2, 2), square ? greaterThan(0) : 0);
+          image.dispose();
+          picture.dispose();
+        }
+      },
+    );
+  }
   for (final brightness in Brightness.values) {
     testWidgets(
       'stable ordered custom-role indicators and readable colors in $brightness',

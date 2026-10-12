@@ -51,7 +51,13 @@ class RoleStatusIndicator extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: CustomPaint(painter: RoleStatusPainter(staffing.state, color)),
+          child: CustomPaint(
+            painter: RoleStatusPainter(
+              staffing.state,
+              color,
+              square: staffing.role.group == RoleGroup.ambulatory,
+            ),
+          ),
         ),
       ),
     );
@@ -61,11 +67,29 @@ class RoleStatusIndicator extends StatelessWidget {
 class RoleStatusPainter extends CustomPainter {
   final RoleStaffingState state;
   final Color color;
-  const RoleStatusPainter(this.state, this.color);
+  final bool square;
+  const RoleStatusPainter(this.state, this.color, {this.square = false});
   @override
   void paint(Canvas canvas, Size size) {
     final rect = (Offset.zero & size).deflate(1.5);
     final fill = Paint()..color = color;
+    if (square) {
+      if (state == RoleStaffingState.staffed) canvas.drawRect(rect, fill);
+      if (state == RoleStaffingState.partial) {
+        canvas.drawRect(
+          Rect.fromLTRB(rect.center.dx, rect.top, rect.right, rect.bottom),
+          fill,
+        );
+      }
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.7,
+      );
+      return;
+    }
     if (state == RoleStaffingState.staffed) canvas.drawOval(rect, fill);
     if (state == RoleStaffingState.partial) {
       canvas.drawArc(rect, -math.pi / 2, math.pi, true, fill);
@@ -81,7 +105,7 @@ class RoleStatusPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(RoleStatusPainter old) =>
-      old.state != state || old.color != color;
+      old.state != state || old.color != color || old.square != square;
 }
 
 /// Same ordered prefix in every cell. Overflow is explicit and describes ALL

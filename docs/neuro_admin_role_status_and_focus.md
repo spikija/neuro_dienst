@@ -8,9 +8,9 @@ its usual position and is shown as not scheduled.
 
 `RoleStaffing` in neuro_admin_services projects actual slot capacities and unique
 assignment IDs. Both provisional and confirmed facts count toward staffing.
-Empty scheduled slots use an outlined colored circle; partial staffing uses a
-half-filled circle; full staffing uses a filled circle; unscheduled roles use a
-grey outline. Multiple shifts aggregate per role; overstaffing one shift does not
+Empty scheduled slots use an outlined colored marker; partial staffing uses a
+half-filled marker; full staffing uses a filled marker; unscheduled roles use a
+grey outline. Stationary markers are circles; ambulatory/other markers are boxes. Multiple shifts aggregate per role; overstaffing one shift does not
 mask a vacant second shift. Tooltips show the exact assigned/capacity totals.
 
 The same ordered indicator grid appears at the left of each day. When available
@@ -20,7 +20,8 @@ scheduled rows and one-line unscheduled rows. Multiple slots and physician names
 wrap without nested scrolling. Calendar markers use compact grouped layouts
 with explicit tooltip overflow per group. `roles.ui_group` separates stationary
 roles into a 12 px left column and ambulatory/other roles into a 26 px two-column
-block to its right, with a 4 px separation. Both use 12 px circles and 2 px gaps.
+block to its right, with a 4 px separation. Stationary roles use circles; ambulatory/other roles use boxes. Both use 12 px
+markers and 2 px gaps, with outline, half-fill and full-fill staffing states.
 The daily roster has matching localized section headings and retains configured
 order within each section. Empty groups omit their heading; unscheduled roles
 remain visible. Grouping never changes assignment rules or workload categories.
