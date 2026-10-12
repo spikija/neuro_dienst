@@ -1,3 +1,4 @@
+import 'role_indicators.dart';
 import 'report_presentation.dart';
 import 'localization.dart';
 import 'dart:math' as math;
@@ -71,6 +72,7 @@ class _ReportTableState extends State<ReportTable> {
       Key? key,
       bool heading = false,
       String? tooltip,
+      Color? roleColor,
     }) => Container(
       key: key,
       width: width,
@@ -81,7 +83,10 @@ class _ReportTableState extends State<ReportTable> {
             ? Theme.of(context).colorScheme.surfaceContainerHighest
             : null,
         border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
+          bottom: BorderSide(
+            color: roleColor ?? Theme.of(context).dividerColor,
+            width: roleColor == null ? 1 : 2,
+          ),
           right: BorderSide(color: Theme.of(context).dividerColor),
         ),
       ),
@@ -109,7 +114,21 @@ class _ReportTableState extends State<ReportTable> {
                 child: Row(
                   children: [
                     for (var i = 0; i < labels.length; i++)
-                      cell(labels[i], widths[i], headerHeight, heading: true),
+                      cell(
+                        labels[i],
+                        widths[i],
+                        headerHeight,
+                        heading: true,
+                        roleColor:
+                            report.request.layout == ReportLayout.roles &&
+                                i < report.columns.length
+                            ? roleDisplayColor(
+                                context,
+                                report.columns[i].id,
+                                report.columns[i].colorKey,
+                              )
+                            : null,
+                      ),
                   ],
                 ),
               ),

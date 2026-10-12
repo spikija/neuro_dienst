@@ -94,6 +94,13 @@ const r={id:id(40)};
 const values={code:'CUSTOM-Clinic-17',name:'Custom clinic',is_active:true,allowed_ranks:['resident'],required_capabilities:[],max_doctors:2,print_in_report:true,display_order:99};
 assert.equal((await save('roles',r,values)).success,true);
 let role=(await cfg()).roles.find(r=>r.id===id(40));
+// Palette values persist by role ID; invalid RGB/tokens roll back without changing configuration.
+assert.equal((await save('roles',role,{color_key:'teal'})).success,true);
+role=(await cfg()).roles.find(v=>v.id===r.id);
+assert.equal(role.color_key,'teal');
+assert.equal((await save('roles',role,{color_key:'#ff0000'})).error,'invalidRequest');
+assert.equal((await cfg()).roles.find(v=>v.id===r.id).color_key,'teal');
+assert.ok((await db.query("select details from audit_log where action='admin_configuration_change' and entity_id=$1",[r.id])).rows.some(v=>v.details.values?.color_key==='teal'));
 const editToken=id(++seq);
 assert.equal((await save('roles',role,{name:'Renamed custom clinic'},false,editToken)).success,true);
 assert.equal((await save('roles',role,{name:'Renamed custom clinic'},false,editToken)).success,true);

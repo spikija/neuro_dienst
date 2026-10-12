@@ -17,7 +17,9 @@ class SupabaseReportingService implements ReportingService {
     for (var offset = 0; ; offset += 500) {
       final page = await client
           .from('roles')
-          .select('id,code,name,display_order,print_in_report,is_active')
+          .select(
+            'id,code,name,display_order,print_in_report,is_active,color_key',
+          )
           .order('id')
           .range(offset, offset + 499);
       settings.addAll(page);
@@ -42,6 +44,9 @@ class SupabaseReportingService implements ReportingService {
                 r['code'],
                 r['name'],
                 isActive: r['is_active'],
+                colorKey: r['color_key'],
+                displayOrder: r['display_order'],
+                printInReport: r['print_in_report'] == true,
               ),
               r['display_order'],
               r['print_in_report'] == true,

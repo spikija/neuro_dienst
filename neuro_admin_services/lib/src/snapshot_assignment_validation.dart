@@ -3,6 +3,7 @@ import 'package:neuro_core/neuro_core.dart';
 import 'assignment_validation.dart';
 import 'lifecycle.dart';
 import 'read_models.dart';
+import 'role_presentation.dart';
 import 'scheduling_time.dart';
 
 /// Exact stored role identities, including custom/inactive roles for inspection.
@@ -12,7 +13,7 @@ List<StoredRole> previewRoles(RosterSnapshot snapshot) => [
       for (final slot in day.slots) slot.role.id: slot.role,
     for (final role in snapshot.roles) role.id: role,
   }.values,
-]..sort((a, b) => a.code.compareTo(b.code));
+]..sort(compareRoleOrder);
 
 /// Advisory validation of one loaded snapshot. No client/network dependency and
 /// no mutation behavior. Backend validation must independently recheck all rules.

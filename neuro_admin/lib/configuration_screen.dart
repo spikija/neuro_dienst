@@ -3,6 +3,7 @@ import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'package:neuro_core/neuro_core.dart';
 import 'administration_screen.dart' show directoryFailureText;
 import 'localization.dart';
+import 'role_indicators.dart';
 
 class ConfigurationScreen extends StatefulWidget {
   final ConfigurationAdministrationService service;
@@ -115,6 +116,11 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 if (!templates)
                   for (final r in data!.roles)
                     ListTile(
+                      leading: Icon(
+                        Icons.circle,
+                        color: roleDisplayColor(context, r.id, r.colorKey),
+                        size: 16,
+                      ),
                       title: Text('${r.code} | ${r.name}'),
                       subtitle: AdminText(r.active ? 'Active' : 'Inactive'),
                       onTap: busy || error != null ? null : () => edit(role: r),
@@ -191,6 +197,7 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
   late final end = TextEditingController(
     text: widget.template?.end.substring(0, 5) ?? '16:00',
   );
+  late String? colorKey = widget.role?.colorKey;
   late bool active = widget.template?.active ?? widget.role?.active ?? true;
   late bool printVisible = widget.role?.printInReport ?? true;
   late bool monthly = widget.template?.monthly ?? false;
@@ -254,6 +261,7 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
               'display_order': int.parse(order.text),
               'is_active': active,
               'print_in_report': printVisible,
+              'color_key': colorKey,
               'allowed_ranks': ranks.map(databaseEnum).toList(),
               'required_capabilities': capabilities.map(databaseEnum).toList(),
             },
@@ -345,6 +353,42 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
                             field('Code', code),
                             field('Display name', name),
                             field('Report order', order, integer: true),
+                            DropdownButtonFormField<String>(
+                              key: const ValueKey('role-color-field'),
+                              initialValue: colorKey ?? '',
+                              decoration: InputDecoration(
+                                labelText: s.text('Color'),
+                              ),
+                              items: [
+                                DropdownMenuItem(
+                                  value: '',
+                                  child: AdminText(
+                                    'Automatic (stable by role)',
+                                  ),
+                                ),
+                                for (final color in rolePalette)
+                                  DropdownMenuItem(
+                                    value: color.key,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.circle,
+                                          size: 16,
+                                          color: roleDisplayColor(
+                                            context,
+                                            widget.role?.id ?? '',
+                                            color.key,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        AdminText(color.label),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (v) =>
+                                  setState(() => colorKey = v == '' ? null : v),
+                            ),
                             CheckboxListTile(
                               title: const AdminText('Visible in reports'),
                               value: printVisible,

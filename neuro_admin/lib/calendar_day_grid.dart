@@ -7,6 +7,9 @@ import 'calendar_selection.dart';
 /// Mouse selection is captured by the whole grid, including moves outside it.
 /// Selection is the rectangle between anchor and current cell, not pointer path.
 class CalendarDayGrid extends StatefulWidget {
+  final DateTime? focusedDate;
+  final ValueChanged<DateTime>? onFocusedDateChanged;
+  final FocusNode? focusNode;
   final int year;
   final int month;
   final CalendarSelection selection;
@@ -15,6 +18,9 @@ class CalendarDayGrid extends StatefulWidget {
 
   const CalendarDayGrid({
     super.key,
+    this.focusedDate,
+    this.onFocusedDateChanged,
+    this.focusNode,
     required this.year,
     required this.month,
     required this.selection,
@@ -27,6 +33,71 @@ class CalendarDayGrid extends StatefulWidget {
 }
 
 class _CalendarDayGridState extends State<CalendarDayGrid> {
+  late final FocusNode _focusNode =
+      widget.focusNode ?? FocusNode(debugLabel: 'Roster calendar');
+  DateTime? _localFocused;
+  final _dayKeys = <int, GlobalKey>{};
+  void _revealFocusedDay() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _pointer != null || !_focusNode.hasFocus) return;
+      if (_focused.year != widget.year || _focused.month != widget.month) {
+        return;
+      }
+      final target = _dayKeys[_focused.day]?.currentContext;
+      if (target == null) return;
+      final scrollable = Scrollable.maybeOf(target, axis: Axis.vertical);
+      final viewport = scrollable?.context.findRenderObject();
+      final cell = target.findRenderObject();
+      if (viewport is! RenderBox || cell is! RenderBox) return;
+      final viewportTop = viewport.localToGlobal(Offset.zero).dy;
+      final cellTop = cell.localToGlobal(Offset.zero).dy;
+      if (cellTop < viewportTop ||
+          cellTop + cell.size.height > viewportTop + viewport.size.height) {
+        Scrollable.ensureVisible(target, alignment: .5);
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _revealFocusedDay();
+  }
+
+  DateTime get _focused => widget.focusedDate ?? _localFocused ?? _date(1);
+  void _focusDate(DateTime date) {
+    _focusNode.requestFocus();
+    setState(() => _localFocused = date);
+    widget.onFocusedDateChanged?.call(date);
+    _revealFocusedDay();
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final delta = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => -1,
+      LogicalKeyboardKey.arrowRight => 1,
+      LogicalKeyboardKey.arrowUp => -7,
+      LogicalKeyboardKey.arrowDown => 7,
+      _ => 0,
+    };
+    if (delta != 0) {
+      _focusDate(_focused.add(Duration(days: delta)));
+      return KeyEventResult.handled;
+    }
+    // Enter/Space retain the existing selection action, scoped to this month.
+    if ((event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.space) &&
+        _focused.year == widget.year &&
+        _focused.month == widget.month) {
+      _select(_focused);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   double _rowHeight = 68.0;
   int get _weeks => (_offset + _count + 6) ~/ 7;
   final _gridKey = GlobalKey();
@@ -38,6 +109,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   @override
   void didUpdateWidget(CalendarDayGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusedDate != widget.focusedDate) _revealFocusedDay();
     if (oldWidget.year != widget.year ||
         oldWidget.month != widget.month ||
         oldWidget.selection != widget.selection) {
@@ -49,6 +121,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   @override
   void dispose() {
     widget.selection.endDrag();
+    if (widget.focusNode == null) _focusNode.dispose();
     super.dispose();
   }
 
@@ -77,6 +150,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
     final position = _box.globalToLocal(event.position);
     for (var day = 1; day <= _count; day++) {
       if (_rect(day).contains(position)) {
+        _focusDate(_date(day));
         _pointer = event.pointer;
         widget.selection.beginDrag(_date(day));
         widget.onChanged();
@@ -103,6 +177,11 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
       (position.dy / _rowHeight).floor(),
       (position.dx / (_box.size.width / 7)).floor(),
     );
+    final visited = CalendarGridMonth(widget.year, widget.month).dateAt(
+      (position.dy / _rowHeight).floor(),
+      (position.dx / (_box.size.width / 7)).floor(),
+    );
+    if (visited != null) _focusDate(visited);
     widget.onChanged();
   }
 
@@ -117,48 +196,53 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   }
 
   void _select(DateTime date) {
+    _focusDate(date);
     widget.selection.select(date);
     widget.onChanged();
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      _rowHeight = constraints.hasBoundedHeight
-          ? (constraints.maxHeight / _weeks).clamp(68.0, double.infinity)
-          : 68.0;
-      return Listener(
-        onPointerDown: _down,
-        onPointerMove: _move,
-        onPointerUp: _end,
-        onPointerCancel: _end,
-        // Claim mouse pans so an enclosing scroll view does not move the grid.
-        child: GestureDetector(
-          supportedDevices: const {PointerDeviceKind.mouse},
-          onPanStart: (_) {},
-          onPanUpdate: (_) {},
-          child: SelectionContainer.disabled(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: Column(
-                key: _gridKey,
-                children: [
-                  for (var week = 0; week < _weeks; week++)
-                    Row(
-                      children: [
-                        for (var weekday = 0; weekday < 7; weekday++)
-                          Expanded(
-                            child: _cell(week * 7 + weekday - _offset + 1),
-                          ),
-                      ],
-                    ),
-                ],
+  Widget build(BuildContext context) => Focus(
+    focusNode: _focusNode,
+    onKeyEvent: _key,
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        _rowHeight = constraints.hasBoundedHeight
+            ? (constraints.maxHeight / _weeks).clamp(68.0, double.infinity)
+            : 68.0;
+        return Listener(
+          onPointerDown: _down,
+          onPointerMove: _move,
+          onPointerUp: _end,
+          onPointerCancel: _end,
+          // Claim mouse pans so an enclosing scroll view does not move the grid.
+          child: GestureDetector(
+            supportedDevices: const {PointerDeviceKind.mouse},
+            onPanStart: (_) {},
+            onPanUpdate: (_) {},
+            child: SelectionContainer.disabled(
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Column(
+                  key: _gridKey,
+                  children: [
+                    for (var week = 0; week < _weeks; week++)
+                      Row(
+                        children: [
+                          for (var weekday = 0; weekday < 7; weekday++)
+                            Expanded(
+                              child: _cell(week * 7 + weekday - _offset + 1),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      );
-    },
+        );
+      },
+    ),
   );
 
   Widget _cell(int day) {
@@ -166,61 +250,58 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
     final date = _date(day);
     final selected = widget.selection.dates.contains(date);
     return SizedBox(
+      key: _dayKeys.putIfAbsent(day, () => GlobalKey()),
       height: _rowHeight,
       child: Padding(
         padding: const EdgeInsets.all(2),
         child: Semantics(
           key: ValueKey(date),
           button: true,
-          enabled: widget.selection.canSelect(date),
+          enabled: true,
+          hint: widget.selection.canSelect(date)
+              ? null
+              : "Bulk selection unavailable",
           selected: selected,
+          focused: calendarDate(_focused) == date,
           label: date.toIso8601String().split('T').first,
           onTap: () => _select(date),
-          child: _KeyboardDay(
-            onActivate: () => _select(date),
-            child: widget.cellBuilder(date, selected),
+          child: GestureDetector(
+            supportedDevices: const {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.stylus,
+            },
+            onTap: () => _select(date),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                widget.cellBuilder(date, selected),
+                if (calendarDate(_focused) == date)
+                  IgnorePointer(
+                    child: Container(
+                      key: ValueKey(
+                        'calendar-focus-${date.toIso8601String().split('T').first}',
+                      ),
+                      margin: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          width: 2,
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      alignment: Alignment.topRight,
+                      child: Icon(
+                        Icons.center_focus_strong,
+                        size: 13,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-}
-
-class _KeyboardDay extends StatefulWidget {
-  final VoidCallback onActivate;
-  final Widget child;
-  const _KeyboardDay({required this.onActivate, required this.child});
-
-  @override
-  State<_KeyboardDay> createState() => _KeyboardDayState();
-}
-
-class _KeyboardDayState extends State<_KeyboardDay> {
-  bool _focused = false;
-
-  @override
-  Widget build(BuildContext context) => FocusableActionDetector(
-    onShowFocusHighlight: (value) => setState(() => _focused = value),
-    shortcuts: const {
-      SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-      SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
-    },
-    actions: {
-      ActivateIntent: CallbackAction<ActivateIntent>(
-        onInvoke: (_) {
-          widget.onActivate();
-          return null;
-        },
-      ),
-    },
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        border: _focused
-            ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
-            : null,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: widget.child,
-    ),
-  );
 }

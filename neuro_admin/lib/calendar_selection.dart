@@ -68,10 +68,14 @@ class CalendarSelection {
   bool canSelect(DateTime date) =>
       _allowedDates == null || _allowedDates!.contains(calendarDate(date));
 
-  void restrictTo(Iterable<DateTime>? dates, {bool preselect = false}) {
+  void restrictTo(
+    Iterable<DateTime>? dates, {
+    bool preselect = false,
+    bool preserveSelection = false,
+  }) {
     endDrag();
     _allowedDates = dates?.map(calendarDate).toSet();
-    if (_allowedDates != null) {
+    if (_allowedDates != null && !preserveSelection) {
       _dates.removeWhere((date) => !_allowedDates!.contains(date));
       if (preselect) replace(_allowedDates!);
     }

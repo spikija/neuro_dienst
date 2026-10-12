@@ -23,6 +23,9 @@ class StoredRole {
   final Set<DoctorRank>? allowedRanks;
   final Set<Capability>? requiredCapabilities;
   final bool? isActive;
+  final int displayOrder;
+  final bool printInReport;
+  final String? colorKey;
   const StoredRole(
     this.id,
     this.code,
@@ -30,6 +33,9 @@ class StoredRole {
     this.allowedRanks,
     this.requiredCapabilities,
     this.isActive,
+    this.displayOrder = 0,
+    this.printInReport = true,
+    this.colorKey,
   });
 }
 

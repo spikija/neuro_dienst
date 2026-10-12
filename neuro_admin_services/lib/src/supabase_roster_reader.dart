@@ -113,7 +113,7 @@ class SupabaseRosterReader implements RosterReader, PhysicianReadService {
       (start, end) => client
           .from('roles')
           .select(
-            'id, code, name, area, allowed_ranks, required_capabilities, is_active',
+            'id, code, name, area, allowed_ranks, required_capabilities, is_active, display_order, print_in_report, color_key',
           )
           .order('id')
           .range(start, end),
@@ -350,6 +350,9 @@ RosterSnapshot decodeRoster(
                   _enumValue(Capability.values, value),
               ]),
         isActive: row['is_active'] as bool?,
+        displayOrder: row['display_order'] as int? ?? 0,
+        printInReport: row['print_in_report'] as bool? ?? true,
+        colorKey: row['color_key'] as String?,
       ),
   };
   final slotsByDay = <String, List<StoredDuty>>{};

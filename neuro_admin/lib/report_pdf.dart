@@ -111,7 +111,26 @@ Future<ReportPdf> buildReportPdf(
                 children: [
                   cell(strings.text('Date'), heading: true),
                   for (var c = start; c < end; c++)
-                    cell(headings[c], heading: true),
+                    pw.Container(
+                      decoration:
+                          report.request.layout == ReportLayout.roles &&
+                              c < report.columns.length
+                          ? pw.BoxDecoration(
+                              border: pw.Border(
+                                bottom: pw.BorderSide(
+                                  color: PdfColor.fromInt(
+                                    roleColor(
+                                      report.columns[c].id,
+                                      report.columns[c].colorKey,
+                                    ).lightArgb,
+                                  ),
+                                  width: 1,
+                                ),
+                              ),
+                            )
+                          : null,
+                      child: cell(headings[c], heading: true),
+                    ),
                 ],
               ),
               for (var r = 0; r < report.rows.length; r++)

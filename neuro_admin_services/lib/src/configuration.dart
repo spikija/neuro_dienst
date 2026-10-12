@@ -5,12 +5,14 @@ import 'directory.dart';
 /// Exact configured identities; never collapse custom roles into DutyRole.
 final class ConfiguredRole {
   final String id, code, name, updatedAt;
+  final String? colorKey;
   final bool active, printInReport;
   final int capacity, displayOrder;
   final Set<DoctorRank> ranks;
   final Set<Capability> capabilities;
   ConfiguredRole(Map<String, dynamic> r)
-    : id = r['id'],
+    : colorKey = r['color_key'],
+      id = r['id'],
       code = r['code'],
       name = r['name'],
       updatedAt = r['updated_at'],

@@ -47,7 +47,8 @@ final class ReportColumn {
   /// Exact database role/physician identity, never SlotKind or a localized name.
   final String id;
   final String label;
-  const ReportColumn(this.id, this.label);
+  final String? colorKey;
+  const ReportColumn(this.id, this.label, {this.colorKey});
 }
 
 /// Keep assignments and absences independently so each established report's
@@ -164,8 +165,11 @@ class FactualReportProjection implements ReportProjectionService {
     final columns = request.layout == ReportLayout.roles
         ? roles
               .map(
-                (r) =>
-                    ReportColumn(r.role.id, '${r.role.code}: ${r.role.name}'),
+                (r) => ReportColumn(
+                  r.role.id,
+                  '${r.role.code}: ${r.role.name}',
+                  colorKey: r.role.colorKey,
+                ),
               )
               .toList()
         : doctors.map((d) => ReportColumn(d.id, d.fullName)).toList();

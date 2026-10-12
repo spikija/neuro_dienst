@@ -12,6 +12,30 @@ const englishLabels = <String, String>{
   'canSupervise': 'Supervision',
 };
 const german = <String, String>{
+  'Not generated': 'Nicht erstellt',
+  'Click to focus/select a day. Arrows move focus by one day or one week without changing selection. Drag selects a range. In assignment mode, valid days toggle and drag adds valid days. Colored circles: outline = vacant, half = partial, filled = staffed; grey = not scheduled. Hover for counts.':
+      'Klicken fokussiert bzw. wählt einen Tag. Pfeiltasten bewegen den Fokus um einen Tag bzw. eine Woche, ohne die Auswahl zu ändern. Ziehen wählt einen Bereich. Im Zuweisungsmodus werden nur gültige Tage ausgewählt. Farbige Kreise: leer = unbesetzt, halb = teilweise, voll = besetzt; grau = nicht vorgesehen. Details beim Darüberfahren.',
+
+  'Color': 'Farbe',
+  'Automatic (stable by role)': 'Automatisch (stabil pro Rolle)',
+  'Blue': 'Blau',
+  'Teal': 'Petrol',
+  'Purple': 'Violett',
+  'Orange': 'Orange',
+  'Rose': 'Rosa',
+  'Indigo': 'Indigo',
+  'Green': 'Grün',
+  'Brown': 'Braun',
+  'Not scheduled': 'Nicht vorgesehen',
+  '{role} - not scheduled': '{role} - nicht vorgesehen',
+  '{role} - {assigned}/{capacity} staffed':
+      '{role} - {assigned}/{capacity} besetzt',
+  '{count} more roles': '{count} weitere Rollen',
+  'Selections in other months are retained; actions affect this month only.':
+      'Die Auswahl anderer Monate bleibt erhalten; Aktionen betreffen nur diesen Monat.',
+  'No roster generated for this month.':
+      'Für diesen Monat wurde kein Dienstplan erstellt.',
+
   "Roles / templates": "Rollen / Vorlagen",
   "Roles": "Rollen",
   "Templates": "Vorlagen",
