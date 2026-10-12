@@ -124,6 +124,16 @@ void main() {
           ),
         ),
       );
+      expect(
+        tester
+            .widgetList<ChoiceChip>(find.byType(ChoiceChip))
+            .where((chip) => chip.key.toString().contains('role-chip-'))
+            .map((chip) => chip.key),
+        [
+          for (final id in ['s1', 's2', 's3', 'a1', 'a2', 'a3'])
+            ValueKey('role-chip-$id'),
+        ],
+      );
       for (final day in [1, 2]) {
         await selectDates(tester, day);
         final keys = [

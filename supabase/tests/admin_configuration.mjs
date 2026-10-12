@@ -91,6 +91,7 @@ assert.equal((await remove('viewers',viewer)).success,true);
 await login(3);assert.equal((await db.query('select count(*)::int n from roles')).rows[0].n,0,'deleted JWT denied reads');
 await login();
 const seeded=(await cfg()).roles;
+assert.deepEqual(seeded.map(r=>r.code),['SUL','SU1','SU2','AMB','SON','NVB','OFO','SCI']);
 for (const role of seeded) assert.equal(role.ui_group, ['SUL','SU1','SU2'].includes(role.code)?'stationary':'ambulatory');
 const r={id:id(40)};
 const values={code:'CUSTOM-Clinic-17',name:'Custom clinic',is_active:true,allowed_ranks:['resident'],required_capabilities:[],max_doctors:2,print_in_report:true,display_order:99};

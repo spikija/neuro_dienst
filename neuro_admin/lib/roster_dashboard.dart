@@ -746,7 +746,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     spacing: 6,
                     runSpacing: 4,
                     children: [
-                      for (final role in calendarRoles(snapshot))
+                      for (final role in [
+                        for (final group in RoleGroup.values)
+                          ...calendarRoles(
+                            snapshot,
+                          ).where((role) => role.group == group),
+                      ])
                         Tooltip(
                           message: role.name,
                           child: ChoiceChip(

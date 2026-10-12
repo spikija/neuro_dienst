@@ -105,3 +105,14 @@ seed/default/change/rejection/older-client preservation checks, and Windows
 release build succeeds. Grouped widget tests cover the vertical stationary column,
 right-hand two-column grid, stable ordering, staffing tooltips, daily sections and
 exact role activation. No live migration was applied.
+
+## Neurology banner order
+
+The top role selector groups stationary roles first, then ambulatory/other roles,
+using configured order within each group. Apply
+`202610120003_neurology_role_order.sql` for the requested one-time order:
+SUL, SU1, SU2, AMB, SON, NVB, OFO, ICB (or the separate ICB AMB code if present).
+Other existing roles follow in their previous relative order; none are removed.
+This updates the shared editable display/report order, without changing group,
+role identity, templates or assignments. No runtime code hardcodes this sequence.
+The migration has not been applied to the live backend by this task.
