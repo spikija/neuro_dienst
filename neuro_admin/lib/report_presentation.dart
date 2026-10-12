@@ -5,15 +5,22 @@ import 'localization.dart';
 class ReportPresentation {
   final ReportDocument report;
   final AdminStrings strings;
-  const ReportPresentation(this.report, this.strings);
+  final Set<String>? selectedRoleIds;
+  const ReportPresentation(this.report, this.strings, {this.selectedRoleIds});
+  List<ReportColumn> get columns =>
+      report.request.layout == ReportLayout.roles && selectedRoleIds != null
+      ? report.availableRoleColumns
+            .where((c) => selectedRoleIds!.contains(c.id))
+            .toList()
+      : report.columns;
   String get title =>
       '${strings.text('Reports')} · ${report.rows.isEmpty ? '' : '${report.rows.first.date.year}-${report.rows.first.date.month.toString().padLeft(2, '0')}'} · ${strings.text(report.request.layout == ReportLayout.roles ? 'By role' : 'By physician')}';
   List<String> get headings => [
-    ...report.columns.map((c) => c.label),
+    ...columns.map((c) => c.label),
     strings.text('Absences / holiday'),
   ];
   List<String> cells(ReportRow row) => [
-    for (final c in report.columns) localizedCell(row.cells[c.id]!),
+    for (final c in columns) localizedCell(row.cells[c.id]!),
     [
       if (row.calendar.publicHolidayName != null)
         holiday(row.calendar.publicHolidayName!),

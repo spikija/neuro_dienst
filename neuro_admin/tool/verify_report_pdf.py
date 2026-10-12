@@ -42,3 +42,15 @@ for name in ("portrait", "landscape", "physicians"):
             assert len(set(colors)) >= 4, "Header/weekend/holiday hierarchy missing"
             assert "Abwesenheiten / Feiertag" in " ".join(text.split()), "Final column dropped"
         print(f"{name}: {len(document)} pages; A4, headers, bounds and columns verified")
+
+for orientation in ("portrait", "landscape"):
+    with fitz.open(Path("build/test-pdf") / f"selected-{orientation}.pdf") as document:
+        assert len(document) == 1
+        text = " ".join(document[0].get_text().split())
+        assert "Custom Clinic" in text and "Hidden Default" in text
+        assert "Rare Board" not in text and "RARE" not in text
+        assert text.index("Custom Clinic") < text.index("Hidden Default")
+        assert (document[0].rect.width > document[0].rect.height) == (orientation == "landscape")
+        for block in document[0].get_text("blocks"):
+            assert 0 <= block[0] <= block[2] <= document[0].rect.width + 1
+        print(f"selected-{orientation}: selected columns present, unselected role absent, configured order and bounds verified")

@@ -83,6 +83,9 @@ final class ReportDocument {
   final RosterPhase phase;
   final ReportConfiguration configuration;
   final List<ReportColumn> columns;
+
+  /// All configured role columns available for explicit print selection.
+  final List<ReportColumn> availableRoleColumns;
   final List<ReportRow> rows;
   final List<String> parityWarnings;
   final Map<String, String> physicianLabels;
@@ -92,9 +95,13 @@ final class ReportDocument {
     required this.configuration,
     required Iterable<ReportColumn> columns,
     required Iterable<ReportRow> rows,
+    Iterable<ReportColumn>? availableRoleColumns,
     Iterable<String> parityWarnings = const [],
     Map<String, String> physicianLabels = const {},
-  }) : columns = List.unmodifiable(columns),
+  }) : availableRoleColumns = List.unmodifiable(
+         availableRoleColumns ?? columns,
+       ),
+       columns = List.unmodifiable(columns),
        rows = List.unmodifiable(rows),
        parityWarnings = List.unmodifiable(parityWarnings),
        physicianLabels = Map.unmodifiable(physicianLabels);
@@ -131,11 +138,22 @@ class FactualReportProjection implements ReportProjectionService {
             snapshot.contentVersion != request.roster.contentVersion)) {
       throw StateError('Report snapshot changed; reload');
     }
-    final roles = configuration.roles.where((r) => r.printInReport).toList()
+    final allRoles = configuration.roles.toList()
       ..sort((a, b) {
         final order = a.displayOrder.compareTo(b.displayOrder);
-        return order != 0 ? order : a.role.code.compareTo(b.role.code);
+        if (order != 0) return order;
+        final code = a.role.code.compareTo(b.role.code);
+        return code != 0 ? code : a.role.id.compareTo(b.role.id);
       });
+    final roles = allRoles.where((r) => r.printInReport).toList();
+    final availableRoleColumns = [
+      for (final r in allRoles)
+        ReportColumn(
+          r.role.id,
+          '${r.role.code}: ${r.role.name}',
+          colorKey: r.role.colorKey,
+        ),
+    ];
     final visibleIds = roles.map((r) => r.role.id).toSet();
     final assignedIds = snapshot.days
         .expand((d) => d.assignments)
@@ -183,6 +201,9 @@ class FactualReportProjection implements ReportProjectionService {
       phase: snapshot.month.phase,
       configuration: configuration,
       columns: columns,
+      availableRoleColumns: request.layout == ReportLayout.roles
+          ? availableRoleColumns
+          : null,
       rows: [
         for (
           var n = 1;
@@ -207,7 +228,10 @@ class FactualReportProjection implements ReportProjectionService {
                   d.id: [d.absenceOn(date.asDateOnlyUtc)!],
             };
             return ReportRow(date, AustrianHolidays.day(date), {
-              for (final c in columns)
+              for (final c
+                  in request.layout == ReportLayout.roles
+                      ? availableRoleColumns
+                      : columns)
                 c.id: ReportCell(
                   assignments: (day?.assignments ?? <AssignmentFact>[]).where(
                     (a) => request.layout == ReportLayout.roles

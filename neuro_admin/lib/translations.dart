@@ -12,6 +12,16 @@ const englishLabels = <String, String>{
   'canSupervise': 'Supervision',
 };
 const german = <String, String>{
+  'Select all': 'Alle ausw\u00e4hlen',
+  'Orientation': 'Ausrichtung',
+  '{selected} of {total} roles': '{selected} von {total} Rollen',
+  'Select none': 'Keine ausw\u00e4hlen',
+  'Only roles used this month': 'Nur in diesem Monat verwendete Rollen',
+  'Select at least one role to export.':
+      'Mindestens eine Rolle zum Exportieren ausw\u00e4hlen.',
+  'Could not remember print columns locally.':
+      'Druckspalten konnten lokal nicht gespeichert werden.',
+
   'Stationary': 'Station\u00e4r',
   'Ambulatory / Other': 'Ambulant / Andere',
   'Role group': 'Rollengruppe',

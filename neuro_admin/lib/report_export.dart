@@ -11,6 +11,7 @@ abstract interface class ReportExportService {
     ReportOrientation orientation,
     AdminStrings strings, {
     required bool print,
+    Set<String>? selectedRoleIds,
   });
 }
 
@@ -22,8 +23,14 @@ class DesktopReportExport implements ReportExportService {
     ReportOrientation orientation,
     AdminStrings strings, {
     required bool print,
+    Set<String>? selectedRoleIds,
   }) async {
-    final pdf = await buildReportPdf(report, orientation, strings);
+    final pdf = await buildReportPdf(
+      report,
+      orientation,
+      strings,
+      selectedRoleIds: selectedRoleIds,
+    );
     final name =
         'NeuroDienst-${report.rows.isEmpty ? 'report' : report.rows.first.date}-${report.request.layout.name}-${orientation.name}.pdf';
     if (print) {

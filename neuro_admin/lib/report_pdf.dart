@@ -19,17 +19,28 @@ class ReportPdf {
 Future<ReportPdf> buildReportPdf(
   ReportDocument report,
   ReportOrientation orientation,
-  AdminStrings strings,
-) async {
+  AdminStrings strings, {
+  Set<String>? selectedRoleIds,
+}) async {
   final format = orientation == ReportOrientation.portrait
       ? PdfPageFormat.a4
       : PdfPageFormat.a4.landscape;
-  final presentation = ReportPresentation(report, strings);
+  final presentation = ReportPresentation(
+    report,
+    strings,
+    selectedRoleIds: selectedRoleIds,
+  );
+  final columns = presentation.columns;
+  if (report.request.layout == ReportLayout.roles && columns.isEmpty) {
+    throw const ReportPrintLayoutException(
+      'Select at least one role to export.',
+    );
+  }
   final headings = presentation.headings;
   final values = report.rows.map(presentation.cells).toList();
   final layout = ReportPrintLayout(
     page: format,
-    roleCount: report.columns.length,
+    roleCount: columns.length,
     monthly: report.request.layout == ReportLayout.roles,
   );
   layout.validate();
@@ -94,11 +105,9 @@ Future<ReportPdf> buildReportPdf(
             columnWidths: {
               0: pw.FixedColumnWidth(layout.dateWidth),
               if (layout.monthly) ...{
-                for (var c = 1; c <= report.columns.length; c++)
+                for (var c = 1; c <= columns.length; c++)
                   c: pw.FixedColumnWidth(layout.roleWidth),
-                report.columns.length + 1: pw.FixedColumnWidth(
-                  layout.notesWidth,
-                ),
+                columns.length + 1: pw.FixedColumnWidth(layout.notesWidth),
               },
             },
             defaultColumnWidth: const pw.FlexColumnWidth(),
@@ -114,14 +123,14 @@ Future<ReportPdf> buildReportPdf(
                     pw.Container(
                       decoration:
                           report.request.layout == ReportLayout.roles &&
-                              c < report.columns.length
+                              c < columns.length
                           ? pw.BoxDecoration(
                               border: pw.Border(
                                 bottom: pw.BorderSide(
                                   color: PdfColor.fromInt(
                                     roleColor(
-                                      report.columns[c].id,
-                                      report.columns[c].colorKey,
+                                      columns[c].id,
+                                      columns[c].colorKey,
                                     ).lightArgb,
                                   ),
                                   width: 1,

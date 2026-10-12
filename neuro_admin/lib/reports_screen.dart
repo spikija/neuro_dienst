@@ -5,6 +5,9 @@ import 'report_export.dart';
 import 'report_pdf.dart';
 import 'report_print_layout.dart';
 import 'localization.dart';
+import 'report_print_preferences.dart';
+import 'package:printing/printing.dart';
+import 'package:pdf/pdf.dart';
 
 class ReportsScreen extends StatefulWidget {
   final ReportingService service;
@@ -49,14 +52,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  Future<void> export(ReportOrientation orientation) async {
+  Future<void> export() async {
     final data = report!;
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => ReportExportDialog(
         report: data,
-        orientation: orientation,
+        orientation: ReportOrientation.portrait,
         exporter: widget.exporter,
       ),
     );
@@ -68,21 +71,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
       title: const AdminText('Reports'),
       actions: [
         const LanguageButton(),
-        PopupMenuButton<ReportOrientation>(
-          enabled: report != null && !busy && !failed,
+        IconButton(
+          onPressed: report != null && !busy && !failed ? export : null,
           tooltip: AdminStrings.of(context).text('Print / PDF'),
           icon: const Icon(Icons.print),
-          onSelected: export,
-          itemBuilder: (_) => const [
-            PopupMenuItem(
-              value: ReportOrientation.portrait,
-              child: AdminText('A4 Portrait'),
-            ),
-            PopupMenuItem(
-              value: ReportOrientation.landscape,
-              child: AdminText('A4 Landscape'),
-            ),
-          ],
         ),
         IconButton(
           onPressed: busy ? null : reload,
@@ -148,22 +140,100 @@ class ReportExportDialog extends StatefulWidget {
 }
 
 class _ReportExportDialogState extends State<ReportExportDialog> {
-  bool busy = false, failed = false;
+  bool busy = false, failed = false, loading = true;
   String? printError;
-  Future<void> run(bool print) async {
+  late ReportOrientation orientation = widget.orientation;
+  Set<String> selected = {};
+  final preferences = const ReportPrintPreferences();
+  bool get monthly => widget.report.request.layout == ReportLayout.roles;
+  bool get canExport => !busy && !loading && (!monthly || selected.isNotEmpty);
+
+  @override
+  void initState() {
+    super.initState();
+    restore();
+  }
+
+  Future<void> restore() async {
+    final value = monthly
+        ? await preferences.restore(widget.report)
+        : <String>{};
+    if (mounted) {
+      setState(() {
+        selected = value;
+        loading = false;
+      });
+    }
+  }
+
+  Future<void> run(bool? print) async {
+    if (!canExport) return;
     final strings = AdminStrings.of(context);
+    final ids = monthly ? Set<String>.unmodifiable(selected) : null;
     setState(() {
       busy = true;
       failed = false;
+      printError = null;
     });
     try {
-      await widget.exporter.export(
-        widget.report,
-        widget.orientation,
-        strings,
-        print: print,
-      );
-      if (mounted) Navigator.pop(context);
+      if (print == null) {
+        final pdf = await buildReportPdf(
+          widget.report,
+          orientation,
+          strings,
+          selectedRoleIds: ids,
+        );
+        if (!mounted) return;
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const AdminText('Preview'),
+            content: SizedBox(
+              width: 900,
+              height: 650,
+              child: PdfPreview(
+                initialPageFormat: orientation == ReportOrientation.portrait
+                    ? PdfPageFormat.a4
+                    : PdfPageFormat.a4.landscape,
+                build: (_) async => pdf.bytes,
+                allowPrinting: false,
+                allowSharing: false,
+                canChangePageFormat: false,
+                canChangeOrientation: false,
+                canDebug: false,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const AdminText('Close'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        await widget.exporter.export(
+          widget.report,
+          orientation,
+          strings,
+          print: print,
+          selectedRoleIds: ids,
+        );
+      }
+      if (monthly) {
+        try {
+          await preferences.save(widget.report, ids!);
+        } catch (_) {
+          if (mounted) {
+            setState(() {
+              failed = true;
+              printError = 'Could not remember print columns locally.';
+            });
+          }
+          return;
+        }
+      }
+      if (mounted && print != null) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -180,34 +250,125 @@ class _ReportExportDialogState extends State<ReportExportDialog> {
   Widget build(BuildContext context) => PopScope(
     canPop: !busy,
     child: AlertDialog(
-      title: AdminText(
-        widget.orientation == ReportOrientation.portrait
-            ? 'A4 Portrait'
-            : 'A4 Landscape',
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (failed)
-            AdminText(
-              printError ??
-                  'Operation failed. Check your access and connection.',
-            ),
-          if (busy) const LinearProgressIndicator(),
-        ],
+      title: const AdminText('Print / PDF'),
+      content: SizedBox(
+        width: 540,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<ReportOrientation>(
+                key: const ValueKey('print-orientation'),
+                initialValue: orientation,
+                decoration: InputDecoration(
+                  labelText: AdminStrings.of(context).text('Orientation'),
+                ),
+                items: [
+                  for (final value in ReportOrientation.values)
+                    DropdownMenuItem(
+                      value: value,
+                      child: AdminText(
+                        value == ReportOrientation.portrait
+                            ? 'A4 Portrait'
+                            : 'A4 Landscape',
+                      ),
+                    ),
+                ],
+                onChanged: busy
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => orientation = value);
+                      },
+              ),
+              if (loading) const LinearProgressIndicator(),
+              if (monthly && !loading) ...[
+                const SizedBox(height: 12),
+                AdminText(
+                  '{selected} of {total} roles',
+                  args: {
+                    'selected': selected.length,
+                    'total': widget.report.availableRoleColumns.length,
+                  },
+                ),
+                Wrap(
+                  spacing: 4,
+                  children: [
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => setState(
+                              () => selected = widget
+                                  .report
+                                  .availableRoleColumns
+                                  .map((c) => c.id)
+                                  .toSet(),
+                            ),
+                      child: const AdminText('Select all'),
+                    ),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => setState(() => selected = {}),
+                      child: const AdminText('Select none'),
+                    ),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => setState(
+                              () => selected = usedReportRoleIds(widget.report),
+                            ),
+                      child: const AdminText('Only roles used this month'),
+                    ),
+                  ],
+                ),
+                for (final column in widget.report.availableRoleColumns)
+                  CheckboxListTile(
+                    key: ValueKey('print-role-${column.id}'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(column.label),
+                    value: selected.contains(column.id),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    onChanged: busy
+                        ? null
+                        : (value) => setState(() {
+                            if (value == true) {
+                              selected.add(column.id);
+                            } else {
+                              selected.remove(column.id);
+                            }
+                          }),
+                  ),
+                if (selected.isEmpty)
+                  const AdminText('Select at least one role to export.'),
+              ],
+              if (failed)
+                AdminText(
+                  printError ??
+                      'Operation failed. Check your access and connection.',
+                ),
+              if (busy) const LinearProgressIndicator(),
+            ],
+          ),
+        ),
       ),
       actions: [
         TextButton(
           onPressed: busy ? null : () => Navigator.pop(context),
-          child: const AdminText('Close'),
+          child: const AdminText('Cancel'),
+        ),
+        TextButton(
+          onPressed: canExport ? () => run(null) : null,
+          child: const AdminText('Preview'),
         ),
         FilledButton.icon(
-          onPressed: busy ? null : () => run(false),
+          onPressed: canExport ? () => run(false) : null,
           icon: const Icon(Icons.picture_as_pdf),
           label: const AdminText('Save PDF'),
         ),
         FilledButton.icon(
-          onPressed: busy ? null : () => run(true),
+          onPressed: canExport ? () => run(true) : null,
           icon: const Icon(Icons.print),
           label: const AdminText('Print'),
         ),
