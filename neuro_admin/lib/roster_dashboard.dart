@@ -781,6 +781,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   Widget _dailyRoster(RosterSnapshot snapshot) {
     final days = {for (final day in snapshot.days) calendarDate(day.date): day};
     final selectedDay = days[_focusedDate];
+    final roles = calendarRoles(snapshot);
     return Card.outlined(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -837,8 +838,22 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     )
                   : const SizedBox.shrink(),
             ),
-            for (final role in calendarRoles(snapshot))
-              _dailyRole(role, selectedDay),
+            for (final group in RoleGroup.values)
+              if (roles.any((role) => role.group == group)) ...[
+                Padding(
+                  key: ValueKey('daily-role-group-${group.name}'),
+                  padding: const EdgeInsets.only(top: 6, bottom: 2),
+                  child: AdminText(
+                    roleGroupLabel(group),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                for (final role in roles.where((role) => role.group == group))
+                  _dailyRole(role, selectedDay),
+              ],
             if (selectedDay != null) ...[
               const Divider(),
               const AdminText('Absences / day markers'),
@@ -857,6 +872,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
   }
 
   Widget _dateCell(DateTime date, StoredDay? day, bool selected) {
+    final roles = calendarRoles(_snapshot!);
     final scheme = Theme.of(context).colorScheme;
     final colors =
         Theme.of(context).extension<CalendarColors>() ??
@@ -936,11 +952,10 @@ class _RosterDashboardState extends State<RosterDashboard> {
           child: Row(
             children: [
               SizedBox(
-                width: 28,
-                child: CalendarRoleIndicators(
-                  roles: calendarRoles(_snapshot!),
-                  day: day,
-                ),
+                width: roles.any((role) => role.group == RoleGroup.stationary)
+                    ? 44
+                    : 28,
+                child: CalendarRoleIndicators(roles: roles, day: day),
               ),
               Expanded(
                 child: Center(

@@ -12,6 +12,9 @@ const englishLabels = <String, String>{
   'canSupervise': 'Supervision',
 };
 const german = <String, String>{
+  'Stationary': 'Station\u00e4r',
+  'Ambulatory / Other': 'Ambulant / Andere',
+  'Role group': 'Rollengruppe',
   'Not generated': 'Nicht erstellt',
   'Click to focus/select a day. Arrows move focus by one day or one week without changing selection. Drag selects a range. In assignment mode, valid days toggle and drag adds valid days. Colored circles: outline = vacant, half = partial, filled = staffed; grey = not scheduled. Hover for counts.':
       'Klicken fokussiert bzw. wählt einen Tag. Pfeiltasten bewegen den Fokus um einen Tag bzw. eine Woche, ohne die Auswahl zu ändern. Ziehen wählt einen Bereich. Im Zuweisungsmodus werden nur gültige Tage ausgewählt. Farbige Kreise: leer = unbesetzt, halb = teilweise, voll = besetzt; grau = nicht vorgesehen. Details beim Darüberfahren.',

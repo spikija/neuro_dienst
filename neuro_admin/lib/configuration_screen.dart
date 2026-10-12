@@ -197,6 +197,7 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
   late final end = TextEditingController(
     text: widget.template?.end.substring(0, 5) ?? '16:00',
   );
+  late RoleGroup group = widget.role?.group ?? RoleGroup.ambulatory;
   late String? colorKey = widget.role?.colorKey;
   late bool active = widget.template?.active ?? widget.role?.active ?? true;
   late bool printVisible = widget.role?.printInReport ?? true;
@@ -262,6 +263,7 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
               'is_active': active,
               'print_in_report': printVisible,
               'color_key': colorKey,
+              'ui_group': group.name,
               'allowed_ranks': ranks.map(databaseEnum).toList(),
               'required_capabilities': capabilities.map(databaseEnum).toList(),
             },
@@ -353,6 +355,25 @@ class _ConfigurationEditorState extends State<ConfigurationEditor> {
                             field('Code', code),
                             field('Display name', name),
                             field('Report order', order, integer: true),
+                            DropdownButtonFormField<RoleGroup>(
+                              key: const ValueKey('role-group-field'),
+                              initialValue: group,
+                              decoration: InputDecoration(
+                                labelText: s.text('Role group'),
+                              ),
+                              items: [
+                                for (final value in RoleGroup.values)
+                                  DropdownMenuItem(
+                                    value: value,
+                                    child: AdminText(roleGroupLabel(value)),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() => group = value);
+                                }
+                              },
+                            ),
                             DropdownButtonFormField<String>(
                               key: const ValueKey('role-color-field'),
                               initialValue: colorKey ?? '',

@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
 import 'localization.dart';
 
+String roleGroupLabel(RoleGroup group) => switch (group) {
+  RoleGroup.stationary => 'Stationary',
+  RoleGroup.ambulatory => 'Ambulatory / Other',
+};
+
 Color roleDisplayColor(BuildContext context, String roleId, [String? key]) {
   final palette = roleColor(roleId, key);
   return Color(
@@ -90,9 +95,51 @@ class CalendarRoleIndicators extends StatelessWidget {
     required this.day,
   });
   @override
+  Widget build(BuildContext context) {
+    final groups = {
+      for (final group in RoleGroup.values)
+        group: roles.where((r) => r.group == group).toList()
+          ..sort(compareRoleOrder),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final group in RoleGroup.values)
+          if (groups[group]!.isNotEmpty) ...[
+            if (group == RoleGroup.ambulatory &&
+                groups[RoleGroup.stationary]!.isNotEmpty)
+              const SizedBox(width: 4),
+            SizedBox(
+              key: ValueKey('calendar-role-group-${group.name}'),
+              width: group == RoleGroup.stationary ? 12 : 26,
+              child: Semantics(
+                label: AdminStrings.of(context).text(roleGroupLabel(group)),
+                child: _RoleIndicatorGrid(
+                  roles: groups[group]!,
+                  day: day,
+                  columns: group == RoleGroup.stationary ? 1 : 2,
+                ),
+              ),
+            ),
+          ],
+      ],
+    );
+  }
+}
+
+class _RoleIndicatorGrid extends StatelessWidget {
+  final List<StoredRole> roles;
+  final StoredDay? day;
+  final int columns;
+  const _RoleIndicatorGrid({
+    required this.roles,
+    required this.day,
+    required this.columns,
+  });
+  @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      const columns = 2;
       final rows = constraints.hasBoundedHeight
           ? math.max(1, ((constraints.maxHeight + 2) / 14).floor())
           : (roles.length / columns).ceil();
@@ -107,7 +154,7 @@ class CalendarRoleIndicators extends StatelessWidget {
       return Align(
         alignment: Alignment.topLeft,
         child: SizedBox(
-          width: 26,
+          width: columns * 14 - 2,
           child: Wrap(
             spacing: 2,
             runSpacing: 2,

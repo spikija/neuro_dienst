@@ -52,12 +52,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Teal').last);
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('role-group-field')));
+    await tester.tap(find.byKey(const ValueKey('role-group-field')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Stationary').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(service.changes.single.values['code'], 'GENERIC-17');
     expect(service.changes.single.values['max_doctors'], 1);
     expect(service.changes.single.kind, 'roles');
     expect(service.changes.single.values['color_key'], 'teal');
+    expect(service.changes.single.values['ui_group'], 'stationary');
   });
   testWidgets(
     'template editor chooses arbitrary role and explicit weekday set',

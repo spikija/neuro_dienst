@@ -17,10 +17,26 @@ The same ordered indicator grid appears at the left of each day. When available
 space is exhausted, an explicit +N tooltip contains every remaining role and its
 status. Daily Roster cards retain configured order with compact, content-sized
 scheduled rows and one-line unscheduled rows. Multiple slots and physician names
-wrap without nested scrolling. Calendar markers use a tight two-column grid
-with explicit tooltip overflow. Markers are 12 px with 2 px gaps in a 26 px
-block. Daily rows use 5 px vertical padding, 11-13 px text with a 1.15 line
-height, and 2 px card margins. Same-day shifts show times only; overnight
+wrap without nested scrolling. Calendar markers use compact grouped layouts
+with explicit tooltip overflow per group. `roles.ui_group` separates stationary
+roles into a 12 px left column and ambulatory/other roles into a 26 px two-column
+block to its right, with a 4 px separation. Both use 12 px circles and 2 px gaps.
+The daily roster has matching localized section headings and retains configured
+order within each section. Empty groups omit their heading; unscheduled roles
+remain visible. Grouping never changes assignment rules or workload categories.
+
+Role administration exposes the group alongside color. The additive migration
+`202610120002_role_ui_groups.sql` seeds SUL/SU1/SU2 as stationary once and defaults
+other existing/new roles to ambulatory. No runtime code tests neurology codes for
+grouping. Older clients preserve the group when omitting it. Unknown future group
+tokens display in Other in older clients, retaining role identities. To add a
+new distinct section later, extend the database constraint, shared RoleGroup and
+localized section label; this does not require changes to scheduling services.
+
+Apply the grouping migration after the color migration and before deploying the
+new build. No live migration is applied by this task.
+
+Daily rows use 5 px vertical padding, 11-13 px text with a 1.15 line height, and 2 px card margins. Same-day shifts show times only; overnight
 shifts retain dates. All physicians and assignment states remain visible.
 Ten single-slot vacant roles fit without scrolling in the tested desktop sizes;
 long names, multiple shifts and larger accessibility text can require scrolling.
@@ -81,3 +97,10 @@ Verified on 2026-10-12:
   remain one page, with bounds, columns, headers and weekday styling verified.
 - Windows release build succeeds (`build/windows/x64/runner/Release/neuro_admin.exe`).
 - No live migration, account changes, assignments or generation were performed.
+
+Grouping follow-up verification (2026-10-12): flutter analyze clean, all 99 desktop
+and 55 shared-service tests pass, isolated configuration/backend tests pass with
+seed/default/change/rejection/older-client preservation checks, and Windows
+release build succeeds. Grouped widget tests cover the vertical stationary column,
+right-hand two-column grid, stable ordering, staffing tooltips, daily sections and
+exact role activation. No live migration was applied.

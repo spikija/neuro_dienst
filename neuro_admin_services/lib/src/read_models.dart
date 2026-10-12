@@ -1,5 +1,14 @@
 import 'package:neuro_core/neuro_core.dart';
 
+/// Presentation grouping only; never used to infer scheduling eligibility.
+enum RoleGroup {
+  stationary,
+  ambulatory;
+
+  static RoleGroup fromDatabase(Object? value) =>
+      values.where((g) => g.name == value).firstOrNull ?? ambulatory;
+}
+
 typedef JsonRow = Map<String, dynamic>;
 
 /// Metadata for choosing a persisted month; domain objects remain in neuro_core.
@@ -26,6 +35,7 @@ class StoredRole {
   final int displayOrder;
   final bool printInReport;
   final String? colorKey;
+  final RoleGroup group;
   const StoredRole(
     this.id,
     this.code,
@@ -36,6 +46,7 @@ class StoredRole {
     this.displayOrder = 0,
     this.printInReport = true,
     this.colorKey,
+    this.group = RoleGroup.ambulatory,
   });
 }
 

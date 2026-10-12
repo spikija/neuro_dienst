@@ -1,17 +1,20 @@
 import 'package:neuro_core/neuro_core.dart';
 import 'admin_contracts.dart';
 import 'directory.dart';
+import 'read_models.dart';
 
 /// Exact configured identities; never collapse custom roles into DutyRole.
 final class ConfiguredRole {
   final String id, code, name, updatedAt;
   final String? colorKey;
+  final RoleGroup group;
   final bool active, printInReport;
   final int capacity, displayOrder;
   final Set<DoctorRank> ranks;
   final Set<Capability> capabilities;
   ConfiguredRole(Map<String, dynamic> r)
-    : colorKey = r['color_key'],
+    : group = RoleGroup.fromDatabase(r['ui_group']),
+      colorKey = r['color_key'],
       id = r['id'],
       code = r['code'],
       name = r['name'],
