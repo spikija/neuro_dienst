@@ -205,6 +205,16 @@ class _RosterDashboardState extends State<RosterDashboard> {
     await _refresh(targetMonthId: month.id);
   }
 
+  Future<void> _adjacentMonth(int delta) async {
+    if (_loading || _applying || _selected == null) return;
+    final month = DateTime.utc(_selected!.year, _selected!.month + delta);
+    final day = (_focusedDate?.day ?? 1).clamp(
+      1,
+      DateTime.utc(month.year, month.month + 1, 0).day,
+    );
+    await _refresh(focusDate: DateTime.utc(month.year, month.month, day));
+  }
+
   List<Widget> _toolbar() => [
     PopupMenuButton<String>(
       tooltip: AdminStrings.of(context).text('Selection actions'),
@@ -442,21 +452,65 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (_months.isNotEmpty)
-                    DropdownButton<String>(
-                      key: const ValueKey('month-selector'),
-                      value: _selected?.id,
-                      items: [
-                        for (final month in _months)
-                          DropdownMenuItem(
-                            value: month.id,
-                            child: AdminText(month.label),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: const ValueKey('previous-month'),
+                          tooltip: AdminStrings.of(
+                            context,
+                          ).text('Previous month'),
+                          onPressed: _loading ? null : () => _adjacentMonth(-1),
+                          icon: const Icon(Icons.chevron_left, size: 28),
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
                           ),
+                        ),
+                        DropdownButton<String>(
+                          key: const ValueKey('month-selector'),
+                          value: _selected?.id,
+                          underline: const SizedBox.shrink(),
+                          selectedItemBuilder: (context) => [
+                            for (final month in _months)
+                              Center(
+                                child: Text(
+                                  MaterialLocalizations.of(
+                                    context,
+                                  ).formatMonthYear(
+                                    DateTime(month.year, month.month),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                          items: [
+                            for (final month in _months)
+                              DropdownMenuItem(
+                                value: month.id,
+                                child: AdminText(month.label),
+                              ),
+                          ],
+                          onChanged: _loading
+                              ? null
+                              : (id) => _chooseMonth(
+                                  _months.firstWhere((month) => month.id == id),
+                                ),
+                        ),
+                        IconButton(
+                          key: const ValueKey('next-month'),
+                          tooltip: AdminStrings.of(context).text('Next month'),
+                          onPressed: _loading ? null : () => _adjacentMonth(1),
+                          icon: const Icon(Icons.chevron_right, size: 28),
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
+                        ),
                       ],
-                      onChanged: _loading
-                          ? null
-                          : (id) => _chooseMonth(
-                              _months.firstWhere((month) => month.id == id),
-                            ),
                     ),
                   if (_selected != null)
                     Chip(
@@ -654,7 +708,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
     final days = {for (final day in snapshot.days) calendarDate(day.date): day};
     return Card.outlined(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         child: CustomScrollView(
           key: const ValueKey('roster-calendar-scroll'),
           physics: _selection.isDragging
@@ -734,10 +788,24 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         'Sat',
                         'Sun',
                       ])
-                        Expanded(child: Center(child: AdminText(label))),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Center(
+                              child: AdminText(
+                                label,
+                                key: ValueKey('weekday-$label'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 2),
                 ],
               ),
             ),
@@ -878,6 +946,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
         Theme.of(context).extension<CalendarColors>() ??
         CalendarColors.forScheme(scheme);
     final key = HospitalDate.fromCalendarComponents(date);
+    final now = ViennaSchedulingTime.localTime(DateTime.now().toUtc());
+    final today =
+        date.year == now.year && date.month == now.month && date.day == now.day;
     final holiday = AustrianHolidays.day(key).publicHolidayName;
     final valid = _assignability?.assignableDates.contains(key) ?? false;
     final warning = _assignability?.warningDates.contains(key) ?? false;
@@ -910,6 +981,7 @@ class _RosterDashboardState extends State<RosterDashboard> {
         if (holiday != null)
           localizedHoliday(holiday, AdminStrings.of(context)),
         if (selected) AdminStrings.of(context).text('Selected'),
+        if (today) AdminStrings.of(context).text('Today'),
         ...?result?.errors.map(
           (e) => validationErrorText(AdminStrings.of(context), e),
         ),
@@ -937,11 +1009,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
                       day?.calendarInfo.isPublicHoliday == true
                 ? scheme.surfaceContainerHighest
                 : scheme.surface,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.zero,
             border: Border.all(
-              color: selected || valid
-                  ? colors.assignable
-                  : scheme.outlineVariant,
+              color: selected || valid ? colors.assignable : Colors.transparent,
               width: selected
                   ? 3
                   : valid
@@ -959,48 +1029,40 @@ class _RosterDashboardState extends State<RosterDashboard> {
               ),
               Expanded(
                 child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AdminText(
-                              '${date.day}',
-                              style: TextStyle(
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.w500,
-                                color: blocked
-                                    ? scheme.onSurfaceVariant
-                                    : scheme.onSurface,
-                              ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Container(
+                          key: today ? ValueKey('calendar-today-$key') : null,
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          decoration: today
+                              ? BoxDecoration(
+                                  border: Border(
+                                    bottom: BorderSide(
+                                      color: scheme.primary,
+                                      width: 2,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          child: AdminText(
+                            '${date.day}',
+                            key: ValueKey('calendar-day-number-$key'),
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: selected
+                                  ? FontWeight.bold
+                                  : FontWeight.w600,
+                              color: scheme.onSurface,
                             ),
-                            if (holiday != null)
-                              Icon(
-                                Icons.celebration_outlined,
-                                size: 14,
-                                color: scheme.tertiary,
-                              ),
-                            if (selected)
-                              Icon(
-                                Icons.check,
-                                size: 14,
-                                color: colors.assignable,
-                              ),
-                            if (warning)
-                              Icon(
-                                Icons.warning_amber,
-                                size: 14,
-                                color: colors.warning,
-                              ),
-                            if (blocked)
-                              Icon(Icons.block, size: 14, color: scheme.error),
-                          ],
+                          ),
                         ),
-                        AdminText(
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: AdminText(
                           day == null
                               ? 'No roster day'
                               : AdminStrings.of(context).text(
@@ -1009,14 +1071,42 @@ class _RosterDashboardState extends State<RosterDashboard> {
                                 ),
                           style: const TextStyle(fontSize: 10),
                         ),
-                        if (occupants.isNotEmpty)
-                          Icon(
-                            Icons.person_outline,
-                            size: 14,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                      ],
-                    ),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (holiday != null)
+                              Icon(
+                                Icons.celebration_outlined,
+                                size: 12,
+                                color: scheme.tertiary,
+                              ),
+                            if (selected)
+                              Icon(
+                                Icons.check,
+                                size: 12,
+                                color: colors.assignable,
+                              ),
+                            if (warning)
+                              Icon(
+                                Icons.warning_amber,
+                                size: 12,
+                                color: colors.warning,
+                              ),
+                            if (blocked)
+                              Icon(Icons.block, size: 12, color: scheme.error),
+                            if (occupants.isNotEmpty)
+                              Icon(
+                                Icons.person_outline,
+                                size: 12,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

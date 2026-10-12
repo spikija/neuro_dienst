@@ -136,7 +136,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
       index ~/ 7 * _rowHeight,
       width,
       _rowHeight,
-    ).deflate(2);
+    );
   }
 
   DateTime _date(int day) => DateTime.utc(widget.year, widget.month, day);
@@ -223,19 +223,33 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
             child: SelectionContainer.disabled(
               child: MouseRegion(
                 cursor: SystemMouseCursors.click,
-                child: Column(
-                  key: _gridKey,
-                  children: [
-                    for (var week = 0; week < _weeks; week++)
-                      Row(
-                        children: [
-                          for (var weekday = 0; weekday < 7; weekday++)
-                            Expanded(
-                              child: _cell(week * 7 + weekday - _offset + 1),
-                            ),
-                        ],
-                      ),
-                  ],
+                child: Container(
+                  key: const ValueKey('continuous-calendar-grid'),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  foregroundDecoration: BoxDecoration(
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    key: _gridKey,
+                    children: [
+                      for (var week = 0; week < _weeks; week++)
+                        Row(
+                          children: [
+                            for (var weekday = 0; weekday < 7; weekday++)
+                              Expanded(
+                                child: _cell(week * 7 + weekday - _offset + 1),
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -246,14 +260,24 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
   );
 
   Widget _cell(int day) {
-    if (day < 1 || day > _count) return SizedBox(height: _rowHeight);
+    final line = BorderSide(
+      color: Theme.of(context).colorScheme.outlineVariant,
+      width: 0.5,
+    );
+    final gridLines = BoxDecoration(
+      border: Border(right: line, bottom: line),
+    );
+    if (day < 1 || day > _count) {
+      return Container(height: _rowHeight, foregroundDecoration: gridLines);
+    }
     final date = _date(day);
     final selected = widget.selection.dates.contains(date);
-    return SizedBox(
+    return Container(
+      foregroundDecoration: gridLines,
       key: _dayKeys.putIfAbsent(day, () => GlobalKey()),
       height: _rowHeight,
       child: Padding(
-        padding: const EdgeInsets.all(2),
+        padding: EdgeInsets.zero,
         child: Semantics(
           key: ValueKey(date),
           button: true,

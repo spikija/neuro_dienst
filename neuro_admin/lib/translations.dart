@@ -13,6 +13,9 @@ const englishLabels = <String, String>{
 };
 const german = <String, String>{
   'Select all': 'Alle ausw\u00e4hlen',
+  'Previous month': 'Vorheriger Monat',
+  'Next month': 'N\u00e4chster Monat',
+  'Today': 'Heute',
   'Orientation': 'Ausrichtung',
   '{selected} of {total} roles': '{selected} von {total} Rollen',
   'Select none': 'Keine ausw\u00e4hlen',
