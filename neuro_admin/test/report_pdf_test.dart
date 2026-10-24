@@ -86,7 +86,7 @@ void main() {
         roleCount: 9,
         monthly: true,
       );
-      expect(layout.roleWidth, (PdfPageFormat.a4.width - 36 - 78 - 68) / 9);
+      expect(layout.roleWidth, (PdfPageFormat.a4.width - 36 - 78 - 100) / 9);
       expect(layout.weekendHeight, lessThan(layout.weekdayHeight));
       expect(europeanReportDate(HospitalDate(2026, 10, 5)), '05.10.2026');
       expect(reportWeekday(HospitalDate(2026, 10, 5), 'de'), 'Mo');

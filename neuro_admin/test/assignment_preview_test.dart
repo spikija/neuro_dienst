@@ -232,13 +232,13 @@ void main() {
       await chooseDoctor(tester, 'ana');
       await chooseDoctor(tester, 'ben');
       expect(
-        find.text('0 assignable | 0 selected | 3 blocked | 0 warning-only'),
+        find.text('0 valid | 0 valid with warnings | 3 blocked'),
         findsOneWidget,
       );
-      expect(find.byType(AssignmentPreviewDetails), findsNothing);
+      expect(find.byType(AssignmentPreviewDetails), findsOneWidget);
       await chooseRole(tester, ambulance);
       expect(
-        find.text('1 valid | 0 valid with warnings | 0 blocked'),
+        find.text('1 valid | 0 valid with warnings | 2 blocked'),
         findsOneWidget,
       );
       expect(
@@ -246,7 +246,7 @@ void main() {
             .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
             .selection
             .dates,
-        hasLength(1),
+        hasLength(3),
       );
       expect(
         tester
@@ -266,10 +266,12 @@ void main() {
             )
             .preview
             .results
-            .single
+            .firstWhere((r) => r.date == HospitalDate(2026, 10, 3))
             .slotId,
         'icb-3',
       );
+      await selectDates(tester, 1);
+      await selectDates(tester, 2);
       await selectDates(tester, 3);
       expect(
         tester
@@ -286,10 +288,7 @@ void main() {
       reader.snapshot = previewFixture(inactive: {'ben'});
       await tester.tap(find.byTooltip('Refresh'));
       await tester.pumpAndSettle();
-      expect(
-        find.text('0 assignable | 0 selected | 1 blocked | 0 warning-only'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const ValueKey('candidate-ben')), findsNothing);
       expect(find.byType(AssignmentPreviewDetails), findsNothing);
       await tester.tap(find.byTooltip('Cancel preview'));
       await tester.pumpAndSettle();
@@ -299,7 +298,7 @@ void main() {
             .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
             .selection
             .dates,
-        hasLength(0),
+        hasLength(1),
       );
       await chooseRole(tester, leader);
       await tester.tap(find.byKey(const ValueKey('month-selector')));
@@ -359,7 +358,7 @@ void main() {
           );
         } else {
           expect(
-            find.text('0 assignable | 0 selected | 1 blocked | 0 warning-only'),
+            find.text('0 valid | 0 valid with warnings | 1 blocked'),
             findsOneWidget,
           );
           expect(
@@ -372,7 +371,7 @@ void main() {
         if (phase == RosterPhase.published) {
           expect(
             find.byTooltip(
-              'Blocked\nPublished roster requires a new revision before editing.\nCurrent: Ben Example',
+              'Blocked\nSelected\nPublished roster requires a new revision before editing.\nCurrent: Ben Example',
             ),
             findsOneWidget,
           );

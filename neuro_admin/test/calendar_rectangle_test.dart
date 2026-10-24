@@ -23,7 +23,7 @@ void main() {
         expect(selection.dates, dates(expected));
         expect(selection.isDragging, isFalse);
         selection.beginDrag(june(7));
-        expect(selection.dates, {june(7)});
+        expect(selection.dates, {...dates(expected), june(7)});
       },
     );
   }

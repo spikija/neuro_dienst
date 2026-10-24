@@ -1,5 +1,12 @@
 import 'package:neuro_admin_services/neuro_admin_services.dart';
+import 'package:neuro_core/neuro_core.dart';
 import 'localization.dart';
+
+class ReportAbsenceEntry {
+  final String surname;
+  final List<AvailabilityPeriod> periods;
+  const ReportAbsenceEntry(this.surname, this.periods);
+}
 
 /// Formatting only. ReportDocument remains the source of staffing/absence facts.
 class ReportPresentation {
@@ -24,23 +31,41 @@ class ReportPresentation {
     [
       if (row.calendar.publicHolidayName != null)
         holiday(row.calendar.publicHolidayName!),
-      ...{
-        for (final cell in row.cells.values)
-          for (final e in cell.absencesByPhysician.entries)
-            '${report.physicianLabels[e.key] ?? strings.text('Unknown physician')}: ${e.value.map((a) => strings.text(a.label)).join(', ')}',
-      },
+      ...absences(row).map((entry) => entry.surname),
     ].join('\n'),
   ];
   String localizedCell(ReportCell cell) {
     if (report.request.layout == ReportLayout.physicians &&
         cell.absencesByPhysician.isNotEmpty) {
-      return cell.absencesByPhysician.values
-          .expand((a) => a)
-          .map((a) => strings.text(a.label))
-          .toSet()
-          .join(', ');
+      return cellAbsences(cell).map((entry) => entry.surname).join('\n');
     }
     return reportCellText(cell, report.request.layout);
+  }
+
+  List<ReportAbsenceEntry> absences(ReportRow row) =>
+      _absenceEntries(row.cells.values);
+
+  List<ReportAbsenceEntry> cellAbsences(ReportCell cell) =>
+      _absenceEntries([cell]);
+
+  List<ReportAbsenceEntry> _absenceEntries(Iterable<ReportCell> cells) {
+    final byPhysician = <String, Map<AvailabilityType, AvailabilityPeriod>>{};
+    for (final cell in cells) {
+      for (final entry in cell.absencesByPhysician.entries) {
+        final types = byPhysician[entry.key] ??= {};
+        for (final period in entry.value) {
+          types[period.type] = period;
+        }
+      }
+    }
+    return [
+      for (final entry in byPhysician.entries)
+        ReportAbsenceEntry(
+          report.physicianSurnames[entry.key] ??
+              strings.text('Unknown physician'),
+          entry.value.values.toList(),
+        ),
+    ];
   }
 
   String holiday(String name) => localizedHoliday(name, strings);

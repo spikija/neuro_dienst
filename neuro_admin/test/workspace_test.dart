@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:neuro_admin/calendar_day_grid.dart';
 import 'package:neuro_admin/roster_dashboard.dart';
+import 'package:neuro_admin/physician_table.dart';
 import 'package:neuro_admin/workspace_dialogs.dart';
 import 'package:neuro_admin/reports_screen.dart';
 import 'package:neuro_admin/report_table.dart';
@@ -104,10 +105,12 @@ void main() {
       tester.view.physicalSize = size;
       await tester.pumpAndSettle();
       final calendar = tester.getRect(find.byType(CalendarDayGrid));
-      final middle = tester.getRect(
+      final middle = tester.getRect(find.byType(PhysicianTable));
+      final dailyRoster = tester.getRect(
         find.byKey(const ValueKey('daily-roster-pane')),
       );
       expect(calendar.right, lessThan(middle.left));
+      expect(middle.right, lessThan(dailyRoster.left));
       expect(find.text('Roster calendar'), findsNothing);
       expect(find.text('Duty role for preview'), findsNothing);
       await selectDates(tester, 1);
@@ -174,6 +177,7 @@ void main() {
       );
       expect(find.byIcon(Icons.celebration_outlined), findsOneWidget);
       await action('Select occupied days for removal');
+      await action('Clear selection');
       await selectDates(tester, 1);
       await action('Unassign all roles on selected days');
       expect(find.byType(RemovalDialog), findsOneWidget);

@@ -1,5 +1,6 @@
 import 'validation_localization.dart';
 import 'localization.dart';
+import 'physician_table.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -22,8 +23,7 @@ class AssignmentCandidatePanel extends StatefulWidget {
   final AssignmentMutationService? mutations;
   final ValueChanged<bool>? onBusyChanged;
   final Future<void> Function(bool stale)? onReload;
-  final void Function(MonthAssignability validity, bool preselect)?
-  onAssignability;
+  final ValueChanged<MonthAssignability>? onAssignability;
   final VoidCallback? onValidationFailed;
   const AssignmentCandidatePanel({
     super.key,
@@ -106,7 +106,13 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         )
           HospitalDate(month.year, month.month, day),
       ];
-      final doctors = widget.snapshot.doctors;
+      final doctors = widget.snapshot.doctors
+          .where(
+            (doctor) =>
+                !widget.snapshot.inactiveDoctorIds.contains(doctor.id) &&
+                !widget.snapshot.unknownActivityDoctorIds.contains(doctor.id),
+          )
+          .toList();
       final previews = await Future.wait([
         for (final doctor in doctors)
           service.preview(
@@ -132,7 +138,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         _loading = false;
         _authorized = authorized;
       });
-      _publishAssignability(true);
+      _publishAssignability();
     } catch (_) {
       if (!mounted || generation != _generation) return;
       setState(() {
@@ -144,10 +150,10 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
     }
   }
 
-  void _publishAssignability(bool preselect) {
+  void _publishAssignability() {
     final preview = _previews[widget.physicianId];
     if (preview != null) {
-      widget.onAssignability?.call(MonthAssignability(preview), preselect);
+      widget.onAssignability?.call(MonthAssignability(preview));
     }
   }
 
@@ -252,7 +258,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
             _authorized = false;
           }
         });
-        _publishAssignability(false);
+        _publishAssignability();
       }
     } catch (_) {
       if (mounted) {
@@ -298,12 +304,19 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
           widget.snapshot.unknownActivityDoctorIds.contains(doctor.id)) {
         return false;
       }
-      final preview = _previews[doctor.id];
+      final month = _previews[doctor.id];
+      final preview = month == null
+          ? null
+          : widget.dates.isEmpty
+          ? month
+          : MonthAssignability(month).selectedPreview(widget.dates);
       return _filter == _Filter.all ||
           preview != null &&
               (_filter == _Filter.eligible
                   ? _eligible(preview)
-                  : preview.proposedAdditions > 0);
+                  : widget.dates.isNotEmpty &&
+                        preview.allValid &&
+                        preview.proposedAdditions > 0);
     }).toList();
     return Card.outlined(
       child: Padding(
@@ -353,19 +366,31 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             Expanded(
-              child: ListView(
-                key: const ValueKey('physician-candidates'),
-                children: [
-                  if (doctors.isEmpty && !_loading)
-                    const AdminText('No physicians match this filter.'),
-                  for (final doctor in doctors)
-                    _candidate(doctor, _previews[doctor.id]),
-                ],
+              flex: 3,
+              child: PhysicianTable(
+                snapshot: widget.snapshot,
+                doctors: doctors,
+                selectedId: widget.physicianId,
+                onSelected: _applying
+                    ? null
+                    : (id) {
+                        _pending = null;
+                        widget.onPhysician(id);
+                      },
+                detailsBuilder: (doctor) => _candidate(
+                  doctor,
+                  widget.dates.isEmpty || _previews[doctor.id] == null
+                      ? _previews[doctor.id]
+                      : MonthAssignability(
+                          _previews[doctor.id]!,
+                        ).selectedPreview(widget.dates),
+                ),
               ),
             ),
             if (selected != null) ...[
               const Divider(),
               Expanded(
+                flex: 2,
                 child: AssignmentPreviewDetails(
                   preview: selected,
                   physicianName: widget.snapshot.doctors
@@ -376,7 +401,7 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
             ] else
               AdminText(
                 widget.physicianId == null
-                    ? 'Select a physician to check the whole month.'
+                    ? 'Select a physician for the selected days.'
                     : 'Select an assignable date to preview additions.',
               ),
             const SizedBox(height: 6),
@@ -453,75 +478,57 @@ class _AssignmentCandidatePanelState extends State<AssignmentCandidatePanel> {
         ? Icons.warning_amber
         : Icons.check_circle_outline;
     final reason = preview?.results.expand((r) => r.errors).firstOrNull;
-    return ListTile(
-      key: ValueKey('candidate-${doctor.id}'),
-      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-      selected: widget.physicianId == doctor.id,
-      title: AdminText(
-        snapshot.inactiveDoctorIds.contains(doctor.id)
-            ? AdminStrings.of(
-                context,
-              ).text('{name} (inactive)', {'name': doctor.fullName})
-            : doctor.fullName,
-      ),
-      onTap: _applying
-          ? null
-          : () {
-              _pending = null;
-              widget.onPhysician(doctor.id);
-            },
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AdminText(
+          'Rank: {p0}',
+          args: {'p0': AdminStrings.of(context).text(doctor.rank.name)},
+        ),
+        AdminText(
+          'Capabilities: {p0}',
+          args: {
+            'p0': doctor.capabilities.isEmpty
+                ? AdminStrings.of(context).text('None')
+                : doctor.capabilities
+                      .map((c) => AdminStrings.of(context).text(c.name))
+                      .join(', '),
+          },
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 4),
+            Expanded(child: AdminText(text)),
+          ],
+        ),
+        if (reason != null)
           AdminText(
-            'Rank: {p0}',
-            args: {'p0': AdminStrings.of(context).text(doctor.rank.name)},
+            validationErrorText(AdminStrings.of(context), reason),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          AdminText(
-            'Capabilities: {p0}',
-            args: {
-              'p0': doctor.capabilities.isEmpty
-                  ? AdminStrings.of(context).text('None')
-                  : doctor.capabilities
-                        .map((c) => AdminStrings.of(context).text(c.name))
-                        .join(', '),
-            },
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 16),
-              const SizedBox(width: 4),
-              Expanded(child: AdminText(text)),
-            ],
-          ),
-          if (reason != null)
-            AdminText(
-              validationErrorText(AdminStrings.of(context), reason),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          AdminText(
-            '90 days: 24h {p0} (weekend {p1}) | station {p2} | ambulance {p3} | science {p4}',
-            args: {
-              'p0': history.recordedDuty24Days,
-              'p1': history.recordedWeekendDuty24Days,
-              'p2': history.daysFor(WorkloadCategory.station),
-              'p3': history.daysFor(WorkloadCategory.ambulance),
-              'p4': history.daysFor(WorkloadCategory.science),
-            },
-          ),
-          AdminText(
-            'Current month: {p0} assignments / {p1} days; {p2} confirmed / {p3} provisional',
-            args: {
-              'p0': current.assignments,
-              'p1': current.assignedDays,
-              'p2': current.confirmed,
-              'p3': current.provisional,
-            },
-          ),
-        ],
-      ),
+        AdminText(
+          '90 days: 24h {p0} (weekend {p1}) | station {p2} | ambulance {p3} | science {p4}',
+          args: {
+            'p0': history.recordedDuty24Days,
+            'p1': history.recordedWeekendDuty24Days,
+            'p2': history.daysFor(WorkloadCategory.station),
+            'p3': history.daysFor(WorkloadCategory.ambulance),
+            'p4': history.daysFor(WorkloadCategory.science),
+          },
+        ),
+        AdminText(
+          'Current month: {p0} assignments / {p1} days; {p2} confirmed / {p3} provisional',
+          args: {
+            'p0': current.assignments,
+            'p1': current.assignedDays,
+            'p2': current.confirmed,
+            'p3': current.provisional,
+          },
+        ),
+      ],
     );
   }
 }

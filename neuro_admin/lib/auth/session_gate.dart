@@ -10,6 +10,7 @@ import 'package:neuro_admin_services/neuro_admin_services.dart'
         AssignmentMutationService,
         RosterGenerationService,
         AssignmentRemovalService,
+        AbsenceDayRemovalService,
         ReportingService;
 import 'package:neuro_admin_services/neuro_admin_services.dart'
     show DirectoryAdministrationService;
@@ -92,6 +93,7 @@ class SessionGate extends StatefulWidget {
   final AssignmentMutationService? mutations;
   final RosterGenerationService? generation;
   final AssignmentRemovalService? removals;
+  final AbsenceDayRemovalService? absenceRemovals;
   final ReportingService? reporting;
   final DirectoryAdministrationService? administration;
   final SessionGateway gateway;
@@ -103,6 +105,7 @@ class SessionGate extends StatefulWidget {
     this.mutations,
     this.generation,
     this.removals,
+    this.absenceRemovals,
     this.reporting,
     this.administration,
   });
@@ -285,6 +288,7 @@ class _SessionGateState extends State<SessionGate> {
             mutations: widget.mutations,
             generation: widget.generation,
             removals: widget.removals,
+            absenceRemovals: widget.absenceRemovals,
             reporting: widget.reporting,
             administration: widget.administration,
           );

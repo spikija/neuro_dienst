@@ -41,15 +41,27 @@ final class MonthAssignability {
 
   /// A subset is still advisory; never reuse a backend token for changed inputs.
   AssignmentPreview? selectedPreview(Set<HospitalDate> selectedDates) {
-    final results = preview.results
-        .where(
-          (r) =>
-              selectedDates.contains(r.date) &&
-              assignableDates.contains(r.date),
-        )
-        .toList();
-    if (results.isEmpty) return null;
+    if (selectedDates.isEmpty) return null;
     final request = preview.request;
+    final byDate = {for (final result in preview.results) result.date: result};
+    // Keep every chosen date, including failures. Omitting blocked dates would
+    // turn an invalid selection into a valid, silently reduced assignment.
+    final results = [
+      for (final date in (selectedDates.toList()..sort()))
+        byDate[date] ??
+            AssignmentValidationResult(
+              date: date,
+              slotId: null,
+              physicianId: request.physicianId,
+              roleId: request.roleId,
+              errors: const [
+                AssignmentValidationError(
+                  AssignmentErrorCode.validationUnavailable,
+                  'Selected date has not been validated.',
+                ),
+              ],
+            ),
+    ];
     return AssignmentPreview(
       request: AssignmentValidationRequest(
         roster: request.roster,

@@ -4,6 +4,8 @@ import 'localization.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:neuro_admin_services/neuro_admin_services.dart';
+import 'package:neuro_core/neuro_core.dart';
+import 'absence_icons.dart';
 
 /// One report, with a fixed corner/header and a date rail sharing the body's
 /// vertical viewport. Only the header's horizontal position needs mirroring.
@@ -49,11 +51,65 @@ class _ReportTableState extends State<ReportTable> {
     final labels = presentation.headings;
     final widths = [...report.columns.map((_) => 180.0), 260.0];
     final values = report.rows.map(presentation.cells).toList();
-    double height(List<String> texts) {
+    InlineSpan absenceText(
+      List<ReportAbsenceEntry> entries, {
+      String? holiday,
+    }) => TextSpan(
+      children: [
+        if (holiday != null) TextSpan(text: holiday),
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0 || holiday != null) const TextSpan(text: '\n'),
+          TextSpan(text: entries[i].surname),
+          for (final period in entries[i].periods) ...[
+            const TextSpan(text: ' '),
+            if (period.type == AvailabilityType.efDay)
+              const TextSpan(text: 'EF')
+            else
+              TextSpan(
+                text: String.fromCharCode(absenceIcon(period.type).codePoint),
+                semanticsLabel: presentation.strings.text(period.label),
+                style: TextStyle(
+                  fontFamily: absenceIcon(period.type).fontFamily,
+                  package: absenceIcon(period.type).fontPackage,
+                ),
+              ),
+          ],
+        ],
+      ],
+    );
+    final contents = [
+      for (var r = 0; r < report.rows.length; r++)
+        [
+          for (var c = 0; c < values[r].length; c++)
+            if (c == report.columns.length)
+              absenceText(
+                presentation.absences(report.rows[r]),
+                holiday: report.rows[r].calendar.publicHolidayName == null
+                    ? null
+                    : presentation.holiday(
+                        report.rows[r].calendar.publicHolidayName!,
+                      ),
+              )
+            else if (report.request.layout == ReportLayout.physicians &&
+                report
+                    .rows[r]
+                    .cells[report.columns[c].id]!
+                    .absencesByPhysician
+                    .isNotEmpty)
+              absenceText(
+                presentation.cellAbsences(
+                  report.rows[r].cells[report.columns[c].id]!,
+                ),
+              )
+            else
+              TextSpan(text: values[r][c]),
+        ],
+    ];
+    double height(List<InlineSpan> texts) {
       var result = 48.0;
       for (var i = 0; i < texts.length; i++) {
         final painter = TextPainter(
-          text: TextSpan(text: texts[i], style: style),
+          text: TextSpan(children: [texts[i]], style: style),
           textDirection: Directionality.of(context),
           textScaler: MediaQuery.textScalerOf(context),
         )..layout(maxWidth: widths[i] - 20);
@@ -63,8 +119,10 @@ class _ReportTableState extends State<ReportTable> {
       return result;
     }
 
-    final heights = values.map(height).toList();
-    final headerHeight = height(labels);
+    final heights = contents.map(height).toList();
+    final headerHeight = height([
+      for (final label in labels) TextSpan(text: label),
+    ]);
     Widget cell(
       String text,
       double width,
@@ -73,6 +131,7 @@ class _ReportTableState extends State<ReportTable> {
       bool heading = false,
       String? tooltip,
       Color? roleColor,
+      InlineSpan? content,
     }) => Container(
       key: key,
       width: width,
@@ -92,7 +151,9 @@ class _ReportTableState extends State<ReportTable> {
       ),
       child: Tooltip(
         message: tooltip ?? text,
-        child: Text(text, style: style),
+        child: content == null
+            ? Text(text, style: style)
+            : Text.rich(content, style: style),
       ),
     );
     return Column(
@@ -179,6 +240,7 @@ class _ReportTableState extends State<ReportTable> {
                                         widths[c],
                                         heights[r],
                                         key: ValueKey('report-cell-$r-$c'),
+                                        content: contents[r][c],
                                         tooltip: c < report.columns.length
                                             ? report
                                                   .rows[r]

@@ -61,7 +61,9 @@ void main() {
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
       expect(
-        find.text('Month validation failed. Reload to retry.'),
+        find.text(
+          'Preview could not be calculated. Reload the roster and retry.',
+        ),
         findsOneWidget,
       );
       await selectDates(tester, 1, 3);
@@ -97,11 +99,7 @@ void main() {
       await chooseDoctor(tester, 'ana');
       expect(requests.last.targets, hasLength(31));
       expect(requests.last.targets.last.date, HospitalDate(2026, 10, 31));
-      expect(selected(tester), {
-        DateTime.utc(2026, 10, 1),
-        DateTime.utc(2026, 10, 2),
-        DateTime.utc(2026, 10, 3),
-      });
+      expect(selected(tester), isEmpty);
     },
   );
 
@@ -116,6 +114,7 @@ void main() {
         );
         await chooseRole(tester, leader);
         await chooseDoctor(tester, 'ana');
+        await selectDates(tester, 1);
         expect(
           (tester.widget<AnimatedContainer>(cell(1)).decoration
                   as BoxDecoration)
@@ -135,13 +134,13 @@ void main() {
           2,
         );
         await selectDates(tester, 1);
-        expect(selected(tester), hasLength(3));
+        expect(selected(tester), {DateTime.utc(2026, 10, 1)});
         expect(tester.takeException(), isNull);
       },
     );
   }
 
-  testWidgets('warning-valid dates are highlighted and initially selected', (
+  testWidgets('warning-valid dates are highlighted without preselection', (
     tester,
   ) async {
     await showDashboard(
@@ -150,15 +149,12 @@ void main() {
     );
     await chooseRole(tester, leader);
     await chooseDoctor(tester, 'ana');
-    expect(selected(tester), hasLength(3));
+    expect(selected(tester), isEmpty);
     expect(
       find.descendant(of: cell(1), matching: find.byIcon(Icons.warning_amber)),
       findsOneWidget,
     );
-    expect(
-      find.text('3 assignable | 3 selected | 0 blocked | 3 warning-only'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('assignable |'), findsNothing);
   });
 
   testWidgets(
@@ -184,7 +180,7 @@ void main() {
       );
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
-      expect(selected(tester), {DateTime.utc(2026, 10, 2)});
+      expect(selected(tester), isEmpty);
       expect(
         find.descendant(of: cell(1), matching: find.byIcon(Icons.block)),
         findsOneWidget,
@@ -226,31 +222,31 @@ void main() {
   );
 
   testWidgets(
-    'physician and role changes reset preselection; month changes recompute',
+    'physician and role changes preserve chosen dates; month changes do not preselect',
     (tester) async {
       final reader = HighlightReader(previewFixture());
       await showDashboard(tester, reader);
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
       await selectDates(tester, 1);
-      expect(selected(tester), hasLength(2));
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await chooseDoctor(tester, 'ana');
-      expect(selected(tester), hasLength(2));
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await chooseDoctor(tester, 'ben');
-      expect(selected(tester), isEmpty);
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await chooseDoctor(tester, 'ana');
-      expect(selected(tester), hasLength(3));
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await chooseRole(tester, ambulance);
-      expect(selected(tester), {DateTime.utc(2026, 10, 2)});
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await chooseRole(tester, leader);
-      expect(selected(tester), hasLength(3));
+      expect(selected(tester), {DateTime.utc(2026, 10, 1)});
       await tester.tap(find.byKey(const ValueKey('month-selector')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('2026-09').last);
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
-      expect(selected(tester), {DateTime.utc(2026, 9, 1)});
+      expect(selected(tester), isEmpty);
       expect(reader.reads, 2);
     },
   );
@@ -264,6 +260,7 @@ void main() {
         PreviewReader(previewFixture(contentVersion: 1)),
         mutations: mutations,
       );
+      await selectDates(tester, 1, 3);
       await chooseRole(tester, leader);
       await chooseDoctor(tester, 'ana');
       await selectDates(tester, 2);
@@ -298,7 +295,7 @@ void main() {
           onPhysician: (_) {},
           onCancel: () {},
           serviceFactory: factory,
-          onAssignability: (validity, _) => published.add(validity),
+          onAssignability: published.add,
         ),
       ),
     );

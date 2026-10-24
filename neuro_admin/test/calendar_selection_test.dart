@@ -12,7 +12,7 @@ Finder cell(int day) => find.byKey(ValueKey(date(day)));
 
 void main() {
   test(
-    'single selection replaces dates and normalizes wall-calendar components',
+    'single clicks toggle dates and normalizes wall-calendar components',
     () {
       final selection = CalendarSelection();
       selection.beginDrag(DateTime(2026, 10, 2, 23, 45));
@@ -30,7 +30,9 @@ void main() {
       expect(selection.isDragging, isFalse);
       expect(selection.dates, hasLength(2));
       selection.select(date(5));
-      expect(selection.dates, {date(5)});
+      expect(selection.dates, {date(1), date(2), date(5)});
+      selection.select(date(2));
+      expect(selection.dates, {date(1), date(5)});
       selection.clear();
       expect(selection.dates, isEmpty);
       expect(selection.lastVisited, isNull);
@@ -94,13 +96,13 @@ void main() {
       expect(selection.dates, hasLength(4));
       await mouse.down(tester.getCenter(cell(1)));
       await tester.pump();
-      expect(selection.dates, {date(1)});
+      expect(selection.dates, {date(2), date(8), date(9)});
       await mouse.moveTo(Offset(tester.getCenter(cell(1)).dx, -20));
       await mouse.up();
       await tester.pump();
       expect(selection.isDragging, isFalse);
       await mouse.moveTo(tester.getCenter(cell(3)));
-      expect(selection.dates, {date(1)});
+      expect(selection.dates, {date(2), date(8), date(9)});
       await mouse.down(tester.getCenter(cell(3)));
       await mouse.cancel();
       await tester.pump();
@@ -157,7 +159,7 @@ void main() {
         find.text('No generated roster day for 2026-10-04.'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Ada Test (inactive)'));
+      await tester.tap(find.text('Ada Test'));
       await tester.pumpAndSettle();
       expect(find.text('0 station-role days'), findsOneWidget);
       expect(find.text('1 other-role days'), findsOneWidget);

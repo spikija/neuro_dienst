@@ -282,7 +282,7 @@ class _CalendarDayGridState extends State<CalendarDayGrid> {
           key: ValueKey(date),
           button: true,
           enabled: true,
-          hint: widget.selection.canSelect(date)
+          hint: selected || widget.selection.canSelect(date)
               ? null
               : "Bulk selection unavailable",
           selected: selected,

@@ -70,7 +70,7 @@ class MonthReportScreen extends StatelessWidget {
       body: ColoredBox(
         color: Colors.grey.shade300,
         child: Center(
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(12),
             child: _A4PortraitPage(
               child: _ReportContent(
@@ -96,7 +96,11 @@ class _A4PortraitPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 1120,
-      height: 1584,
+      height:
+          MediaQuery.sizeOf(context).height -
+          MediaQuery.paddingOf(context).vertical -
+          kToolbarHeight -
+          24,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -116,25 +120,55 @@ class _A4PortraitPage extends StatelessWidget {
 
 /// Both halves share the same row heights and vertical scroll view, so dates
 /// remain aligned while only the assignment columns scroll horizontally.
-class _FrozenReportTable extends StatelessWidget {
+class _FrozenReportTable extends StatefulWidget {
   final Map<int, TableColumnWidth> columnWidths;
   final List<TableRow> rows;
 
   const _FrozenReportTable({required this.columnWidths, required this.rows});
 
   @override
+  State<_FrozenReportTable> createState() => _FrozenReportTableState();
+}
+
+class _FrozenReportTableState extends State<_FrozenReportTable> {
+  final _body = ScrollController();
+  final _header = ScrollController();
+  bool _syncing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _body.addListener(() => _sync(_body, _header));
+    _header.addListener(() => _sync(_header, _body));
+  }
+
+  void _sync(ScrollController from, ScrollController to) {
+    if (_syncing || !from.hasClients || !to.hasClients) return;
+    _syncing = true;
+    to.jumpTo(from.offset.clamp(0, to.position.maxScrollExtent));
+    _syncing = false;
+  }
+
+  @override
+  void dispose() {
+    _body.dispose();
+    _header.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    Table table({required bool frozen}) {
+    Table table({required bool frozen, required bool heading}) {
       return Table(
         columnWidths: {
-          for (final entry in columnWidths.entries)
+          for (final entry in widget.columnWidths.entries)
             if (frozen ? entry.key < 2 : entry.key >= 2)
               (frozen ? entry.key : entry.key - 2): entry.value,
         },
         border: TableBorder.all(color: Colors.grey.shade600, width: 0.6),
         defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
-          for (final row in rows)
+          for (final row in heading ? widget.rows.take(1) : widget.rows.skip(1))
             TableRow(
               decoration: row.decoration,
               children: frozen
@@ -149,18 +183,37 @@ class _FrozenReportTable extends StatelessWidget {
       builder: (context, constraints) {
         const frozenWidth = 86.0;
         final tableWidth = constraints.maxWidth.clamp(1056.0, double.infinity);
-        return Row(
+        Widget section(bool heading) => Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: frozenWidth, child: table(frozen: true)),
+            SizedBox(
+              width: frozenWidth,
+              child: table(frozen: true, heading: heading),
+            ),
             Expanded(
               child: SingleChildScrollView(
-                key: const ValueKey('report-assignment-scroll'),
+                key: ValueKey(
+                  heading
+                      ? 'report-heading-scroll'
+                      : 'report-assignment-scroll',
+                ),
+                controller: heading ? _header : _body,
                 scrollDirection: Axis.horizontal,
                 child: SizedBox(
                   width: tableWidth - frozenWidth,
-                  child: table(frozen: false),
+                  child: table(frozen: false, heading: heading),
                 ),
+              ),
+            ),
+          ],
+        );
+        return Column(
+          children: [
+            section(true),
+            Expanded(
+              child: SingleChildScrollView(
+                key: const ValueKey('report-vertical-scroll'),
+                child: section(false),
               ),
             ),
           ],
@@ -306,7 +359,7 @@ class _ReportTable extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
+            ? constraints.maxHeight.clamp(1350.0, double.infinity)
             : 1350.0;
         final headerHeight = _reportHeaderRowHeight(availableHeight);
         final rowUnitHeight = _reportBodyRowUnitHeight(
@@ -591,7 +644,7 @@ class _PhysicianReportTable extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final availableHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight
+            ? constraints.maxHeight.clamp(1350.0, double.infinity)
             : 1350.0;
         final headerHeight = _reportHeaderRowHeight(availableHeight);
         final rowUnitHeight = _reportBodyRowUnitHeight(

@@ -37,10 +37,15 @@ void main() {
         HospitalDate(2026, 10, 2),
         HospitalDate(2026, 10, 4),
       })!;
-      expect(selected.results, hasLength(1));
+      expect(selected.results, hasLength(3));
+      expect(selected.blockedCount, 2);
+      expect(selected.allValid, isFalse);
       expect(selected.warningCount, 1);
       expect(selected.authority, ValidationAuthority.advisory);
-      expect(validity.selectedPreview({HospitalDate(2026, 10, 2)}), isNull);
+      expect(
+        validity.selectedPreview({HospitalDate(2026, 10, 2)})!.allValid,
+        isFalse,
+      );
       expect(validity.selectedPreview({}), isNull);
     },
   );
@@ -60,6 +65,16 @@ void main() {
         HospitalDate(2026, 10, 3),
       ]);
       expect(validity.assignableDates, hasLength(3));
+      final unchecked = validity.selectedPreview({
+        HospitalDate(2026, 10, 1),
+        HospitalDate(2026, 10, 4),
+      })!;
+      expect(unchecked.results, hasLength(2));
+      expect(unchecked.allValid, isFalse);
+      expect(
+        unchecked.results.last.errors.single.code,
+        AssignmentErrorCode.validationUnavailable,
+      );
     },
   );
 

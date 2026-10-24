@@ -12,6 +12,48 @@ const englishLabels = <String, String>{
   'canSupervise': 'Supervision',
 };
 const german = <String, String>{
+  '{count} more day markers': '{count} weitere Tagesmarkierungen',
+  'Only this entry and date are removed. Other absences, dates and duties are retained.':
+      'Nur dieser Eintrag an diesem Datum wird entfernt. Andere Abwesenheiten, Tage und Dienste bleiben erhalten.',
+  'Post-duty markers are separate entries and can be removed on their own dates.':
+      'Postdienst-Tage sind eigene Eintr\u00e4ge und k\u00f6nnen am jeweiligen Datum entfernt werden.',
+  'Remove {type}': '{type} entfernen',
+  'Remove {type} for {name} on {date}?':
+      '{type} von {name} am {date} entfernen?',
+  'Remove entry': 'Eintrag entfernen',
+  'Absence data changed. Reload the roster before trying again.':
+      'Abwesenheiten wurden ge\u00e4ndert. Den Dienstplan vor einem erneuten Versuch neu laden.',
+  'Absence removal requires the backend migration.':
+      'Zum Entfernen von Abwesenheiten ist die Backend-Migration erforderlich.',
+  'Absence could not be removed. Reload and try again.':
+      'Abwesenheit konnte nicht entfernt werden. Neu laden und erneut versuchen.',
+  'Removing...': 'Wird entfernt...',
+  'Reload': 'Neu laden',
+  'EF day: {names}': 'EF-Tag: {names}',
+  'Remove EF day': 'EF-Tag entfernen',
+  'Remove the EF day for {name} on {date}?':
+      'EF-Tag von {name} am {date} entfernen?',
+  'Only this date is removed. Other dates and duties are retained.':
+      'Nur dieses Datum wird entfernt. Andere Tage und Dienste bleiben erhalten.',
+  'The removal outcome is unknown. Retry the same request to check safely.':
+      'Das Ergebnis der Entfernung ist unbekannt. Dieselbe Anfrage erneut versuchen, um es sicher zu pr\u00fcfen.',
+  'EF day data changed. Reload the roster before trying again.':
+      'EF-Tage wurden ge\u00e4ndert. Den Dienstplan vor einem erneuten Versuch neu laden.',
+  'EF day removal requires the backend migration.':
+      'Zum Entfernen von EF-Tagen ist die Backend-Migration erforderlich.',
+  'EF day could not be removed. Reload and try again.':
+      'EF-Tag konnte nicht entfernt werden. Neu laden und erneut versuchen.',
+  'Select a physician for the selected days.':
+      'Einen Arzt f\u00fcr die ausgew\u00e4hlten Tage ausw\u00e4hlen.',
+  'Search physicians': '\u00c4rzte suchen',
+  'Clear search': 'Suche l\u00f6schen',
+  'Rank / qualifications': 'Dienstgrad / Qualifikationen',
+  'Slots': 'Dienste',
+  'Sort ascending': 'Aufsteigend sortieren',
+  'Sort descending': 'Absteigend sortieren',
+  'Drag to resize columns': 'Ziehen, um die Spaltenbreite zu \u00e4ndern',
+  'Assignments in selected month (confirmed and provisional)':
+      'Zuweisungen im ausgew\u00e4hlten Monat (best\u00e4tigt und vorl\u00e4ufig)',
   'Select all': 'Alle ausw\u00e4hlen',
   'Previous month': 'Vorheriger Monat',
   'Next month': 'N\u00e4chster Monat',

@@ -89,6 +89,7 @@ final class ReportDocument {
   final List<ReportRow> rows;
   final List<String> parityWarnings;
   final Map<String, String> physicianLabels;
+  final Map<String, String> physicianSurnames;
   ReportDocument({
     required this.request,
     required this.phase,
@@ -98,13 +99,15 @@ final class ReportDocument {
     Iterable<ReportColumn>? availableRoleColumns,
     Iterable<String> parityWarnings = const [],
     Map<String, String> physicianLabels = const {},
+    Map<String, String> physicianSurnames = const {},
   }) : availableRoleColumns = List.unmodifiable(
          availableRoleColumns ?? columns,
        ),
        columns = List.unmodifiable(columns),
        rows = List.unmodifiable(rows),
        parityWarnings = List.unmodifiable(parityWarnings),
-       physicianLabels = Map.unmodifiable(physicianLabels);
+       physicianLabels = Map.unmodifiable(physicianLabels),
+       physicianSurnames = Map.unmodifiable(physicianSurnames);
 }
 
 /// Adapters load a version-checked snapshot including historical physicians,
@@ -197,6 +200,7 @@ class FactualReportProjection implements ReportProjectionService {
     };
     return ReportDocument(
       physicianLabels: {for (final d in snapshot.doctors) d.id: d.fullName},
+      physicianSurnames: {for (final d in snapshot.doctors) d.id: d.lastName},
       request: request,
       phase: snapshot.month.phase,
       configuration: configuration,

@@ -45,13 +45,20 @@ void main() {
           .renderObjectList<RenderBox>(find.byType(Table))
           .toList();
       expect(tables[0].size.height, closeTo(tables[1].size.height, 0.01));
-      // Vertical movement scrolls both halves together.
+      expect(tables[2].size.height, closeTo(tables[3].size.height, 0.01));
+      final heading = find.byKey(const ValueKey('report-heading-scroll'));
+      final headingBefore = tester.getTopLeft(heading);
+      final headingScroll = tester.widget<SingleChildScrollView>(heading);
+      final bodyScroll = tester.widget<SingleChildScrollView>(scroll);
+      expect(headingScroll.controller!.offset, bodyScroll.controller!.offset);
+      // Vertical movement scrolls both body halves beneath the fixed headings.
       final oldDateY = tester.getTopLeft(find.text('15.6.')).dy;
       final oldTableY = tester.getTopLeft(contentTable).dy;
       await tester.dragFrom(const Offset(75, 650), const Offset(0, -250));
       await tester.pumpAndSettle();
       final dateDelta = tester.getTopLeft(find.text('15.6.')).dy - oldDateY;
       expect(dateDelta, lessThan(0));
+      expect(tester.getTopLeft(heading), headingBefore);
       expect(
         tester.getTopLeft(contentTable).dy - oldTableY,
         closeTo(dateDelta, 0.01),

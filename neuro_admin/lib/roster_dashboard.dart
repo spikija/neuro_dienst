@@ -10,15 +10,20 @@ import 'localization.dart';
 
 import 'assignment_candidate_panel.dart';
 import 'calendar_day_grid.dart';
+import 'calendar_day_markers.dart';
 import 'calendar_selection.dart';
 import 'calendar_theme.dart';
 import 'role_indicators.dart';
+import 'physician_table.dart';
+import 'resizable_workspace.dart';
+import 'absence_removal_dialog.dart';
 
 class RosterDashboard extends StatefulWidget {
   final AssignmentMutationService? mutations;
   final RosterReader reader;
   final RosterGenerationService? generation;
   final AssignmentRemovalService? removals;
+  final AbsenceDayRemovalService? absenceRemovals;
   final ReportingService? reporting;
   final DirectoryAdministrationService? administration;
   final Future<void> Function() onSignOut;
@@ -32,6 +37,7 @@ class RosterDashboard extends StatefulWidget {
     this.mutations,
     this.generation,
     this.removals,
+    this.absenceRemovals,
     this.reporting,
     this.administration,
   });
@@ -48,7 +54,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
   final WorkloadReadService _workloads = const RecordedWorkloadService();
   DateTime? _focusedDate;
   final _calendarFocus = FocusNode(debugLabel: 'Roster calendar');
-  bool _preserveSelectionOnValidation = false;
   Set<DateTime> get _currentSelectedDates => _selection.dates
       .where((d) => d.year == _selected?.year && d.month == _selected?.month)
       .toSet();
@@ -72,17 +77,14 @@ class _RosterDashboardState extends State<RosterDashboard> {
   String? _doctorId;
   String? _roleId;
   MonthAssignability? _assignability;
-  bool _validityFailed = false;
   bool get _assignmentMode =>
       !_removalMode && _roleId != null && _doctorId != null;
 
-  void _resetAssignability({bool preserveSelection = false}) {
-    _preserveSelectionOnValidation = preserveSelection;
+  void _resetAssignability() {
     _assignability = null;
-    _validityFailed = false;
     _selection.restrictTo(
       _assignmentMode ? <DateTime>[] : null,
-      preserveSelection: preserveSelection,
+      preserveSelection: true,
     );
   }
 
@@ -181,14 +183,20 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 : data == null
                 ? null
                 : DateTime.utc(data.month.year, data.month.month));
-        if (data == null || !data.doctors.any((d) => d.id == _doctorId)) {
+        if (data == null ||
+            !data.doctors.any(
+              (d) =>
+                  d.id == _doctorId &&
+                  !data.inactiveDoctorIds.contains(d.id) &&
+                  !data.unknownActivityDoctorIds.contains(d.id),
+            )) {
           _doctorId = null;
         }
         if (data == null || !previewRoles(data).any((r) => r.id == _roleId)) {
           _roleId = null;
         }
         _loading = false;
-        _resetAssignability(preserveSelection: preserveSelection);
+        _resetAssignability();
       });
     } catch (error) {
       if (!mounted || request != _request) return;
@@ -575,116 +583,86 @@ class _RosterDashboardState extends State<RosterDashboard> {
                             child: SizedBox(
                               width: width,
                               height: constraints.maxHeight,
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    flex: 10,
-                                    child: _calendar(snapshot),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    flex: 5,
-                                    child: _dailyRoster(snapshot),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    flex: 5,
-                                    child: _roleId != null && !_removalMode
-                                        ? AssignmentCandidatePanel(
-                                            key: ValueKey(
-                                              'assignment-preview-$_snapshotRevision',
+                              child: ResizableWorkspace(
+                                calendar: _calendar(snapshot),
+                                dailyRoster: _dailyRoster(snapshot),
+                                physicians: _roleId != null && !_removalMode
+                                    ? AssignmentCandidatePanel(
+                                        key: ValueKey(
+                                          'assignment-preview-$_snapshotRevision',
+                                        ),
+                                        snapshot: snapshot,
+                                        role: previewRoles(snapshot).firstWhere(
+                                          (role) => role.id == _roleId,
+                                        ),
+                                        dates: _currentSelectedDates
+                                            .map(
+                                              HospitalDate
+                                                  .fromCalendarComponents,
+                                            )
+                                            .toSet(),
+                                        physicianId: _doctorId,
+                                        onPhysician: _choosePhysician,
+                                        onValidationFailed: () {
+                                          if (mounted &&
+                                              identical(_snapshot, snapshot)) {
+                                            setState(
+                                              () => _assignability = null,
+                                            );
+                                          }
+                                        },
+                                        onCancel: () => _chooseRole(null),
+                                        onAssignability: (validity) {
+                                          if (!mounted ||
+                                              !identical(_snapshot, snapshot) ||
+                                              validity.preview.request.roleId !=
+                                                  _roleId ||
+                                              validity
+                                                      .preview
+                                                      .request
+                                                      .physicianId !=
+                                                  _doctorId) {
+                                            return;
+                                          }
+                                          setState(() {
+                                            _assignability = validity;
+                                            _selection.restrictTo(
+                                              validity.assignableDates.map(
+                                                (d) => d.asDateOnlyUtc,
+                                              ),
+                                              preserveSelection: true,
+                                            );
+                                          });
+                                        },
+                                        serviceFactory:
+                                            widget.previewServiceFactory,
+                                        mutations: widget.mutations,
+                                        onBusyChanged: (busy) {
+                                          if (mounted) {
+                                            setState(() => _applying = busy);
+                                          }
+                                        },
+                                        onReload: (stale) async {
+                                          await _refresh();
+                                          if (!mounted) return;
+                                          ScaffoldMessenger.of(
+                                            this.context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: AdminText(
+                                                _error != null
+                                                    ? (stale
+                                                          ? 'Roster changed; reload failed. Retry loading before previewing.'
+                                                          : 'Assignments saved, but reload failed. Retry loading to refresh workload.')
+                                                    : stale
+                                                    ? 'Roster changed. Data reloaded; review the updated preview.'
+                                                    : 'Assignments saved. Roster and workload refreshed.',
+                                              ),
                                             ),
-                                            snapshot: snapshot,
-                                            role: previewRoles(snapshot)
-                                                .firstWhere(
-                                                  (role) => role.id == _roleId,
-                                                ),
-                                            dates: _currentSelectedDates
-                                                .map(
-                                                  HospitalDate
-                                                      .fromCalendarComponents,
-                                                )
-                                                .toSet(),
-                                            physicianId: _doctorId,
-                                            onPhysician: _choosePhysician,
-                                            onValidationFailed: () {
-                                              if (mounted &&
-                                                  identical(
-                                                    _snapshot,
-                                                    snapshot,
-                                                  )) {
-                                                setState(
-                                                  () => _validityFailed = true,
-                                                );
-                                              }
-                                            },
-                                            onCancel: () => _chooseRole(null),
-                                            onAssignability: (validity, preselect) {
-                                              if (!mounted ||
-                                                  !identical(
-                                                    _snapshot,
-                                                    snapshot,
-                                                  ) ||
-                                                  validity
-                                                          .preview
-                                                          .request
-                                                          .roleId !=
-                                                      _roleId ||
-                                                  validity
-                                                          .preview
-                                                          .request
-                                                          .physicianId !=
-                                                      _doctorId) {
-                                                return;
-                                              }
-                                              setState(() {
-                                                _assignability = validity;
-                                                _selection.restrictTo(
-                                                  validity.assignableDates.map(
-                                                    (d) => d.asDateOnlyUtc,
-                                                  ),
-                                                  preselect:
-                                                      preselect &&
-                                                      !_preserveSelectionOnValidation,
-                                                  preserveSelection:
-                                                      _preserveSelectionOnValidation,
-                                                );
-                                              });
-                                            },
-                                            serviceFactory:
-                                                widget.previewServiceFactory,
-                                            mutations: widget.mutations,
-                                            onBusyChanged: (busy) {
-                                              if (mounted) {
-                                                setState(
-                                                  () => _applying = busy,
-                                                );
-                                              }
-                                            },
-                                            onReload: (stale) async {
-                                              await _refresh();
-                                              if (!mounted) return;
-                                              ScaffoldMessenger.of(
-                                                this.context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: AdminText(
-                                                    _error != null
-                                                        ? (stale
-                                                              ? 'Roster changed; reload failed. Retry loading before previewing.'
-                                                              : 'Assignments saved, but reload failed. Retry loading to refresh workload.')
-                                                        : stale
-                                                        ? 'Roster changed. Data reloaded; review the updated preview.'
-                                                        : 'Assignments saved. Roster and workload refreshed.',
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          )
-                                        : _workload(snapshot),
-                                  ),
-                                ],
+                                          );
+                                        },
+                                      )
+                                    : _workload(snapshot),
                               ),
                             ),
                           );
@@ -719,29 +697,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_assignmentMode)
-                    AdminText(
-                      _assignability == null
-                          ? _validityFailed
-                                ? 'Month validation failed. Reload to retry.'
-                                : 'Checking month assignability...'
-                          : AdminStrings.of(context).text(
-                              '{available} assignable | {selected} selected | {blocked} blocked | {warnings} warning-only',
-                              {
-                                'available':
-                                    _assignability!.assignableDates.length,
-                                'selected': _currentSelectedDates.length,
-                                'blocked': _assignability!.blockedDates.length,
-                                'warnings': _assignability!.warningDates.length,
-                              },
-                            ),
-                    ),
-                  if (_selection.dates.length > _currentSelectedDates.length)
-                    const AdminText(
-                      'Selections in other months are retained; actions affect this month only.',
-                    ),
-                  if (snapshot.month.id.startsWith('calendar-'))
-                    const AdminText('No roster generated for this month.'),
                   Wrap(
                     spacing: 6,
                     runSpacing: 4,
@@ -773,6 +728,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
                         ),
                     ],
                   ),
+                  if (_selection.dates.length > _currentSelectedDates.length)
+                    const AdminText(
+                      'Selections in other months are retained; actions affect this month only.',
+                    ),
+                  if (snapshot.month.id.startsWith('calendar-'))
+                    const AdminText('No roster generated for this month.'),
                   if (roster.phase == RosterPhase.published)
                     const AdminText(
                       'Published roster requires a new revision before editing.',
@@ -851,9 +812,60 @@ class _RosterDashboardState extends State<RosterDashboard> {
     );
   }
 
+  Future<void> _removeAbsenceDay(
+    Doctor doctor,
+    AvailabilityType type,
+    DateTime date,
+  ) async {
+    final snapshot = _snapshot;
+    final service = widget.absenceRemovals;
+    if (_applying ||
+        _loading ||
+        service == null ||
+        snapshot?.contentVersion == null) {
+      return;
+    }
+    final request = AbsenceDayRemovalRequest(
+      roster: RosterVersion(snapshot!.month.id, snapshot.contentVersion!),
+      physicianId: doctor.id,
+      type: type,
+      date: HospitalDate.fromCalendarComponents(date),
+      operation: AdminWriteIntent.create(),
+    );
+    setState(() => _applying = true);
+    try {
+      final reload = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AbsenceRemovalDialog(
+          service: service,
+          request: request,
+          physicianName: doctor.fullName,
+        ),
+      );
+      if (reload == true && mounted) {
+        await _refresh(preserveSelection: true);
+      }
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
+  }
+
   Widget _dailyRoster(RosterSnapshot snapshot) {
     final days = {for (final day in snapshot.days) calendarDate(day.date): day};
     final selectedDay = days[_focusedDate];
+    final markerDate = _focusedDate;
+    final markers = [
+      if (markerDate != null)
+        for (final doctor in snapshot.doctors)
+          for (final period in {
+            for (final period in doctor.availabilities.where(
+              (p) => p.includes(markerDate),
+            ))
+              period.type: period,
+          }.values)
+            (doctor: doctor, period: period),
+    ];
     final roles = calendarRoles(snapshot);
     return Card.outlined(
       child: Padding(
@@ -911,6 +923,43 @@ class _RosterDashboardState extends State<RosterDashboard> {
                     )
                   : const SizedBox.shrink(),
             ),
+            if (markers.isNotEmpty) ...[
+              const Divider(),
+              const AdminText('Absences / day markers'),
+              for (final marker in markers)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${marker.doctor.fullName}: ${AdminStrings.of(context).text(marker.period.label)}',
+                      ),
+                    ),
+                    IconButton(
+                      key: ValueKey(
+                        'remove-absence-${marker.doctor.id}-${marker.period.type.name}',
+                      ),
+                      tooltip: AdminStrings.of(context).text('Remove {type}', {
+                        'type': AdminStrings.of(
+                          context,
+                        ).text(marker.period.label),
+                      }),
+                      icon: const Icon(Icons.event_busy, size: 20),
+                      onPressed:
+                          widget.absenceRemovals == null ||
+                              snapshot.contentVersion == null ||
+                              _applying ||
+                              _loading
+                          ? null
+                          : () => _removeAbsenceDay(
+                              marker.doctor,
+                              marker.period.type,
+                              markerDate!,
+                            ),
+                    ),
+                  ],
+                ),
+              const Divider(),
+            ],
             for (final group in RoleGroup.values)
               if (roles.any((role) => role.group == group)) ...[
                 Padding(
@@ -927,17 +976,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
                 for (final role in roles.where((role) => role.group == group))
                   _dailyRole(role, selectedDay),
               ],
-            if (selectedDay != null) ...[
-              const Divider(),
-              const AdminText('Absences / day markers'),
-              for (final doctor in snapshot.doctors)
-                for (final period in doctor.availabilities.where(
-                  (p) => p.includes(selectedDay.date),
-                ))
-                  AdminText(
-                    '${doctor.fullName}: ${AdminStrings.of(context).text(period.label)}',
-                  ),
-            ],
           ],
         ),
       ),
@@ -958,6 +996,11 @@ class _RosterDashboardState extends State<RosterDashboard> {
     final valid = _assignability?.assignableDates.contains(key) ?? false;
     final warning = _assignability?.warningDates.contains(key) ?? false;
     final blocked = _assignability?.blockedDates.contains(key) ?? false;
+    final dayMarkers = calendarDayMarkers(
+      _snapshot!.doctors,
+      date,
+      physicianId: _doctorId,
+    );
     final result = _assignability?.preview.results
         .where((r) => r.date == key)
         .firstOrNull;
@@ -985,6 +1028,9 @@ class _RosterDashboardState extends State<RosterDashboard> {
         AdminStrings.of(context).text(status),
         if (holiday != null)
           localizedHoliday(holiday, AdminStrings.of(context)),
+        ...dayMarkers.map(
+          (marker) => marker.description(AdminStrings.of(context)),
+        ),
         if (selected) AdminStrings.of(context).text('Selected'),
         if (today) AdminStrings.of(context).text('Today'),
         ...?result?.errors.map(
@@ -1024,97 +1070,116 @@ class _RosterDashboardState extends State<RosterDashboard> {
                   : 1,
             ),
           ),
-          child: Row(
+          child: Column(
             children: [
-              SizedBox(
-                width: roles.any((role) => role.group == RoleGroup.stationary)
-                    ? 44
-                    : 28,
-                child: CalendarRoleIndicators(roles: roles, day: day),
-              ),
               Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Container(
-                          key: today ? ValueKey('calendar-today-$key') : null,
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: today
-                              ? BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: scheme.primary,
-                                      width: 2,
-                                    ),
-                                  ),
-                                )
-                              : null,
-                          child: AdminText(
-                            '${date.day}',
-                            key: ValueKey('calendar-day-number-$key'),
-                            style: TextStyle(
-                              fontSize: 17,
-                              fontWeight: selected
-                                  ? FontWeight.bold
-                                  : FontWeight.w600,
-                              color: scheme.onSurface,
-                            ),
-                          ),
-                        ),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: AdminText(
-                          day == null
-                              ? 'No roster day'
-                              : AdminStrings.of(context).text(
-                                  '{count} duties',
-                                  {'count': assignments},
-                                ),
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width:
+                          roles.any(
+                            (role) => role.group == RoleGroup.stationary,
+                          )
+                          ? 44
+                          : 28,
+                      child: CalendarRoleIndicators(roles: roles, day: day),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (holiday != null)
-                              Icon(
-                                Icons.celebration_outlined,
-                                size: 12,
-                                color: scheme.tertiary,
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Container(
+                                key: today
+                                    ? ValueKey('calendar-today-$key')
+                                    : null,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                ),
+                                decoration: today
+                                    ? BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: scheme.primary,
+                                            width: 2,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
+                                child: AdminText(
+                                  '${date.day}',
+                                  key: ValueKey('calendar-day-number-$key'),
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: selected
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                    color: scheme.onSurface,
+                                  ),
+                                ),
                               ),
-                            if (selected)
-                              Icon(
-                                Icons.check,
-                                size: 12,
-                                color: colors.assignable,
+                            ),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: AdminText(
+                                day == null
+                                    ? 'No roster day'
+                                    : AdminStrings.of(context).text(
+                                        '{count} duties',
+                                        {'count': assignments},
+                                      ),
+                                style: const TextStyle(fontSize: 10),
                               ),
-                            if (warning)
-                              Icon(
-                                Icons.warning_amber,
-                                size: 12,
-                                color: colors.warning,
+                            ),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (holiday != null)
+                                    Icon(
+                                      Icons.celebration_outlined,
+                                      size: 12,
+                                      color: scheme.tertiary,
+                                    ),
+                                  if (selected)
+                                    Icon(
+                                      Icons.check,
+                                      size: 12,
+                                      color: colors.assignable,
+                                    ),
+                                  if (warning)
+                                    Icon(
+                                      Icons.warning_amber,
+                                      size: 12,
+                                      color: colors.warning,
+                                    ),
+                                  if (blocked)
+                                    Icon(
+                                      Icons.block,
+                                      size: 12,
+                                      color: scheme.error,
+                                    ),
+                                  if (occupants.isNotEmpty)
+                                    Icon(
+                                      Icons.person_outline,
+                                      size: 12,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                ],
                               ),
-                            if (blocked)
-                              Icon(Icons.block, size: 12, color: scheme.error),
-                            if (occupants.isNotEmpty)
-                              Icon(
-                                Icons.person_outline,
-                                size: 12,
-                                color: scheme.onSurfaceVariant,
-                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
+              if (dayMarkers.isNotEmpty)
+                CalendarDayMarkerIndicators(date: key, markers: dayMarkers),
             ],
           ),
         ),
@@ -1285,13 +1350,12 @@ class _RosterDashboardState extends State<RosterDashboard> {
             ),
           const Divider(),
           Expanded(
-            child: ListView(
-              children: [
-                if (snapshot.doctors.isEmpty)
-                  const AdminText('No physicians available.'),
-                for (final doctor in snapshot.doctors)
-                  _doctorTile(snapshot, doctor),
-              ],
+            child: PhysicianTable(
+              snapshot: snapshot,
+              doctors: snapshot.doctors,
+              selectedId: _doctorId,
+              onSelected: _choosePhysician,
+              detailsBuilder: (doctor) => _doctorTile(snapshot, doctor),
             ),
           ),
         ],
@@ -1318,22 +1382,6 @@ class _RosterDashboardState extends State<RosterDashboard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          selected: selected,
-          title: AdminText(
-            snapshot.inactiveDoctorIds.contains(doctor.id)
-                ? AdminStrings.of(
-                    context,
-                  ).text('{name} (inactive)', {'name': doctor.fullName})
-                : doctor.fullName,
-          ),
-          subtitle: AdminText(
-            '{p0} assignments / {p1} days',
-            args: {'p0': current.assignments, 'p1': current.assignedDays},
-          ),
-          onTap: () => _choosePhysician(doctor.id),
-        ),
         if (selected) ...[
           AdminText(
             'Rank: {p0}',

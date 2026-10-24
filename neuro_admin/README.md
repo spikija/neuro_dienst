@@ -22,14 +22,34 @@ See [Phase 2B preview behavior and limitations](../docs/neuro_admin_phase_2b.md)
 See [Phase 2C RPC, deployment and verification](../docs/neuro_admin_phase_2c.md).
 See [month highlighting, preselection and reporting/generation parity](../docs/neuro_admin_phase_2d.md).
 
-Select a role and physician to highlight the whole month and preselect valid
-dates. Click to deselect/reselect; drag adds only assignable days. Clear selection
-keeps validity visible. Apply confirms only the selected valid dates.
+Select dates, then a role and physician. Click individual dates to toggle them,
+or drag a range. Changing the role or physician preserves the chosen dates;
+availability highlighting never selects dates automatically. The Available
+filter checks all chosen days. Blocked targets remain visible and prevent Apply
+until removed; the server revalidates every selected date before assigning.
+Inactive physicians are hidden from both workspace lists.
+
+The month calendar shows icons for Urlaub, sick leave, conference, external
+rotation and the other recorded absence/day-marker types; EF retains its **EF**
+label. Hover an icon for the type and physician names. A selected physician
+filters the markers; without a selection they summarize all physicians. When a
+date has many marker types, **+N** exposes the remaining details on hover. All
+absences and day markers also appear near the top of the daily roster. Administrators can remove any
+type, including Urlaub, EF and sick leave: focus a date, use the removal button
+beside the physician's entry, and confirm the exact type and date. Other dates
+in a multi-day period and overlapping entries of other types are preserved.
+24-hour duty and post-duty markers can be removed separately. Removal requires
+the generic absence backend migration; see
+[deployment and verification](../docs/neuro_admin_absences.md).
 
 Selection actions are in **Selection**. To target occupied/blocked dates for
 removal, enable **Select occupied days for removal**; then choose selected-role
 or all-role unassignment and review its confirmation. Disable removal selection
 to return to assignment highlighting. **Roster** offers create/preview and safe
 draft regeneration. **Reports** opens role/physician tables.
+
+Report absence entries show the physician's stored surname and the same icons
+as the calendar (EF keeps its compact label). PDF dates come first, with weekdays
+in a separate fixed-width position so both align down the page.
 
 See [Phase 2E workspace, migration and verification](../docs/neuro_admin_phase_2e.md).

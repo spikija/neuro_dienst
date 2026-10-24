@@ -59,9 +59,6 @@ Future<void> setup(
   await selectDates(tester, 1);
   await chooseRole(tester, leader);
   await chooseDoctor(tester, 'ana');
-  // Preselection includes all three valid dates. Explicitly keep only day 1.
-  await selectDates(tester, 2);
-  await selectDates(tester, 3);
 }
 
 AssignmentMutationReceipt receipt(AssignmentCommitRequest request) =>
@@ -148,7 +145,7 @@ void main() {
             .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
             .selection
             .dates,
-        hasLength(2),
+        hasLength(1),
       );
       expect(
         find.text('Assignments saved. Roster and workload refreshed.'),
@@ -222,10 +219,10 @@ void main() {
           .widget<CalendarDayGrid>(find.byType(CalendarDayGrid))
           .selection
           .dates,
-      isEmpty,
+      {DateTime.utc(2026, 10, 1)},
     );
     expect(
-      find.text('2 assignable | 0 selected | 1 blocked | 0 warning-only'),
+      find.text('0 valid | 0 valid with warnings | 1 blocked'),
       findsOneWidget,
     );
     expect(tester.widget<FilledButton>(apply).onPressed, isNull);
@@ -271,7 +268,13 @@ void main() {
     await tester.pumpAndSettle();
     final confirm = find.widgetWithText(FilledButton, 'Confirm and apply');
     expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
-    await tester.enterText(find.byType(TextField), 'Reviewed correction');
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      ),
+      'Reviewed correction',
+    );
     await tester.pump();
     await tester.tap(confirm);
     await tester.pumpAndSettle();

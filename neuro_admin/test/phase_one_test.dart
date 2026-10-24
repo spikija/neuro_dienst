@@ -133,7 +133,7 @@ class FakeReader implements RosterReader {
       choice,
       data.days,
       data.doctors,
-      data.inactiveDoctorIds,
+      {},
       data.facts,
       data.loadedHistoryDates,
     );
@@ -332,7 +332,7 @@ void main() {
       expect(find.text('CUSTOM: Custom duty'), findsOneWidget);
       expect(find.textContaining('1.10. 22:00 - 2.10. 10:00'), findsOneWidget);
       expect(find.textContaining('Times use Europe/Vienna'), findsOneWidget);
-      await tester.tap(find.text('Ada Test (inactive)'));
+      await tester.tap(find.text('Ada Test'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Previous 90 days:'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('month-selector')));
@@ -345,13 +345,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Could not load roster data'), findsOneWidget);
       expect(
-        find.text('Ada Test (inactive)'),
+        find.text('Ada Test'),
         findsOneWidget,
       ); // Preserve snapshot on reload failure.
       reader.fail = false;
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
-      expect(find.text('Ada Test (inactive)'), findsOneWidget);
+      expect(find.text('Ada Test'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

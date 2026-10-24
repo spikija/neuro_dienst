@@ -83,13 +83,15 @@ class CalendarSelection {
 
   void select(DateTime date) {
     date = calendarDate(date);
-    if (!canSelect(date)) return;
-    if (_allowedDates == null) {
-      replace([date]);
-    } else {
-      if (!_dates.remove(date)) _dates.add(date);
+    // An existing target can always be removed, including after validation
+    // discovers that the physician is unavailable on that date.
+    if (_dates.remove(date)) {
       _lastVisited = date;
+      return;
     }
+    if (!canSelect(date)) return;
+    _dates.add(date);
+    _lastVisited = date;
   }
 
   void replace(Iterable<DateTime> dates) {
@@ -128,7 +130,7 @@ class CalendarSelection {
         column >= 7) {
       return;
     }
-    if (_allowedDates != null && !_dragMoved && (row, column) == _anchor) {
+    if (!_dragMoved && (row, column) == _anchor) {
       return;
     }
     _dragMoved = true;

@@ -105,6 +105,7 @@ class _NeuroAdminAppState extends State<NeuroAdminApp> {
               mutations: SupabaseAssignmentMutationService(client),
               generation: SupabaseWorkspaceService(client),
               removals: SupabaseWorkspaceService(client),
+              absenceRemovals: SupabaseAbsenceDayRemovalService(client),
               reporting: SupabaseReportingService(client),
               administration: SupabaseDirectoryService(client),
             )
